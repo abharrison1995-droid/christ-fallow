@@ -12,6 +12,7 @@
 
 ## Planning files
 
+- [Engineering handoff](docs/HANDOFF.md) summarizes the current `main` commit baseline, verified test suites, ordered execution queue (`Slice 2C` -> `Phase 5`), and non-negotiable invariants for resuming work.
 - [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks completed stabilization slices (`Phase 0`), simulation performance/navigation (`Phase 1`), and Phase 2 deliverables (`Slice 2A` playable opening tutorial, `Slice 2B` skinned rig action clips and Crag-Born promotion), active next work (`Slice 2C` expansion assets and `Phase 3` larger valley), and the agentic continuation protocol.
 - [Codebase refactor](docs/REFACTOR.md) records the completed 20 November 2026 architecture extraction and verification baseline (spatial indexing was delivered in [Phase 1](docs/ROADMAP.md#phase-1-simulation-performance--navigation-foundation)).
 - [Future development](docs/FUTURE.md) details the playable opening tutorial, valley expansion, full-screen map, tribal leaders and diplomacy, animal taming, farming, and mounts.

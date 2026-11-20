@@ -1,0 +1,105 @@
+# Christ Fallow — Engineering Handoff (20 November 2026)
+
+> **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously (e.g., via Codex). Read this file first alongside [AGENTS.md](../AGENTS.md) and [docs/ROADMAP.md](ROADMAP.md).
+
+---
+
+## 1. Current Repository & Environment State
+
+- **Workspace:** `<USERPROFILE>\Desktop\Christ Fallow`
+- **Engine / Tooling (Windows):**
+  - Godot 4.3 console: `<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe`
+  - Portable Blender 4.5 LTS: `<USERPROFILE>\AppData\Local\Blender\blender-4.5.16-windows-x64\blender.exe`
+  - Run from `project.godot` directly; ignore `ChristFallow.exe` and `Christ Fallow.lnk` (`2026-11-18`, stale).
+- **Git (`main`, clean working tree):**
+  - `5a2b437` — Baseline: pre-Phase 0 snapshot (`.gitignore` excludes `.godot/`, temp outputs, `__pycache__/`).
+  - `d2ff849` — **Phase 0A:** Fixed `RAZE` leader leak, third-party rival-wipe conquest softlock, wounded `being_rescued` limbo & defection defeat checks, paused/`campaign_finished` entity/rubble/cooldown leaks, `promote_to_player_leader()` ring/armor cleanup, replacement Campfire `camp_position`, shared `get_diplomatic_opinion_breakdown()`.
+  - `912f212` — **Phase 0D:** Fixed HUD/Inspector `Space`/Arrow focus hijack, `DiplomacyDrawer` opinion breakdown (`PEACEFUL_OFFERING` + state bounds) & unfunded faction-6 recovery, `--large-ui` drawer overlap, `Esc` vs open `OptionButton` popup, `BuildDrawer` discounted costs/`KRAG_UL` HP/GLB preview, `ColonyDrawer` Crafting refresh, `_raid_panel` z-order, silent `F10` pause error, mirrored Valley Radar river, Settings controls list.
+  - `f075540` — **Phase 0E:** Added `DUAL_SHEATH` back gear, GLB `Stage_Intact` blueprint & ghost holograms, PSX nearest/no-specular materials on scenery/wildlife GLBs, aligned `SkinnedTribesmanTrial` & `CragBornTrial` shaders/textures/spear snapping, cleaned up `asset_showcase.gd` & `verify_crag_born.gd`.
+  - `40e06ea` — **Phase 0B:** Fixed warrior & Watchtower defense against hostile wildlife, Stoneknapper `STONE`/`FLINT` balance, Warhorn child exclusion & militia/Crag-Born Forager parity, tech-tier stockpile consumption, AI/wildlife XZ clamping, scoped `ANCESTRAL_STONE` `-20%` discount to buildings only, swept projectile hits & vertical `look_at` guard, `FORAGER_LODGE` hunter yields, `VALK_TOR` knockback & nearest-N AoE, `fire_at_will` propagation, `preach_religion` stat recalc, Dusk-only non-stacking Campfire heal, recipe craft times, nearest-building lookup.
+  - `a4090bd` — **Phase 0C + Docs:** Reset/persisted `PlayerController` cooldowns, unit daily/buff/carry fields, faction AI timers, eliminated legacy `v1`/`v2` reload wildlife leaks, added live `KRAG_UL` building `max_hp` scaling & HP clamp, made leader succession synchronous, expanded `verify_campaign_save.gd`.
+  - `e138ad2` & `5218acd` — **Phase 1:** Added [spatial_index.gd](../scripts/core/spatial_index.gd), [valley_navigation.gd](../scripts/core/valley_navigation.gd), parameterized [world_layout.gd](../scripts/core/world_layout.gd), added 3 visual & navigable river fords, staggered AI/tower/wildlife scans, added [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) and [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) (**−56.6% to −66.1% physics median speedup** on seed `17394`).
+  - `baac676` — **Phase 2A:** Playable Opening Tutorial ([awakening_guide.gd](../scripts/core/awakening_guide.gd) `get_objective_target()`, [tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), HUD `[x]`/`[ ]` checklist & gold `Build`/`Colony` highlights, `BuildDrawer` `[RECOMMENDED]` auto-select, Valley Radar pulsing target ping, Step 4 constructed `SLEEPING_HUT`, [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd)).
+  - `d4b1261` — **Phase 2B:** Baked `Work`, `Wounded`, `Attack`, `Hit`, and `Death` skeletal clips in [generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py) & [generate_crag_born.py](../tools/assets/generate_crag_born.py), zero-swap animation & shader hit-flash in [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd) & [human_unit.gd](../scripts/entities/human_unit.gd), promoted [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) to **default-enabled** (`--procedural-roster` opt-out).
+  - `92ae7d0` — **Docs Sync:** Updated `ROADMAP.md`, `FUTURE.md`, `AGENTS.md`, `README.md`, `OVERHAUL.md`, `tools/assets/README.md`.
+
+---
+
+## 2. Verified Baseline (All Passing as of `92ae7d0`)
+
+Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, and `0` `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines using isolated temp `APPDATA` / `CHRIST_FALLOW_QA_APPDATA`:
+
+| Suite | Scope Verified |
+| :--- | :--- |
+| [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) | Steps 1–5, 3D beacon & `[E]` prompts, HUD/BuildDrawer highlights, Sleeping Hut construction, mid-tutorial save/load, once-only reward, Skip + Peace Buffer. |
+| [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | `v1`/`v2`/`v3` saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
+| [verify_campaign_ui.gd](../scripts/tools/verify_campaign_ui.gd) | `1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`: title/awakening, focus release vs `Space`, non-overlap geometry, `Esc` vs `OptionButton` popup, Diplomacy opinion breakdown & faction-6 recovery, Colony Crafting refresh, UnitInspector, pause/conquest/quit. |
+| [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) | SpatialIndex parity across spawn/move/convert/death/rubble/save-load; palisade detour & rubble reopening; river ford crossing (`38/38`). |
+| [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
+| [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) | Building 4-stage + collider contracts; `tribesman_base.glb` 17-bone rig + `Idle`/`Walk`/`Work`/`Wounded`/`Attack`/`Hit`/`Death`. |
+| [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) | Default promoted Crag-Born roster + zero-swap action/hit/death playback, `--check-default-roster`, and `--procedural-roster` opt-out. |
+| [verify_valley_assets.gd](../scripts/tools/verify_valley_assets.gd) | 4 scenery GLBs + Boar/Sabertooth GLBs, resource interaction, bite timing. |
+
+---
+
+## 3. Remaining Work (Ordered Execution Queue)
+
+Execute sequentially in small, independently verified Git commits on `main`. Update [docs/ROADMAP.md](ROADMAP.md) and [AGENTS.md](../AGENTS.md) in the same commit whenever entry points, contracts, or phase status change.
+
+### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
+Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)
+1. **Slice 2C-1 (Lineage Scale Extremes — Goliath & Swift-Kin):**
+   - Generate 17-bone skinned rigs (broad/braided/child variants with `Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Wounded`, `Attack`, `Hit`, `Death`) for **Goliath** (`assets/models/characters/lineages/goliath/`) and **Swift-Kin** (`assets/models/characters/lineages/swift_kin/`) using Blender 4.5 LTS, sharing the Crag-Born contract and gear kits.
+   - Generalize [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) (or extract a shared `SkinnedLineageRig` helper while preserving `CragBornTrial` compatibility) so supported lineages (`CRAG_BORN`, `GOLIATH`, `SWIFT_KIN`) load cleanly by lineage key with `--procedural-roster` opt-out.
+   - Verify scale extremes, gear mount fit, zero-swap combat/death, and `verify_crag_born.gd` + a new lineage check.
+2. **Slice 2C-2 (Pass 4 Buildings & Pass 5 Wildlife + Damage Review):**
+   - Promote production 4-stage GLBs (`Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble`, `Collider-convcolonly`, plus named light/flame nodes where needed) for **Reed Granary** (`STORAGE_MOUND` visual/stages GLB) and **Ridge Signal Tower** (`WATCHTOWER` stages GLB, aligning arrow origin to platform). Defer **Standing-Stone Gate** until passage/nav checks confirm clean gate traversal through `ValleyNavigation`.
+   - Promote **Reedjaw** (riverbank predator) and **Slateback Boar** (armored wildlife trial) — add golden damage regression cases in `verify_campaign_save.gd` before introducing wildlife armor mitigation per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
+   - Update `tools/assets/CATALOG.md` and `verify_valley_assets.gd`.
+
+### Track B — Phase 3: Larger `760×760 m` Valley & Full-Screen World Map
+Reference: [docs/FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map)
+1. **Slice 3A (Layout Definitions & `v4` Versioned Saves):**
+   - Finish moving remaining fixed distances (`65 m` squad charge scan, `85 m` wounded ally search, resource/blueprint search caps, `PlayerController` scans) into [world_layout.gd](../scripts/core/world_layout.gd).
+   - Add named valley layouts in `WorldLayout` (`"valley_classic_380"` and `"valley_expanded_760"`): `760×760 m` ground, `>= 170 m` camp spacing (`170–240 m` to player's nearest rival), `55–70 m` expansion radius around each camp, river geometry + ford crossings, resource clusters, caveman caves, and wildlife territories.
+   - Version layout ID in `CampaignSave` (`v4` saves store `"valley_layout_id"`; legacy `v1..v3` saves default cleanly to `"valley_classic_380"` with zero coordinate breakage!). Keep `"valley_expanded_760"` as default for New Game (or selectable on Awakening screen) once verified.
+   - Re-run `benchmark_simulation.gd` on the expanded valley to verify physics median stays healthy and `ValleyNavigation` (`190×190` cells at `4 m`) routes raids/haulers reliably across rivers.
+2. **Slice 3B (Full-Screen World Map & `M` Key Reassignment):**
+   - Build a full-screen World Map overlay (`scripts/ui/world_map_overlay.gd`, opened via `M` or clicking Valley Radar) with pan, zoom, player/camp/rival/cave/ford/objective markers, and click-to-set rally/waypoint marker.
+   - Reassign `M` from Tribal Command to World Map (keeping `Tab` for Tribal Command) and update **all** entry points together: `hud_controller.gd`, `settings_screen.gd`, `README.md`, `AGENTS.md`, and `verify_campaign_ui.gd`.
+   - Add `scripts/tools/verify_expanded_valley.gd` asserting camp spacing, reachability across fords, distant rival colony construction/raids, map-to-world coordinate parity, and `v3`/`v4` save/load layout preservation.
+
+### Track C — Phase 4: Tribal Leaders, Diplomacy & Conquest Integration
+Reference: [docs/FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy)
+1. Give every settled rival tribe a clearly readable named leader (distinct title/banner/crest at gameplay distance, strongest fighter in tribe) and show the live leader's name & location in `DiplomacyDrawer`.
+2. Add in-world diplomatic approach/negotiation with a village's leader (gifts, peace/truce, alliance) alongside `DiplomacyDrawer`.
+3. Complete the stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd#L73)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd#L265,L300-L302)) mechanics (periodic tribute delivery, truce expiry blocking war declarations until timer reaches `0`).
+4. Unify rival succession vs conquest trigger rules cleanly across combat and save/load; add `scripts/tools/verify_diplomacy_leaders.gd`.
+
+### Track D — Phase 5: Taming, Crop Farming, Husbandry & Mounts
+Reference: [docs/FUTURE.md](FUTURE.md#taming-farming-and-mounts)
+1. **Crop Farming:** Buildable farm plot (`CROP_FIELD`), farmer schedule (plant → grow → harvest → haul to storage), balanced against foraging/hunting.
+2. **Animal Taming & Husbandry:** Eligible wild species (`DEER`, `BOAR`, etc.), taming attempt + failure/provocation rules, buildable pen/pasture (`ANIMAL_PEN`), feeding, breeding, and resource yield.
+3. **Mounts:** Leader mount/dismount on trained mounts with adjusted speed, camera framing, and rider pose before considering mounted combat.
+4. **Persistence & Verification:** Serialize crop growth stages, tamed/penned ownership, herd counts, and rider assignments in `CampaignSave`; add `scripts/tools/verify_farming_taming.gd`.
+
+---
+
+## 4. Non-Negotiable Engineering & Verification Rules
+
+1. **Godot 4.3 strictness ([AGENTS.md](../AGENTS.md)):**
+   - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, etc.).
+   - Never use `:=` on untyped `Dictionary`/`Array` indexing or `node.get("prop")` (`Variant`); always annotate explicit types.
+   - Never call `bool(null)` — use `== true` or `!= null`.
+   - Always call `container.remove_child(c)` before `c.queue_free()` when replacing container children.
+2. **SpatialIndex & ValleyNavigation invariants:**
+   - Every living `HumanUnit`, `WildlifeEntity`, and `BuildingEntity` registers in `setup()` and unregisters on death/rubble/`_exit_tree()`.
+   - Direct test teleports (`unit.global_position = ...`) must call `GameState.spatial_index.update_unit(unit)` before immediate same-frame spatial queries.
+   - Every constructed solid building registers in `valley_nav` and clears on Stage 3 rubble or `_exit_tree()`.
+3. **Verification gates:**
+   - Always run Godot Forward+ probes with a **fresh isolated temp directory** for `$env:APPDATA` and `$env:CHRIST_FALLOW_QA_APPDATA` (never pollute real user `APPDATA` or write temp files into the repo).
+   - Never run multiple Forward+ Godot instances simultaneously on Intel UHD 620 (run sequentially to prevent GPU timeouts/flakes).
+   - After modifying any `.glb` or Blender script, run `& $godot --headless --editor --path (Get-Location).Path --import` before running Forward+ checks.
+   - Run the exact PowerShell verification block in [docs/ROADMAP.md](ROADMAP.md#verification-gate-commands-windows-powershell) and require `EXIT_CODE=0`, explicit `PASSED` lines, and `0` `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines before committing each slice.
+4. **Documentation sync:**
+   - Keep `docs/ROADMAP.md`, `docs/FUTURE.md`, `AGENTS.md`, `README.md`, `tools/assets/OVERHAUL.md`, and `tools/assets/CATALOG.md` updated in the same commit as the slice they describe, and verify `0` broken local links or `#heading` anchors.

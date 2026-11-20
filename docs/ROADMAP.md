@@ -1,6 +1,6 @@
 # Christ Fallow — Master Roadmap & Stabilization Plan
 
-> Unified engineering, UI/UX, gameplay, and 3D asset roadmap following the [20 November 2026 refactor](REFACTOR.md). For architecture and file routing, see the [agent guide](../AGENTS.md).
+> Unified engineering, UI/UX, gameplay, and 3D asset roadmap following the [20 November 2026 refactor](REFACTOR.md). For architecture and file routing, see the [agent guide](../AGENTS.md). For quick session-transfer context, see the [engineering handoff](HANDOFF.md).
 
 ## Current progress snapshot (20 November 2026)
 
@@ -32,7 +32,7 @@
 
 ## Phase 0: Mechanics, UI & Asset Stabilization (Bug-Fix Plan)
 
-> **Status: Completed (20 Nov 2026)** — Slices `0A`–`0E` are implemented and verified. Proceed to **Phase 1: Simulation Performance & Navigation Foundation** next.
+> **Status: Completed (20 Nov 2026)** — Slices `0A`–`0E` are implemented and verified. ([Phase 1](#phase-1-simulation-performance--navigation-foundation) and [Slices 2A–2B](#phase-2-playable-opening-tutorial--asset-rig-promotion) are also complete.)
 
 ### Slice 0A — Campaign Lifecycle, Conquest, Wounded Softlocks & Pause Guards
 
@@ -194,27 +194,35 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 ### Slice 2C — Pass 3–5 Expansion Assets & Damage Review
 
-> **Active next (before or alongside Phase 3)** — ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout))
+> **Active next (before or alongside Phase 3)** — ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout) · [HANDOFF.md](HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review))
 
-- Deliver Pass 3 first candidates (**Goliath** and **Swift-Kin** scale extremes), Pass 4 **Reed Granary** / **Ridge Signal Tower** / **Standing-Stone Gate**, and Pass 5 **Reedjaw** / **Slateback Boar** / **Flintmask Scout** plus the 4-step damage review.
+- **Slice 2C-1 (Lineage scale extremes):** Generate 17-bone skinned rigs (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Wounded`, `Attack`, `Hit`, `Death`) for **Goliath** and **Swift-Kin**, generalize skinned lineage loading alongside `CragBornTrial` with `--procedural-roster` opt-out, and verify scale extremes + gear attachment fit.
+- **Slice 2C-2 (Buildings, wildlife & damage review):** Promote 4-stage production GLBs for **Reed Granary** (`STORAGE_MOUND`) and **Ridge Signal Tower** (`WATCHTOWER`), trial **Standing-Stone Gate** once `ValleyNavigation` gate traversal is verified, promote **Reedjaw** and **Slateback Boar**, and add golden damage cases in `verify_campaign_save.gd` per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
 
 ---
 
 ## Phase 3: Larger 760×760 m Valley & Full-Screen World Map
 
-Deliver [Larger valley and accessible world map](FUTURE.md#larger-valley-and-accessible-world-map), including layout-versioned `v4` saves, river crossings, distant-colony activity, and `M` key reassignment coordination across HUD, `settings_screen.gd`, and `README.md`.
+> **Queued next** — ([FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map) · [HANDOFF.md](HANDOFF.md#track-b--phase-3-larger-760760-m-valley--full-screen-world-map))
+
+- **Slice 3A (Expanded layout & `v4` saves):** Move remaining fixed scan distances (`65 m` / `85 m` / resource/blueprint scans) into [WorldLayout](../scripts/core/world_layout.gd), add `"valley_classic_380"` and `"valley_expanded_760"` definitions (`>= 170 m` camp spacing, `55–70 m` growth radius, river crossings, caves, wildlife territories), persist `valley_layout_id` in `v4` saves while keeping legacy `v1..v3` saves on `"valley_classic_380"`, and benchmark `760×760 m` physics & `190×190` `ValleyNavigation`.
+- **Slice 3B (Full-screen World Map & `M` key reassignment):** Add `scripts/ui/world_map_overlay.gd` (pan/zoom, camps/landmarks/fords/objectives, click-to-mark waypoint), move `M` to World Map (keep `Tab` for Tribal Command) across `hud_controller.gd`, `settings_screen.gd`, `README.md`, `AGENTS.md`, and `verify_campaign_ui.gd`, and add `scripts/tools/verify_expanded_valley.gd`.
 
 ---
 
 ## Phase 4: Tribal Leaders, Diplomacy & Conquest Integration
 
-Deliver [Tribal leaders and diplomacy](FUTURE.md#tribal-leaders-and-diplomacy), and complete the currently stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd#L73)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd#L265,L300-L302)) mechanics.
+> **Queued** — ([FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy) · [HANDOFF.md](HANDOFF.md#track-c--phase-4-tribal-leaders-diplomacy--conquest-integration))
+
+- Make every settled village's named leader visually distinct and traceable in `DiplomacyDrawer`, enable in-world leader approach/negotiation, complete the stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd#L73)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd#L265,L300-L302)) mechanics, unify succession vs conquest across save/load, and add `scripts/tools/verify_diplomacy_leaders.gd`.
 
 ---
 
 ## Phase 5: Taming, Crop Farming, Husbandry & Mounts
 
-Deliver [Taming, farming, and mounts](FUTURE.md#taming-farming-and-mounts) with full save/load persistence for crops, herds, and rider assignments.
+> **Queued** — ([FUTURE.md](FUTURE.md#taming-farming-and-mounts) · [HANDOFF.md](HANDOFF.md#track-d--phase-5-taming-crop-farming-husbandry--mounts))
+
+- Deliver buildable `CROP_FIELD` farming cycles, wild animal taming + `ANIMAL_PEN` husbandry/breeding, leader mounting/dismounting, full save/load persistence for crops/herds/riders, and `scripts/tools/verify_farming_taming.gd`.
 
 ---
 
@@ -226,7 +234,7 @@ Deliver [Taming, farming, and mounts](FUTURE.md#taming-farming-and-mounts) with 
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice** (Phases `0` and `1` are complete; continue with `Phase 2`, then `3 -> 5`).
+1. **Pick one slice** (Phases `0`, `1`, and `2A–2B` are complete; continue with `Slice 2C-1 -> 2C-2`, then `Phase 3A -> 3B -> Phase 4 -> Phase 5` as detailed in [HANDOFF.md](HANDOFF.md)).
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
