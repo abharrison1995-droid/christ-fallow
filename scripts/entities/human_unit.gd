@@ -1,0 +1,1298 @@
+extends CharacterBody3D
+
+const Look = preload("res://scripts/ui/fallow_theme.gd")
+const UnitStats = preload("res://scripts/entities/unit_stats.gd")
+
+const CampaignSave = preload("res://scripts/core/campaign_save.gd")
+
+var unit_id: int = 0
+var unit_name: String = "Tribesman"
+var faction_id: int = 0
+var original_faction_id: int = 0
+var gender: int = GameData.Gender.MALE
+var lineage: int = GameData.Lineage.CRAG_BORN
+var role: int = GameData.Role.FORAGER
+var warrior_class: int = GameData.WarriorClass.SPEARMAN
+
+var is_leader: bool = false
+var is_player_controlled: bool = false
+var is_caveman: bool = false
+var is_child: bool = false
+var growth_progress: float = 0.0
+
+var base_hp_stat: float = 100.0
+var base_melee_stat: float = 12.0
+var base_ranged_stat: float = 11.0
+var close_quarters_damage: float = 12.0
+var ranged_attack_damage: float = 11.0
+var unarmed_attack_damage: float = 4.5
+var melee_rank: int = 0
+var ranged_rank: int = 0
+var training_xp: float = 0.0
+
+var morale: float = 78.0
+var is_revolting: bool = false
+var is_wounded: bool = false
+var is_healing_in_shack: bool = false
+var wounded_timer: float = 0.0
+var being_rescued: bool = false
+
+var has_equipped_weapon: bool = false
+var weapon_tier: int = 1
+var has_armor: bool = false
+
+var hp: float = 100.0
+var max_hp: float = 100.0
+var move_speed: float = 6.0
+var attack_damage: float = 12.0
+var attack_range: float = 2.0
+var attack_cooldown_max: float = 1.0
+var armor: float = 0.0
+
+var squad_order: int = GameData.SquadOrder.FOLLOW
+var hold_position: Vector3 = Vector3.ZERO
+var fire_at_will: bool = true
+var raid_target_pos: Vector3 = Vector3.ZERO
+var is_raiding: bool = false
+
+const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
+const TribesmanAnimator = preload("res://scripts/entities/tribesman_animator.gd")
+const SkinnedTribesmanTrial = preload("res://scripts/entities/skinned_tribesman_trial.gd")
+const CragBornTrial = preload("res://scripts/entities/crag_born_trial.gd")
+const HumanMeshBuilder = preload("res://scripts/core/human_mesh_builder.gd")
+const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
+const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
+const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
+
+var is_dead: bool = false
+
+var _visual_root: Node3D = null
+var _skinned_trial: SkinnedTribesmanTrial = null
+var _body_pivot: Node3D = null
+var _animator: TribesmanAnimator = TribesmanAnimator.new()
+var _active_class_key: String = ""
+var _hp_bg: MeshInstance3D = null
+var _hp_fill: MeshInstance3D = null
+var _selection_ring: MeshInstance3D = null
+var _state_label: Label3D = null
+
+var _attack_cd: float = 0.0
+var _ai_think_cd: float = 0.0
+var _work_timer: float = 0.0
+var _swing_timer: float = 0.0
+var _swing_duration: float = 0.34
+var _is_working_this_frame: bool = false
+var _hit_flash_timer: float = 0.0
+var _death_timer: float = 0.0
+var _knockback_vel: Vector3 = Vector3.ZERO
+var _last_anim_pos: Vector3 = Vector3.ZERO
+var _buff_timer: float = 0.0
+var _buff_speed_mult: float = 1.0
+var _buff_armor_bonus: float = 0.0
+
+var _target_node: Node = null
+var _carry_type: String = ""
+var _carry_amount: float = 0.0
+var _dusk_eaten_today: int = -1
+var _night_morale_today: int = -1
+var _warhorn_fatigue_timer: float = 0.0
+var _patrol_angle: float = 0.0
+var _leader_blessing_cd: float = 0.0
+var _retreating_to_heal: bool = false
+var _kiting_this_frame: bool = false
+var _self_defense_target: Node = null
+var _self_defense_timer: float = 0.0
+var _unarmed_punch_vis_timer: float = 0.0
+
+
+func setup(p_params: Dictionary) -> void:
+	unit_id = int(p_params["unit_id"]) if p_params.has("unit_id") else GameState.allocate_unit_id()
+	faction_id = int(p_params.get("faction_id", 0))
+	original_faction_id = int(p_params.get("original_faction_id", maxi(0, faction_id)))
+	gender = int(p_params.get("gender", GameData.Gender.MALE))
+	lineage = int(p_params.get("lineage", GameData.Lineage.CRAG_BORN))
+	role = int(p_params.get("role", GameData.Role.FORAGER))
+	warrior_class = int(p_params.get("warrior_class", GameData.WarriorClass.SPEARMAN))
+	is_leader = bool(p_params.get("is_leader", false))
+	is_player_controlled = bool(p_params.get("is_player_controlled", false))
+	is_caveman = bool(p_params.get("is_caveman", false))
+	is_child = bool(p_params.get("is_child", false))
+	growth_progress = float(p_params.get("growth_progress", 0.0))
+	base_hp_stat = float(p_params.get("base_hp_stat", randf_range(88.0, 114.0)))
+	base_melee_stat = float(p_params.get("base_melee_stat", randf_range(9.5, 14.5)))
+	base_ranged_stat = float(p_params.get("base_ranged_stat", randf_range(8.5, 13.5)))
+	melee_rank = int(p_params.get("melee_rank", 0))
+	ranged_rank = int(p_params.get("ranged_rank", 0))
+	training_xp = float(p_params.get("training_xp", 0.0))
+	morale = float(p_params.get("morale", randf_range(72.0, 86.0)))
+	is_revolting = bool(p_params.get("is_revolting", false))
+	is_wounded = bool(p_params.get("is_wounded", false))
+	is_healing_in_shack = bool(p_params.get("is_healing_in_shack", false))
+	being_rescued = bool(p_params.get("being_rescued", is_healing_in_shack))
+	wounded_timer = float(p_params.get("wounded_timer", 0.0))
+	has_equipped_weapon = bool(p_params.get("has_equipped_weapon", is_leader or is_caveman))
+	weapon_tier = int(p_params.get("weapon_tier", 1))
+	has_armor = bool(p_params.get("has_armor", is_leader))
+	squad_order = int(p_params.get("squad_order", GameData.SquadOrder.FOLLOW))
+	hold_position = p_params.get("hold_position", Vector3.ZERO)
+	fire_at_will = bool(p_params.get("fire_at_will", true))
+	is_raiding = bool(p_params.get("is_raiding", false))
+	raid_target_pos = p_params.get("raid_target_pos", Vector3.ZERO)
+
+	if p_params.has("unit_name") and str(p_params["unit_name"]) != "":
+		unit_name = str(p_params["unit_name"])
+	else:
+		unit_name = _pick_random_name()
+
+	if p_params.has("pos"):
+		global_position = p_params["pos"]
+
+	_patrol_angle = randf_range(0.0, TAU)
+	_ai_think_cd = randf_range(0.0, 0.4)
+
+	var col := CollisionShape3D.new()
+	var cap := CapsuleShape3D.new()
+	cap.radius = 0.36
+	cap.height = 1.65
+	col.shape = cap
+	col.position = Vector3(0.0, 0.85, 0.0)
+	add_child(col)
+
+	_rebuild_visual()
+	_create_hp_bar()
+	recalculate_stats(true)
+
+
+func _pick_random_name() -> String:
+	if is_caveman:
+		return GameData.CAVEMAN_NAMES[randi() % GameData.CAVEMAN_NAMES.size()]
+	if gender == GameData.Gender.MALE:
+		return GameData.FIRST_NAMES_MALE[randi() % GameData.FIRST_NAMES_MALE.size()]
+	return GameData.FIRST_NAMES_FEMALE[randi() % GameData.FIRST_NAMES_FEMALE.size()]
+
+
+func _get_class_key() -> String:
+	var militia := (faction_id == 0 and GameState.warhorn_active)
+	return GameData.resolve_class_key(role, warrior_class, is_leader, is_caveman, militia)
+
+
+func _get_class_def() -> Dictionary:
+	return GameData.CLASS_DEFINITIONS.get(_get_class_key(), GameData.CLASS_DEFINITIONS["FORAGER"])
+
+
+func _rebuild_visual() -> void:
+	if _skinned_trial != null:
+		remove_child(_skinned_trial)
+		_skinned_trial.queue_free()
+		_skinned_trial = null
+	if _visual_root != null:
+		remove_child(_visual_root)
+		_visual_root.queue_free()
+	var col: Color = Color(0.75, 0.72, 0.65)
+	if is_revolting or faction_id == -2:
+		col = Color(0.95, 0.25, 0.14)
+	elif is_wounded or faction_id == -3:
+		col = Color(0.65, 0.45, 0.28)
+	elif faction_id >= 0 and GameData.FACTION_COLORS.has(faction_id):
+		col = GameData.FACTION_COLORS[faction_id]
+
+	var militia := (faction_id == 0 and GameState.warhorn_active)
+	var eff_role := GameData.Role.WARRIOR if (militia and not is_leader and not is_caveman and not is_child) else role
+	_active_class_key = _get_class_key()
+	_visual_root = MeshFactory.build_human_mesh(lineage, gender, col, is_leader, is_caveman, eff_role, warrior_class, is_child)
+	add_child(_visual_root)
+	_body_pivot = _visual_root.get_node_or_null("BodyPivot")
+
+	var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
+	var hunch := float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("spine_hunch", 0.0))
+	_animator.bind(_visual_root, hunch)
+	if is_wounded:
+		_animator.update(0.5, {"is_wounded": true})
+	else:
+		var cdef := _get_class_def()
+		_animator.update(0.5, {"idle_stance": str(cdef.get("idle_stance", "RELAXED"))})
+
+	_refresh_gear_visual()
+	if is_player_controlled and is_leader and faction_id == 0 and not is_wounded and not is_dead:
+		if SkinnedTribesmanTrial.LAUNCH_FLAG in OS.get_cmdline_user_args():
+			var trial := SkinnedTribesmanTrial.new()
+			var spear := _visual_root.find_child("GREAT_SPEAR", true, false) as Node3D
+			var lineage_height := float(GameData.LINEAGE_DATA[eff_lin]["height_scale"])
+			if trial.setup(MeshFactory, col, spear):
+				trial.name = "SkinnedTribesmanTrial"
+				trial.scale = Vector3.ONE * lineage_height
+				add_child(trial)
+				_skinned_trial = trial
+				_skinned_trial.update_locomotion(0.0, 0.0, true)
+				_set_trial_visible(true)
+			else:
+				trial.free()
+	elif CragBornTrial.enabled() and eff_lin == GameData.Lineage.CRAG_BORN and not is_leader and not is_dead and not is_wounded:
+		if _active_class_key == "FORAGER" or (_active_class_key == "SPEARMAN" and not is_child):
+			var pilot := CragBornTrial.new()
+			var variant := "child" if is_child else ("broad" if gender == GameData.Gender.MALE else "braided")
+			if pilot.setup_kit(MeshFactory, col, variant, _active_class_key):
+				pilot.name = "CragBornTrial"
+				add_child(pilot)
+				_skinned_trial = pilot
+				pilot.update_locomotion(0.0, 0.0, GameState.world_node.is_psx_filter_enabled() if GameState.world_node != null else true)
+				_set_trial_visible(true)
+			else:
+				pilot.free()
+
+
+func _set_trial_visible(use_trial: bool) -> void:
+	if _skinned_trial != null:
+		_skinned_trial.visible = use_trial
+		_visual_root.visible = not use_trial
+
+
+func _refresh_gear_visual() -> void:
+	if _visual_root == null:
+		return
+	var desired_key := _get_class_key()
+	if desired_key != _active_class_key:
+		_rebuild_visual()
+		return
+	var w_str := "SPEAR"
+	var use_tool := false
+	if role == GameData.Role.WARRIOR or is_leader or is_caveman or (faction_id == 0 and GameState.warhorn_active):
+		match warrior_class:
+			GameData.WarriorClass.SPEARMAN:
+				w_str = "SPEAR"
+			GameData.WarriorClass.KNIFE_RAIDER:
+				w_str = "KNIFE"
+			GameData.WarriorClass.ARCHER:
+				w_str = "BOW"
+			GameData.WarriorClass.BRUTE:
+				w_str = "CLUB"
+			GameData.WarriorClass.JAVELINEER:
+				w_str = "JAVELIN"
+	else:
+		use_tool = true
+
+	MeshFactory.update_human_gear(_visual_root, w_str, weapon_tier, has_armor, use_tool, desired_key)
+
+
+func play_attack_animation(anim_name: String = "", duration: float = 0.40) -> void:
+	_set_trial_visible(false)
+	var eff_anim := anim_name
+	if eff_anim == "":
+		eff_anim = str(_get_class_def().get("attack_anim", "TOOL_SWING"))
+	_swing_duration = duration
+	_swing_timer = duration
+	_animator.trigger_attack(eff_anim, duration)
+
+
+func _create_hp_bar() -> void:
+	var bg := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(1.1, 0.10, 0.05)
+	bg.mesh = bm
+	var bmat := StandardMaterial3D.new()
+	bmat.albedo_color = Color(0.08, 0.08, 0.08, 0.85)
+	bmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	bg.material_override = bmat
+	bg.position = Vector3(0.0, 2.35, 0.0)
+	add_child(bg)
+	_hp_bg = bg
+
+	var fill := MeshInstance3D.new()
+	var fm := BoxMesh.new()
+	fm.size = Vector3(1.05, 0.07, 0.07)
+	fill.mesh = fm
+	var fmat := StandardMaterial3D.new()
+	fmat.albedo_color = Color(0.25, 0.88, 0.35) if faction_id == 0 else Color(0.92, 0.25, 0.25)
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fill.material_override = fmat
+	fill.position = Vector3(0.0, 2.35, 0.0)
+	add_child(fill)
+	_hp_fill = fill
+
+	# Leader indicator ring on ground
+	if is_leader:
+		var ring := MeshInstance3D.new()
+		var rm := TorusMesh.new()
+		rm.inner_radius = 0.65
+		rm.outer_radius = 0.78
+		ring.mesh = rm
+		var rmat := StandardMaterial3D.new()
+		var fc: Color = GameData.FACTION_COLORS.get(faction_id, Color.GOLD)
+		rmat.albedo_color = fc
+		rmat.emission_enabled = true
+		rmat.emission = fc
+		rmat.emission_energy_multiplier = 1.2
+		ring.material_override = rmat
+		ring.position = Vector3(0.0, 0.06, 0.0)
+		add_child(ring)
+		_selection_ring = ring
+
+	var lbl := Label3D.new()
+	lbl.font = Look.body_font()
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.font_size = 22
+	lbl.pixel_size = 0.013
+	lbl.outline_size = 5
+	lbl.outline_modulate = Look.INK
+	lbl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	lbl.position = Vector3(0.0, 2.70, 0.0)
+	lbl.visible = false
+	add_child(lbl)
+	_state_label = lbl
+
+
+func recalculate_stats(reset_hp: bool = false) -> void:
+	var effective_faction := original_faction_id if faction_id < 0 else faction_id
+	var patron: int = GameState.factions.get(effective_faction, {}).get("patron_god", GameData.PatronGod.NONE)
+	var stats := UnitStats.derive({
+		"lineage": lineage,
+		"is_caveman": is_caveman,
+		"role": role,
+		"warrior_class": warrior_class,
+		"is_leader": is_leader,
+		"is_child": is_child,
+		"base_hp_stat": base_hp_stat,
+		"base_melee_stat": base_melee_stat,
+		"base_ranged_stat": base_ranged_stat,
+		"melee_rank": melee_rank,
+		"ranged_rank": ranged_rank,
+		"weapon_tier": weapon_tier,
+		"has_equipped_weapon": has_equipped_weapon,
+		"has_armor": has_armor,
+	}, patron)
+	var previous_ratio := hp / maxf(max_hp, 1.0)
+	max_hp = stats["max_hp"]
+	move_speed = stats["move_speed"]
+	close_quarters_damage = stats["close_quarters_damage"]
+	ranged_attack_damage = stats["ranged_attack_damage"]
+	unarmed_attack_damage = stats["unarmed_attack_damage"]
+	attack_damage = stats["attack_damage"]
+	attack_range = stats["attack_range"]
+	attack_cooldown_max = stats["attack_cooldown_max"]
+	armor = stats["armor"]
+	hp = max_hp if reset_hp else clampf(previous_ratio * max_hp, 1.0, max_hp)
+	_refresh_gear_visual()
+	_update_hp_bar()
+
+
+func _update_hp_bar() -> void:
+	if _hp_bg == null or _hp_fill == null:
+		return
+	var ratio := clampf(hp / maxf(max_hp, 1.0), 0.02, 1.0)
+	_hp_fill.scale.x = ratio
+	var show := is_leader or hp < max_hp * 0.99 or faction_id == 5 or is_revolting or is_wounded
+	_hp_bg.visible = show
+	_hp_fill.visible = show
+	var fmat := _hp_fill.material_override as StandardMaterial3D
+	if fmat != null:
+		if is_wounded:
+			fmat.albedo_color = Color(0.95, 0.65, 0.18)
+		elif is_revolting or faction_id == -2:
+			fmat.albedo_color = Color(1.0, 0.30, 0.12)
+		elif faction_id == 0:
+			fmat.albedo_color = Color(0.25, 0.88, 0.35)
+		elif faction_id == -1:
+			fmat.albedo_color = Color(0.95, 0.85, 0.25)
+		else:
+			fmat.albedo_color = Color(0.92, 0.28, 0.25)
+
+	if _state_label != null:
+		if is_dead:
+			_state_label.visible = false
+		elif is_wounded:
+			_state_label.visible = true
+			_state_label.position = Vector3(0.0, 1.35, 0.0)
+			_state_label.modulate = Color(1.0, 0.72, 0.22)
+		elif is_revolting or faction_id == -2:
+			_state_label.visible = true
+			_state_label.position = Vector3(0.0, 2.70, 0.0)
+			_state_label.text = "Revolting"
+			_state_label.modulate = Look.DANGER
+		elif faction_id == -1:
+			_state_label.visible = true
+			_state_label.position = Vector3(0.0, 2.45, 0.0)
+			_state_label.text = "Wanderer  ·  E Recruit"
+			_state_label.modulate = Look.GOLD
+		else:
+			_state_label.visible = false
+
+
+func heal(amount: float) -> void:
+	if is_dead:
+		return
+	hp = minf(max_hp, hp + amount)
+	_update_hp_bar()
+
+
+func apply_temporary_buff(duration: float, speed_mult: float, armor_bonus: float) -> void:
+	_buff_timer = maxf(_buff_timer, duration)
+	_buff_speed_mult = maxf(_buff_speed_mult, speed_mult)
+	_buff_armor_bonus = maxf(_buff_armor_bonus, armor_bonus)
+
+
+func modify_morale(delta_m: float) -> void:
+	if is_leader or is_child or is_caveman or is_wounded:
+		return
+	morale = clampf(morale + delta_m, 0.0, 100.0)
+
+
+func start_revolt() -> void:
+	if is_leader or is_child or is_revolting or is_wounded:
+		return
+	is_revolting = true
+	original_faction_id = faction_id if faction_id >= 0 else 0
+	faction_id = -2
+	is_raiding = false
+	_rebuild_visual()
+	_update_hp_bar()
+	GameState.push_log("REVOLT! %s rebelled due to low morale! Subdue them non-lethally." % unit_name, "danger")
+
+
+func enter_wounded_state() -> void:
+	is_revolting = false
+	is_wounded = true
+	is_healing_in_shack = false
+	being_rescued = false
+	faction_id = -3
+	hp = 5.0
+	wounded_timer = 60.0
+	velocity = Vector3.ZERO
+	_knockback_vel = Vector3.ZERO
+	_rebuild_visual()
+	_update_hp_bar()
+	CombatVFX.spawn_damage_popup(self, "INCAPACITATED!", Color(1.0, 0.72, 0.22), 1.2)
+	GameState.push_log("%s was subdued and is WOUNDED! Send a Shaman or press [E] within 60s to heal at a Shaman Shack!" % unit_name, "warning")
+
+
+func send_to_shaman_shack(shack_pos: Vector3) -> void:
+	if not is_wounded:
+		return
+	is_healing_in_shack = true
+	being_rescued = true
+	global_position = shack_pos + Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2))
+	_update_hp_bar()
+
+
+func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
+	if is_dead or is_wounded:
+		return
+	var total_armor := armor + _buff_armor_bonus
+	var mitigated := UnitStats.mitigated_damage(amount, total_armor)
+	hp -= mitigated
+	_update_hp_bar()
+
+	# Directional damage flinch, knockback & hit feedback
+	_set_hit_flash(0.16)
+	var hit_dir_body := Vector3(0.0, 0.0, 1.0)
+	var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
+	var kb_resist := float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("knockback_resist", 0.0))
+	var atk_is_boss: bool = (attacker != null and attacker.get("is_boss") == true)
+	var atk_is_brute: bool = (attacker != null and attacker.get("warrior_class") != null and int(attacker.get("warrior_class")) == GameData.WarriorClass.BRUTE)
+	if attacker != null and attacker is Node3D:
+		var atk_pos: Vector3 = (attacker as Node3D).global_position
+		var kb := global_position - atk_pos
+		kb.y = 0.0
+		if kb.length_squared() > 0.001:
+			var kb_str := 6.5 * (1.0 - kb_resist * 0.7)
+			if atk_is_boss or atk_is_brute:
+				kb_str *= 1.45
+			_knockback_vel = kb.normalized() * kb_str
+			var to_atk := (atk_pos - global_position)
+			to_atk.y = 0.0
+			if to_atk.length_squared() > 0.001:
+				var local_atk := global_transform.basis.inverse() * to_atk.normalized()
+				hit_dir_body = Vector3(-local_atk.x, 0.0, -local_atk.z).normalized()
+
+	var ckey := _get_class_key()
+	var has_shield: bool = (ckey == "SPEARMAN" or ckey == "JAVELINEER" or ckey == "LEADER" or ckey == "TRAINEE")
+	var is_heavy: bool = (mitigated >= max_hp * 0.16) or atk_is_boss or atk_is_brute
+	_animator.trigger_damage(hit_dir_body, is_heavy, has_shield)
+
+	if attacker != null and is_instance_valid(attacker) and not attacker.get("is_dead") and attacker is Node3D:
+		_self_defense_target = attacker
+		_self_defense_timer = 6.0
+
+	var dmg_col := Color(1.0, 0.25, 0.22) if faction_id == 0 else Color(1.0, 0.88, 0.28)
+	CombatVFX.spawn_damage_popup(self, "-%d" % roundi(mitigated), dmg_col, 1.0)
+
+	# Provoke diplomacy if player hits neutral tribe or vice versa
+	if attacker_faction == 0 and ((faction_id >= 1 and faction_id <= 4) or faction_id == 6):
+		GameState.set_diplomatic_state(0, faction_id, GameData.DiplomaticState.AT_WAR)
+	elif ((attacker_faction >= 1 and attacker_faction <= 4) or attacker_faction == 6) and faction_id == 0:
+		GameState.set_diplomatic_state(0, attacker_faction, GameData.DiplomaticState.AT_WAR)
+
+	if hp <= 0.0:
+		if is_revolting and original_faction_id == 0:
+			enter_wounded_state()
+			return
+		_die(attacker, attacker_faction, hit_dir_body)
+
+
+func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0, 0.0, 1.0)) -> void:
+	if is_dead:
+		return
+	is_dead = true
+	hp = 0.0
+
+	if GameState.factions.has(killer_faction) and GameState.has_tenet(killer_faction, "BLOOD_SACRIFICE"):
+		GameState.add_resource(killer_faction, "faith", 8.0)
+		if killer != null and is_instance_valid(killer) and killer.has_method("heal"):
+			killer.heal(10.0)
+
+	# Capturing defeated Nomadic Cavemen for Enlightenment
+	if is_caveman and killer_faction == 0 and GameState.factions.has(0):
+		GameState.factions[0]["captured_cavemen"] += 1
+		GameState.add_resource(0, "food", 5.0)
+		GameState.add_resource(0, "bone", 2.0)
+		GameState.push_log("Captured Nomadic Caveman %s! Enlighten them in [C] Colony." % unit_name, "success")
+
+	# Tribal Succession if Player Leader falls
+	if faction_id == 0 and is_leader:
+		var fc = GameState.faction_controllers.get(0)
+		if fc != null and fc.has_method("handle_player_leader_death"):
+			fc.call_deferred("handle_player_leader_death", self)
+	elif ((faction_id >= 1 and faction_id <= 4) or faction_id == 6) and is_leader:
+		GameState.trigger_conquest_if_eligible(faction_id, killer_faction)
+	elif faction_id == 0:
+		GameState.push_log("%s (%s) has fallen." % [unit_name, GameData.ROLE_NAMES.get(role, "Tribesman")], "warning")
+
+	collision_layer = 0
+	collision_mask = 0
+	if _hp_bg != null:
+		_hp_bg.visible = false
+	if _hp_fill != null:
+		_hp_fill.visible = false
+	if _selection_ring != null:
+		_selection_ring.visible = false
+	if _state_label != null:
+		_state_label.visible = false
+	velocity = Vector3.ZERO
+	_knockback_vel = Vector3.ZERO
+	_death_timer = 8.0
+	var dv := -1
+	if is_caveman or (role == GameData.Role.WARRIOR and warrior_class == GameData.WarriorClass.BRUTE):
+		dv = TribesmanAnimator.DeathVariant.KNEE_CRUMPLE
+	elif absf(hit_dir_body.x) > 0.50:
+		dv = TribesmanAnimator.DeathVariant.SIDE_COLLAPSE
+	elif hit_dir_body.z < -0.25:
+		dv = TribesmanAnimator.DeathVariant.KNEE_CRUMPLE
+	else:
+		dv = TribesmanAnimator.DeathVariant.BACKWARD_STAGGER
+	_animator.trigger_death(dv, hit_dir_body)
+	CombatVFX.spawn_damage_popup(self, "SLAIN!", Color(1.0, 0.20, 0.16), 1.35)
+	CombatVFX.spawn_blood_pool(self, 0.72)
+	GameState.call_deferred("check_victory_conditions")
+
+
+func _set_hit_flash(duration: float) -> void:
+	_set_trial_visible(false)
+	_hit_flash_timer = maxf(_hit_flash_timer, duration)
+	CombatVFX.apply_overlay_recursive(_visual_root, CombatVFX.get_hit_flash_material())
+
+
+func _update_hit_flash(delta: float) -> void:
+	if _hit_flash_timer > 0.0:
+		_hit_flash_timer -= delta
+		if _hit_flash_timer <= 0.0:
+			CombatVFX.apply_overlay_recursive(_visual_root, null)
+
+
+func _process_dead_corpse(delta: float) -> void:
+	_set_trial_visible(false)
+	_update_hit_flash(delta)
+	_animator.update(delta, {"is_dead": true})
+	_death_timer -= delta
+	if _death_timer <= 1.0 and _visual_root != null:
+		var s := clampf(_death_timer, 0.05, 1.0)
+		_visual_root.scale = Vector3(1.0, s, 1.0)
+	if _death_timer <= 0.0:
+		queue_free()
+
+
+func _update_wounded_animation(delta: float) -> void:
+	_animator.update(delta, {"is_wounded": true})
+	if _state_label != null:
+		_state_label.visible = true
+		_state_label.position = Vector3(0.0, 1.35, 0.0)
+		if is_healing_in_shack:
+			_state_label.text = "Healing at the Shack"
+			_state_label.modulate = Color(0.45, 0.95, 0.60)
+		elif being_rescued:
+			_state_label.text = "Rescue in progress"
+			_state_label.modulate = Color(0.55, 0.85, 1.0)
+		else:
+			_state_label.text = "Wounded  ·  E Aid  ·  %ds" % ceili(maxf(wounded_timer, 0.0))
+			_state_label.modulate = Color(1.0, 0.72, 0.22)
+
+
+func _update_procedural_animation(delta: float) -> void:
+	if _knockback_vel.length_squared() > 0.04:
+		move_and_collide(_knockback_vel * delta)
+		_knockback_vel = _knockback_vel.lerp(Vector3.ZERO, minf(1.0, 11.0 * delta))
+	else:
+		_knockback_vel = Vector3.ZERO
+
+	var horiz_speed := Vector2(velocity.x, velocity.z).length()
+	if _last_anim_pos != Vector3.ZERO and delta > 0.0001:
+		var dp := Vector2(global_position.x - _last_anim_pos.x, global_position.z - _last_anim_pos.z).length() / delta
+		horiz_speed = maxf(horiz_speed, dp * 0.85)
+	_last_anim_pos = global_position
+
+	if _swing_timer > 0.0:
+		if not _animator.is_attacking():
+			play_attack_animation("", _swing_duration)
+		_swing_timer = maxf(0.0, _swing_timer - delta)
+
+	var cdef := _get_class_def()
+	_animator.update(delta, {
+		"horiz_speed": horiz_speed,
+		"is_working": _is_working_this_frame,
+		"idle_stance": str(cdef.get("idle_stance", "RELAXED")),
+		"work_anim": str(cdef.get("work_anim", "WORK_BUILD")),
+	})
+	if _skinned_trial != null:
+		var use_trial := not _is_working_this_frame and not _animator.is_attacking() and not _animator.is_taking_damage() and _hit_flash_timer <= 0.0
+		_set_trial_visible(use_trial)
+		if use_trial:
+			var jitter_enabled: bool = GameState.world_node == null or GameState.world_node.is_psx_filter_enabled()
+			_skinned_trial.update_locomotion(horiz_speed, delta, jitter_enabled)
+
+
+func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> void:
+	faction_id = new_faction_id
+	original_faction_id = new_faction_id
+	is_leader = false
+	is_player_controlled = false
+	is_caveman = false
+	is_revolting = false
+	is_wounded = false
+	is_healing_in_shack = false
+	being_rescued = false
+	is_raiding = false
+	morale = maxf(morale, 72.0)
+	role = GameData.Role.FORAGER
+	squad_order = GameData.SquadOrder.FOLLOW
+	if enlighten_bonus and GameState.has_tenet(new_faction_id, "KINSHIP"):
+		weapon_tier = maxi(weapon_tier, 2)
+	_rebuild_visual()
+	recalculate_stats(true)
+
+
+func promote_to_player_leader() -> void:
+	is_leader = true
+	is_player_controlled = true
+	is_child = false
+	role = GameData.Role.WARRIOR
+	if GameState.factions.has(0):
+		GameState.factions[0]["leader_name"] = unit_name
+	_rebuild_visual()
+	recalculate_stats(false)
+	hp = max_hp
+	_update_hp_bar()
+
+
+func set_role_and_class(new_role: int, new_warrior_class: int = -1) -> void:
+	role = new_role
+	if new_warrior_class >= 0:
+		warrior_class = new_warrior_class
+	_target_node = null
+	_carry_amount = 0.0
+	if faction_id == 0 and GameState.game_active and not is_leader:
+		GameState.tutorial_assigned_role = true
+	if role == GameData.Role.WARRIOR:
+		try_equip_from_stockpile()
+	recalculate_stats(false)
+
+
+func try_equip_from_stockpile() -> void:
+	if not GameState.factions.has(faction_id):
+		return
+	var fdata: Dictionary = GameState.factions[faction_id]
+	var stock: Dictionary = fdata["stockpile"]
+	var tier: int = int(fdata.get("tech_tier", 1))
+
+	if not has_equipped_weapon or weapon_tier < tier:
+		var key := "spears"
+		if warrior_class == GameData.WarriorClass.KNIFE_RAIDER:
+			key = "knives"
+		elif warrior_class == GameData.WarriorClass.ARCHER:
+			key = "bows"
+		elif warrior_class == GameData.WarriorClass.BRUTE:
+			key = "clubs"
+		elif warrior_class == GameData.WarriorClass.JAVELINEER:
+			key = "javelins"
+		if int(stock.get(key, 0)) > 0:
+			stock[key] = int(stock[key]) - 1
+			has_equipped_weapon = true
+			weapon_tier = tier
+
+	if not has_armor and int(stock.get("armor", 0)) > 0:
+		stock["armor"] = int(stock["armor"]) - 1
+		has_armor = true
+
+	if faction_id == 0:
+		GameState.resources_changed.emit(0)
+	recalculate_stats(false)
+
+
+func _physics_process(delta: float) -> void:
+	if not GameState.game_active or GameState.is_paused:
+		return
+	if is_dead:
+		_process_dead_corpse(delta)
+		return
+
+	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_leader_blessing_cd = maxf(0.0, _leader_blessing_cd - delta)
+	_self_defense_timer = maxf(0.0, _self_defense_timer - delta)
+	if _self_defense_timer <= 0.0:
+		_self_defense_target = null
+	if _unarmed_punch_vis_timer > 0.0:
+		_unarmed_punch_vis_timer = maxf(0.0, _unarmed_punch_vis_timer - delta)
+		if _unarmed_punch_vis_timer <= 0.0:
+			_set_hand_mounts_visible(true)
+	_kiting_this_frame = false
+	_is_working_this_frame = false
+	if _buff_timer > 0.0:
+		_buff_timer -= delta
+		if _buff_timer <= 0.0:
+			_buff_speed_mult = 1.0
+			_buff_armor_bonus = 0.0
+
+	_update_hit_flash(delta)
+
+	if _hp_bg != null and _hp_bg.visible:
+		var cam := get_viewport().get_camera_3d()
+		if cam != null:
+			var dx := cam.global_position.x - _hp_bg.global_position.x
+			var dz := cam.global_position.z - _hp_bg.global_position.z
+			if (dx * dx + dz * dz) > 0.01:
+				_hp_bg.look_at(cam.global_position, Vector3.UP)
+				_hp_fill.look_at(cam.global_position, Vector3.UP)
+
+	if is_child:
+		growth_progress += delta / 70.0
+		if growth_progress >= 1.0:
+			is_child = false
+			_rebuild_visual()
+			recalculate_stats(false)
+			if faction_id == 0:
+				GameState.push_log("%s has grown into adulthood!" % unit_name, "info")
+
+	if is_wounded:
+		_update_wounded_animation(delta)
+		if is_healing_in_shack:
+			heal(12.0 * delta)
+			if hp >= max_hp:
+				is_wounded = false
+				is_healing_in_shack = false
+				being_rescued = false
+				faction_id = original_faction_id
+				morale = 65.0
+				_rebuild_visual()
+				recalculate_stats(false)
+				hp = max_hp
+				_update_hp_bar()
+				GameState.push_log("%s fully healed in the Shaman Shack and rejoined your tribe!" % unit_name, "success")
+		else:
+			hp = minf(max_hp * 0.50, hp + 0.6 * delta)
+			_update_hp_bar()
+			if not being_rescued:
+				wounded_timer -= delta
+				if wounded_timer <= 0.0:
+					is_wounded = false
+					hp = max_hp * 0.75
+					GameState.found_rebel_faction(self)
+		return
+
+	if faction_id == 0 and not is_leader and not is_child:
+		if GameState.warhorn_active and GameState.current_phase == GameData.SchedulePhase.DAY_WORK:
+			_warhorn_fatigue_timer += delta
+			if _warhorn_fatigue_timer >= 15.0:
+				_warhorn_fatigue_timer = 0.0
+				modify_morale(-3.0)
+		if morale < 15.0 and not is_revolting and GameState.can_trigger_revolt():
+			start_revolt()
+			return
+
+	if is_player_controlled:
+		# PlayerController drives velocity and attacks directly
+		_update_procedural_animation(delta)
+		return
+
+	_ai_think_cd -= delta
+	if faction_id == -1:
+		_process_wild_wanderer(delta)
+	elif faction_id == -2 or is_revolting:
+		_process_rebel_ai(delta)
+	elif is_caveman:
+		_process_feral_caveman(delta)
+	else:
+		_process_tribal_ai(delta)
+
+	if not is_on_floor():
+		velocity.y -= 24.0 * delta
+	else:
+		velocity.y = 0.0
+
+	move_and_slide()
+	if not _kiting_this_frame and Vector2(velocity.x, velocity.z).length() > 0.25:
+		var look_p := global_position + Vector3(velocity.x, 0.0, velocity.z)
+		look_at(look_p, Vector3.UP)
+	_update_procedural_animation(delta)
+
+
+func _process_wild_wanderer(_delta: float) -> void:
+	# Gently face player leader and recruit on proximity
+	var p_leader := GameState.get_faction_leader(0)
+	if p_leader != null:
+		var dist := global_position.distance_to(p_leader.global_position)
+		if dist < 4.5:
+			convert_to_faction(0, false)
+			GameState.push_log("Recruited %s (%s) into your tribe!" % [unit_name, GameData.LINEAGE_DATA[lineage]["short_name"]], "success")
+			return
+		elif dist < 14.0:
+			_face_point(p_leader.global_position)
+	velocity.x = 0.0
+	velocity.z = 0.0
+
+
+func _process_feral_caveman(delta: float) -> void:
+	var target := _find_nearest_enemy_unit(22.0)
+	if target == null:
+		# March toward nearest founded colony or player campfire
+		var march_pos := Vector3.ZERO
+		if GameState.factions.has(0) and GameState.factions[0]["is_founded"]:
+			march_pos = GameState.factions[0]["camp_position"]
+		else:
+			var p_leader := GameState.get_faction_leader(0)
+			if p_leader != null:
+				march_pos = p_leader.global_position
+		_steer_toward(march_pos, move_speed * 0.85)
+		return
+
+	var dist := global_position.distance_to(target.global_position)
+	if dist > attack_range:
+		_steer_toward(target.global_position, move_speed)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if _attack_cd <= 0.0:
+			_execute_attack_on(target)
+
+
+func _process_rebel_ai(delta: float) -> void:
+	var target := _find_nearest_enemy_unit(32.0)
+	if target != null:
+		_engage_target(target)
+		return
+	var b_target := _find_nearest_enemy_building(35.0)
+	if b_target != null:
+		_engage_building(b_target)
+		return
+	var camp := _get_home_camp_pos()
+	_patrol_around(camp, 8.0, delta)
+
+
+func _process_tribal_ai(delta: float) -> void:
+	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or (faction_id == 0 and GameState.warhorn_active)
+
+	# Enemy detection
+	var scan_radius := 24.0 if is_warrior_mode else 9.0
+	var enemy := _find_nearest_enemy_unit(scan_radius)
+
+	if is_warrior_mode:
+		if faction_id == 0 and not is_leader:
+			_process_player_warrior(delta, enemy)
+		else:
+			_process_ai_warrior(delta, enemy)
+		return
+
+	if UnitAIRoutines.respond_to_civilian_threat(self, enemy):
+		return
+
+	# Daily schedule phases for civilians
+	match GameState.current_phase:
+		GameData.SchedulePhase.DUSK_HEARTH:
+			_dusk_routine(delta)
+		GameData.SchedulePhase.NIGHT_SLEEP:
+			_night_routine(delta)
+		_:
+			_day_work_routine(delta)
+
+
+func _process_player_warrior(delta: float, enemy: Node) -> void:
+	var p_leader := GameState.get_faction_leader(0)
+	var camp := _get_home_camp_pos()
+
+	# If unequipped and Rack exists, visit rack occasionally
+	if not has_equipped_weapon and _ai_think_cd <= 0.0:
+		_ai_think_cd = 3.0
+		try_equip_from_stockpile()
+
+	match squad_order:
+		GameData.SquadOrder.RETREAT:
+			if global_position.distance_to(camp) > 4.0:
+				_steer_toward(camp, move_speed * _buff_speed_mult * 1.15)
+			else:
+				velocity.x = 0.0
+				velocity.z = 0.0
+		GameData.SquadOrder.HOLD:
+			if enemy != null and (_can_shoot_or_reach(enemy)):
+				_engage_target(enemy)
+			elif global_position.distance_to(hold_position) > 2.5:
+				_steer_toward(hold_position, move_speed * _buff_speed_mult)
+			else:
+				velocity.x = 0.0
+				velocity.z = 0.0
+		GameData.SquadOrder.GUARD_BASE:
+			var base_enemy := _find_enemy_near_point(camp, 28.0)
+			if base_enemy != null:
+				_engage_target(base_enemy)
+			elif GameState.current_phase == GameData.SchedulePhase.DAY_WORK and GameState.has_building(faction_id, "BARRACKS", true):
+				_train_at_barracks(delta)
+			else:
+				_patrol_around(camp, 9.0, delta)
+		GameData.SquadOrder.CHARGE:
+			var charge_target := enemy
+			if charge_target == null:
+				charge_target = _find_nearest_enemy_unit(65.0)
+			if charge_target != null:
+				_engage_target(charge_target)
+			else:
+				var b_target := _find_nearest_enemy_building(65.0)
+				if b_target != null:
+					_engage_building(b_target)
+				elif p_leader != null:
+					_follow_point(p_leader.global_position, 4.5)
+		_: # FOLLOW
+			if enemy != null and (fire_at_will or global_position.distance_to(enemy.global_position) < 8.0):
+				_engage_target(enemy)
+			elif p_leader != null:
+				_follow_point(p_leader.global_position, 4.5)
+			else:
+				_patrol_around(camp, 7.0, delta)
+
+
+func _process_ai_warrior(delta: float, enemy: Node) -> void:
+	var camp := _get_home_camp_pos()
+
+	# Tactical Low-HP retreat toward Campfire healing aura
+	if not is_leader:
+		if hp < max_hp * 0.22:
+			_retreating_to_heal = true
+		elif hp >= max_hp * 0.45:
+			_retreating_to_heal = false
+		if _retreating_to_heal and global_position.distance_to(camp) > 6.0:
+			is_raiding = false
+			_steer_toward(camp, move_speed * _buff_speed_mult * 1.15)
+			return
+
+	# Rival Leader Patron God Blessings in combat
+	if is_leader and faction_id >= 1 and faction_id <= 4 and enemy != null and _leader_blessing_cd <= 0.0:
+		if global_position.distance_to((enemy as Node3D).global_position) <= 10.0:
+			_cast_rival_leader_blessing()
+
+	if enemy != null:
+		_engage_target(enemy)
+		return
+
+	if is_raiding:
+		if global_position.distance_to(raid_target_pos) > 5.0:
+			_steer_toward(raid_target_pos, move_speed * _buff_speed_mult)
+		else:
+			var b_target := _find_nearest_enemy_building(25.0)
+			if b_target != null:
+				_engage_building(b_target)
+			else:
+				is_raiding = false
+		return
+
+	_patrol_around(camp, 9.5, delta)
+
+
+func _cast_rival_leader_blessing() -> void:
+	_leader_blessing_cd = 18.0
+	BlessingEffects.trigger_leader_blessing(self, faction_id, false)
+
+
+func _can_shoot_or_reach(enemy: Node) -> bool:
+	var d := global_position.distance_to(enemy.global_position)
+	if warrior_class == GameData.WarriorClass.ARCHER or warrior_class == GameData.WarriorClass.JAVELINEER:
+		return fire_at_will and d <= attack_range
+	return d <= 5.5
+
+
+func _face_point(p: Vector3) -> void:
+	var target_p := Vector3(p.x, global_position.y, p.z)
+	if global_position.distance_squared_to(target_p) > 0.01:
+		look_at(target_p, Vector3.UP)
+
+
+func _engage_target(target: Node) -> void:
+	var t_pos: Vector3 = (target as Node3D).global_position
+	var d := global_position.distance_to(t_pos)
+	var is_ranged_kiter := (warrior_class == GameData.WarriorClass.ARCHER and d < 6.0) or (warrior_class == GameData.WarriorClass.JAVELINEER and d < 4.2)
+	if is_ranged_kiter and _attack_cd > 0.15:
+		# Ranged skirmisher/archer kites away from closing melee threats while keeping aim
+		var away := global_position - t_pos
+		away.y = 0.0
+		if away.length() > 0.1:
+			var k_dir := away.normalized()
+			velocity.x = k_dir.x * move_speed * _buff_speed_mult * 0.80
+			velocity.z = k_dir.z * move_speed * _buff_speed_mult * 0.80
+			_kiting_this_frame = true
+		_face_point(t_pos)
+		return
+
+	if d > attack_range:
+		if warrior_class == GameData.WarriorClass.KNIFE_RAIDER and d > attack_range * 1.4:
+			var diff := t_pos - global_position
+			diff.y = 0.0
+			if diff.length() > 0.2:
+				var fwd := diff.normalized()
+				var side := Vector3(-fwd.z, 0.0, fwd.x) * (0.45 if (unit_id % 2 == 0) else -0.45)
+				var flank_dir := (fwd + side).normalized()
+				var spd := move_speed * _buff_speed_mult
+				velocity.x = flank_dir.x * spd
+				velocity.z = flank_dir.z * spd
+		else:
+			_steer_toward(t_pos, move_speed * _buff_speed_mult)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_face_point(t_pos)
+		if _attack_cd <= 0.0:
+			_execute_attack_on(target)
+
+
+func _engage_building(b: Node) -> void:
+	var d := global_position.distance_to(b.global_position)
+	var reach := maxf(attack_range, 3.0)
+	if d > reach:
+		_steer_toward(b.global_position, move_speed * _buff_speed_mult)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_face_point(b.global_position)
+		if _attack_cd <= 0.0:
+			_attack_cd = attack_cooldown_max
+			var anim_dur := 0.44 if warrior_class == GameData.WarriorClass.BRUTE else 0.38
+			play_attack_animation("", anim_dur)
+			var dmg := attack_damage
+			if warrior_class == GameData.WarriorClass.BRUTE:
+				dmg *= 1.35
+			if GameState.has_tenet(faction_id, "SACRED_CONQUEST"):
+				dmg *= 1.18
+			if warrior_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+				_fire_arrow_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
+			elif warrior_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null:
+				_fire_javelin_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
+			else:
+				b.take_damage(dmg, faction_id)
+
+
+func _execute_attack_on(target: Node) -> void:
+	_attack_cd = attack_cooldown_max
+	var anim_dur := 0.44 if warrior_class == GameData.WarriorClass.BRUTE else (0.34 if warrior_class == GameData.WarriorClass.KNIFE_RAIDER else 0.40)
+	play_attack_animation("", anim_dur)
+	var dmg := attack_damage
+
+	# Patron God & Tenet modifiers
+	if GameState.factions.has(faction_id):
+		var god: int = int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE))
+		if god == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
+			dmg *= 1.20
+		if god == GameData.PatronGod.FEN_ROR and (warrior_class == GameData.WarriorClass.KNIFE_RAIDER or warrior_class == GameData.WarriorClass.ARCHER):
+			if randf() < 0.22:
+				dmg *= 1.65
+		if GameState.has_tenet(faction_id, "SACRED_CONQUEST") and target.get("faction_id") != null:
+			dmg *= 1.18
+
+	if warrior_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+		_fire_arrow_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
+	elif warrior_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null and global_position.distance_to(target.global_position) > 3.2:
+		_fire_javelin_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
+	else:
+		var arc_scale := 1.25 if (warrior_class == GameData.WarriorClass.BRUTE or is_leader) else 0.95
+		CombatVFX.spawn_slash_arc(
+			GameState.world_node if GameState.world_node != null else self,
+			global_position,
+			-global_transform.basis.z,
+			Color(1.0, 0.52, 0.25, 0.85) if faction_id != 0 else Color(0.95, 0.90, 0.55, 0.85),
+			arc_scale
+		)
+		target.take_damage(dmg, self, faction_id)
+
+
+func _fire_arrow_at(aim_pos: Vector3, dmg: float) -> void:
+	Projectile3D.spawn(self, faction_id, global_position + Vector3(0.0, 1.35, 0.0), aim_pos, dmg, 26.0, "ARROW", weapon_tier, false)
+
+
+func _fire_javelin_at(aim_pos: Vector3, dmg: float) -> void:
+	Projectile3D.spawn(self, faction_id, global_position + Vector3(0.0, 1.45, 0.0), aim_pos, dmg, 29.0, "JAVELIN", weapon_tier, false)
+
+
+func _dusk_routine(delta: float) -> void:
+	UnitAIRoutines.run_dusk_routine(self, delta)
+
+
+func _night_routine(delta: float) -> void:
+	UnitAIRoutines.run_night_routine(self, delta)
+
+
+func _day_work_routine(delta: float) -> void:
+	UnitAIRoutines.run_day_work_routine(self, delta)
+
+
+func _train_at_barracks(delta: float) -> void:
+	UnitAIRoutines.run_train_at_barracks(self, delta)
+
+
+func _gain_training_xp(xp_gain: float) -> void:
+	UnitAIRoutines.gain_training_xp(self, xp_gain)
+
+
+func _find_wounded_ally() -> Node:
+	return UnitAIRoutines.find_wounded_ally(self)
+
+
+func _steer_toward(target_pos: Vector3, spd: float) -> void:
+	var diff := target_pos - global_position
+	diff.y = 0.0
+	if diff.length() > 0.2:
+		var dir := diff.normalized()
+		velocity.x = dir.x * spd
+		velocity.z = dir.z * spd
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+
+
+func _follow_point(center: Vector3, spacing: float) -> void:
+	var offset := Vector3(cos(_patrol_angle), 0.0, sin(_patrol_angle)) * spacing
+	var goal := center + offset
+	if global_position.distance_to(goal) > 1.8:
+		_steer_toward(goal, move_speed * _buff_speed_mult)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+
+
+func _patrol_around(center: Vector3, radius: float, delta: float) -> void:
+	_patrol_angle += delta * 0.35
+	var goal := center + Vector3(cos(_patrol_angle) * radius, 0.0, sin(_patrol_angle) * radius)
+	if global_position.distance_to(goal) > 1.5:
+		_steer_toward(goal, move_speed * 0.65)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+
+
+func _get_home_camp_pos() -> Vector3:
+	if GameState.factions.has(faction_id):
+		return GameState.factions[faction_id].get("camp_position", Vector3.ZERO)
+	return Vector3.ZERO
+
+
+func _get_nearest_dropoff_pos() -> Vector3:
+	return UnitAIRoutines.get_nearest_dropoff_pos(self)
+
+
+func _find_nearest_blueprint() -> Node:
+	return UnitAIRoutines.find_nearest_blueprint(self)
+
+
+func _find_nearest_resource_node(types: Array, around: Vector3, max_dist: float) -> Node:
+	return UnitAIRoutines.find_nearest_resource_node(types, around, max_dist)
+
+
+func _find_nearest_prey(max_dist: float) -> Node:
+	return UnitAIRoutines.find_nearest_prey(self, max_dist)
+
+
+func _set_hand_mounts_visible(vis: bool) -> void:
+	HumanMeshBuilder.set_hand_mounts_visible(_visual_root, vis)
+
+
+func _engage_unarmed_self_defense(target: Node) -> void:
+	var t_pos := (target as Node3D).global_position
+	var d := global_position.distance_to(t_pos)
+	var reach := 1.65
+	if d > reach:
+		_steer_toward(t_pos, move_speed * 0.95)
+	else:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_face_point(t_pos)
+		if _attack_cd <= 0.0:
+			var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
+			var atk_spd := float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("attack_speed_mult", 1.0))
+			_attack_cd = 1.15 / atk_spd
+			_unarmed_punch_vis_timer = 0.36
+			_set_hand_mounts_visible(false)
+			play_attack_animation("UNARMED_PUNCH", 0.36)
+			target.take_damage(unarmed_attack_damage, self, faction_id)
+
+
+func _find_nearest_hostile_wildlife(radius: float) -> Node:
+	return UnitAIRoutines.find_nearest_hostile_wildlife(self, radius)
+
+
+func _find_nearest_enemy_unit(radius: float) -> Node:
+	return _find_enemy_near_point(global_position, radius)
+
+
+func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
+	return UnitAIRoutines.find_enemy_near_point(self, point, radius)
+
+
+func _find_nearest_enemy_building(radius: float) -> Node:
+	return UnitAIRoutines.find_nearest_enemy_building(self, radius)
+
+
+func restore_snapshot(snapshot: Dictionary) -> void:
+	setup(snapshot)
+	hp = float(snapshot["hp"])
+	_update_hp_bar()
+
+
+func serialize() -> Dictionary:
+	return {
+		"unit_id": unit_id,
+		"unit_name": unit_name,
+		"faction_id": faction_id,
+		"gender": gender,
+		"lineage": lineage,
+		"role": role,
+		"warrior_class": warrior_class,
+		"is_leader": is_leader,
+		"is_player_controlled": is_player_controlled,
+		"is_caveman": is_caveman,
+		"is_child": is_child,
+		"growth_progress": growth_progress,
+		"original_faction_id": original_faction_id,
+		"base_hp_stat": base_hp_stat,
+		"base_melee_stat": base_melee_stat,
+		"base_ranged_stat": base_ranged_stat,
+		"melee_rank": melee_rank,
+		"ranged_rank": ranged_rank,
+		"training_xp": training_xp,
+		"morale": morale,
+		"is_revolting": is_revolting,
+		"is_wounded": is_wounded,
+		"is_healing_in_shack": is_healing_in_shack,
+		"being_rescued": being_rescued,
+		"wounded_timer": wounded_timer,
+		"has_equipped_weapon": has_equipped_weapon,
+		"weapon_tier": weapon_tier,
+		"has_armor": has_armor,
+		"hp": hp,
+		"squad_order": squad_order,
+		"hold_position": CampaignSave.pack_position(hold_position),
+		"fire_at_will": fire_at_will,
+		"is_raiding": is_raiding,
+		"raid_target_pos": CampaignSave.pack_position(raid_target_pos),
+		"pos": CampaignSave.pack_position(global_position),
+	}

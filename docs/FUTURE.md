@@ -1,0 +1,59 @@
+# Future development
+
+**Status as of 20 November 2026** — proposed. See the [master roadmap](ROADMAP.md) for cross-track sequencing and prerequisites (`Phase 0` stabilization and `Phase 1` simulation/navigation foundation before the larger valley). The live campaign uses the original valley and the HUD's Valley Radar. The [shared layout](../scripts/core/world_layout.gd) defines the current ground, blueprint, wildlife, and radar extents.
+
+## Playable opening tutorial
+
+Build on the Awakening Guide with a hands-on tutorial at the start of **New Game**. Teach one action at a time in the player's own campaign so the tribe and buildings carry into normal play.
+
+- [ ] **Recruit the first tribesfolk.** Point out a nearby wanderer, show the `E` recruit prompt as the leader approaches, then guide the player through recruiting three wanderers.
+- [ ] **Found the village.** Highlight **Build** (`B`), guide the player to the Tribal Campfire, and demonstrate how to place it on clear ground.
+- [ ] **Get the village working.** Show the player how to gather nearby resources, assign a worker in **Colony** (`C`), and place and finish a Sleeping Hut. Show how to help with construction using `E`.
+- [ ] **Hand over to normal play.** Make progress visible, resume at the current step after loading, and keep **Skip** available without cancelling the opening Peace Buffer.
+
+**Ready to ship when** a first-time player can recruit three tribesfolk, light the Campfire, and finish a Sleeping Hut using the on-screen prompts alone.
+
+**Verification probe:** Extend `scripts/tools/verify_campaign_ui.gd` (or add a dedicated `SceneTree` probe) to step from New Game through `E` recruitment, `B` Campfire founding, `E` harvest + `C` role assignment, and Sleeping Hut construction assist (`E`), plus `Skip` and save/load step resumption.
+
+[Awakening Guide rules](../scripts/core/awakening_guide.gd) · [HUD prompts](../scripts/ui/hud_controller.gd) · [Leader interactions](../scripts/entities/player_controller.gd) · [Campaign UI verifier](../scripts/tools/verify_campaign_ui.gd)
+
+## Larger valley and accessible world map
+
+- [ ] **Give tribes more room.** Prototype a roughly 760 × 760 m playable valley. The existing ground is 380 × 380 m and the closest rival camp is about 83 m from the Awakening glade. Test at least 170 m between all starting camps, 170–240 m to the player's nearest rival, and a contiguous 55–70 m radius for settlement growth around each camp. Tune by travel time, resource access, and viable building space.
+- [ ] **Extend the shared world layout.** Give the new valley its own bounds, settlement sites, reachable expansion space, resource clusters, caveman caves, wildlife sites, and river crossings. Use the layout for generation, movement, placement, camera, and maps. Keep early resources within a short trip from every starting camp.
+- [ ] **Keep distant tribes active.** Check camp construction, civilian hauling, raid arrival and return, enemy scan cost, and routes around rivers or walls. Preserve the 210-second opening Peace Buffer in the first prototype so spacing can be measured independently. Adjust timing after testing.
+- [ ] **Add a full-screen World Map.** Open it from the HUD or Valley Radar. Provide pan, zoom, a player marker, known camps, and landmarks. Today `Tab` and `M` both open Tribal Command. If `M` moves to the map, keep `Tab` for Tribal Command and update the HUD, Settings controls reference, and README together. Evaluate fog of war and click-to-mark waypoints with the larger valley prototype.
+- [ ] **Version the layout in saves.** Current saves store coordinates against the existing valley. Give each layout an ID and decide whether older campaigns continue on the original layout or use an explicit migration. Verify that loading keeps the same camp and landmark positions.
+
+**Ready to ship when** all starting tribes can grow a useful colony, resources and crossings are reachable, raids still travel and resolve, and map markers agree with in-world positions across pan, zoom, and save/load.
+
+**Verification probe:** Run a Forward+ `SceneTree` layout probe asserting camp spacings (`>= 170 m`), river-crossing reachability, World Map coordinate projection + `M` hotkey routing, `v4` layout-ID save/load round-trip, and `REFACTOR.md` physics median parity.
+
+[Terrain and spawning](../scripts/systems/world_generator.gd) · [Camp presets](../scripts/core/game_data.gd) · [Radar](../scripts/ui/minimap_widget.gd) · [HUD keyboard routing](../scripts/ui/hud_controller.gd) · [Save handling](../scripts/core/campaign_save.gd)
+
+## Tribal leaders and diplomacy
+
+Build on the leaders already present in the player tribe and rival colonies. Give every settled tribe and independent village a named leader who is both its strongest individual fighter and its diplomatic representative.
+
+- [ ] **Make leaders easy to recognise.** Give each leader a distinctive appearance and a clear name and title at gameplay distance. Set their combat strength above the rest of their tribe while preserving differences between lineages.
+- [ ] **Negotiate with the leader.** Let the player meet a village's leader to offer gifts, negotiate peace, or propose an alliance. Show the current representative in the Diplomacy panel so players know whom to approach.
+- [ ] **Handle succession and conquest together.** Decide when a surviving tribe appoints a successor and when the leader's defeat instead triggers a conquest decision. Update the village and Diplomacy panel to point to the successor, and preserve leadership and diplomatic agreements across save and load.
+
+**Ready to ship when** a player can identify a village's strongest fighter as its leader, negotiate an alliance with that leader, and find the correct representative after succession or reload.
+
+**Verification probe:** Run a `SceneTree` campaign probe verifying leader distinctiveness, in-person gift/peace/alliance negotiation, post-succession Diplomacy representative updates, and save/load preservation of agreements and `TRIBUTARY`/`truce_timer` state.
+
+[Leader spawning](../scripts/systems/world_generator.gd) · [Succession](../scripts/systems/faction_controller.gd) · [Diplomacy actions](../scripts/systems/combat_command_system.gd) · [Conquest and faction state](../scripts/core/game_state.gd)
+
+## Taming, farming, and mounts
+
+- [ ] **Animal taming.** Let tribesfolk tame eligible wild animals and bring them back to the settlement. Define which species can be tamed and what happens if a taming attempt fails.
+- [ ] **Crop farming.** Let players place fields and assign workers to plant, tend, harvest, and haul crops to storage. Balance harvest yields and labour against hunting and foraging.
+- [ ] **Animal husbandry.** Let the tribe keep suitable tamed animals in pens or pastures, feed and breed them, and collect resources from the herd. Check whether a settlement can sustain livestock as it grows.
+- [ ] **Mounts.** Let the leader mount, ride, and dismount suitable tamed animals. Check movement, camera, and rider animations before expanding to other riders or mounted combat.
+
+**Ready to ship when** a settlement can complete a crop cycle, sustain and grow a herd, and ride a trained animal. Save and load must restore crop growth, animal ownership, herd state, and rider assignments.
+
+**Verification probe:** Run a `SceneTree` simulation + save/load probe covering taming success/failure, crop plant/tend/harvest/haul, pasture breeding, leader mount/dismount movement/camera, and round-trip persistence.
+
+[Wildlife behavior](../scripts/entities/wildlife_entity.gd) · [Worker routines](../scripts/entities/unit_ai_routines.gd) · [Leader controls](../scripts/entities/player_controller.gd) · [Save handling](../scripts/core/campaign_save.gd)

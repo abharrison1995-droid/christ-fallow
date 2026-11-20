@@ -1,0 +1,21 @@
+# Godot 4 cache & local editor state
+.godot/
+.import/
+*.translation
+
+# Temporary / QA / scratch outputs
+*.tmp
+*.bak
+*.log
+captures/
+qa_out/
+tmp/
+
+# Python cache (Blender generator scripts)
+__pycache__/
+*.py[cod]
+
+# OS clutter
+Thumbs.db
+Desktop.ini
+.DS_Store
