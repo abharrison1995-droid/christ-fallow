@@ -4,18 +4,20 @@
 
 ## Playable opening tutorial
 
+> **Status: Delivered (20 November 2026)** — Implemented in [Phase 2A](ROADMAP.md#slice-2a--playable-opening-tutorial) and verified by [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd).
+
 Build on the Awakening Guide with a hands-on tutorial at the start of **New Game**. Teach one action at a time in the player's own campaign so the tribe and buildings carry into normal play.
 
-- [ ] **Recruit the first tribesfolk.** Point out a nearby wanderer, show the `E` recruit prompt as the leader approaches, then guide the player through recruiting three wanderers.
-- [ ] **Found the village.** Highlight **Build** (`B`), guide the player to the Tribal Campfire, and demonstrate how to place it on clear ground.
-- [ ] **Get the village working.** Show the player how to gather nearby resources, assign a worker in **Colony** (`C`), and place and finish a Sleeping Hut. Show how to help with construction using `E`.
-- [ ] **Hand over to normal play.** Make progress visible, resume at the current step after loading, and keep **Skip** available without cancelling the opening Peace Buffer.
+- [x] **Recruit the first tribesfolk.** Point out a nearby wanderer, show the `E` recruit prompt as the leader approaches, then guide the player through recruiting three wanderers.
+- [x] **Found the village.** Highlight **Build** (`B`), guide the player to the Tribal Campfire, and demonstrate how to place it on clear ground.
+- [x] **Get the village working.** Show the player how to gather nearby resources, assign a worker in **Colony** (`C`), and place and finish a Sleeping Hut. Show how to help with construction using `E`.
+- [x] **Hand over to normal play.** Make progress visible, resume at the current step after loading, and keep **Skip** available without cancelling the opening Peace Buffer.
 
-**Ready to ship when** a first-time player can recruit three tribesfolk, light the Campfire, and finish a Sleeping Hut using the on-screen prompts alone.
+**Delivered and verified:** First-time players are guided by the 3D [TutorialBeacon](../scripts/core/tutorial_beacon.gd), Valley Radar rings, HUD checklists and button highlights, and `BuildDrawer` recommendations through recruiting three tribesfolk, lighting the Campfire, harvesting, assigning a role, placing and finishing a Sleeping Hut with `E`, and testing combat.
 
-**Verification probe:** Extend `scripts/tools/verify_campaign_ui.gd` (or add a dedicated `SceneTree` probe) to step from New Game through `E` recruitment, `B` Campfire founding, `E` harvest + `C` role assignment, and Sleeping Hut construction assist (`E`), plus `Skip` and save/load step resumption.
+**Verification probe:** [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) steps from New Game through `E` recruitment, `B` Campfire founding, `E` harvest + `C` role assignment, Sleeping Hut placement + `E` construction assist, Step 4 save/load resumption, Step 5 combat handover, and `Skip` + Peace Buffer preservation.
 
-[Awakening Guide rules](../scripts/core/awakening_guide.gd) · [HUD prompts](../scripts/ui/hud_controller.gd) · [Leader interactions](../scripts/entities/player_controller.gd) · [Campaign UI verifier](../scripts/tools/verify_campaign_ui.gd)
+[Awakening Guide rules](../scripts/core/awakening_guide.gd) · [Tutorial beacon](../scripts/core/tutorial_beacon.gd) · [HUD prompts](../scripts/ui/hud_controller.gd) · [Leader interactions](../scripts/entities/player_controller.gd) · [Opening tutorial verifier](../scripts/tools/verify_opening_tutorial.gd) · [Campaign UI verifier](../scripts/tools/verify_campaign_ui.gd)
 
 ## Larger valley and accessible world map
 

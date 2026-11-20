@@ -8,17 +8,20 @@
 - **Core Stone Age campaign loop**: Title screen, Awakening tribe setup (`6` playable lineages), `210 s` Peace Buffer, 5-step Awakening Guide (`+10 Food, +10 Wood, +5 Flint`), gathering/hunting/crafting, 3 tech tiers, 5 Patron Gods & 6 tenets, day/dusk/night schedules, Barracks training, Tribal Warhorn (`H`), diplomacy/conquest/succession, and `v1..v3` atomic JSON persistence.
 - **Refactored runtime boundaries**: `CampaignSession` lifecycle ownership, `GameState` campaign rules, `CampaignSave`/`CampaignStorage`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, `WorldLayout`, `FeatureDrawer` views, `UnitInspector`, `CampaignOverlays`, and `Preferences`.
 - **Phase 0 stabilization (`Slices 0A`–`0E`, Completed 20 Nov 2026)**: Fixed conquest/wounded/pause lifecycle leaks (`0A`), wildlife defense/economy/Warhorn/tech-tier/bounds/combat parity (`0B`), save/load state isolation, cooldown/buff/timer persistence, live `KRAG_UL` HP scaling, and synchronous leader succession (`0C`), HUD focus/layout/diplomacy/radar/control polish (`0D`), and `DUAL_SHEATH`/GLB blueprint hologram/PSX material/trial rig alignment (`0E`). 
-- **Phase 1 simulation performance & navigation (Completed 20 Nov 2026)**: `SpatialIndex` (XZ hash grid plus per-faction caches) replaced per-frame container scans, `ValleyNavigation` (`AStarGrid2D`) routes units around constructed buildings and across river fords, and `WorldLayout` now owns the river, ford, camera and scan constants. See [Phase 1](#phase-1-simulation-performance--navigation-foundation) for the benchmark table. **Active next phase: [Phase 2: Playable Opening Tutorial & Asset Rig Promotion](#phase-2-playable-opening-tutorial--asset-rig-promotion).**
+- **Phase 1 simulation performance & navigation (Completed 20 Nov 2026)**: `SpatialIndex` (XZ hash grid plus per-faction caches) replaced per-frame container scans, `ValleyNavigation` (`AStarGrid2D`) routes units around constructed buildings and across river fords, and `WorldLayout` now owns the river, ford, camera and scan constants. See [Phase 1](#phase-1-simulation-performance--navigation-foundation) for the benchmark table.
+- **Phase 2A playable opening tutorial (Completed 20 Nov 2026)**: Single-source `AwakeningGuide.get_objective_target()`, 3D `TutorialBeacon` with proximity prompts (`[E] Recruit`, `[E] Harvest`, `[E] Help Build`), HUD step checklists and `Build`/`Colony` highlights, `BuildDrawer` recommendations, Valley Radar pulsing rings, and Sleeping Hut construction completion for Step 4.
+- **Phase 2B skinned rig action clips & Crag-Born promotion (Completed 20 Nov 2026)**: Added `Attack`, `Work`, `Hit`, `Death`, and `Wounded` skeletal clips across `tribesman_base.glb` and `crag_born_{broad,braided,child}.glb`, replaced procedural fallback swaps with zero-swap shader hit-flash/death handling, and promoted Crag-Born Foragers and adult Spearmen to default-enabled (`--procedural-roster` opts out). **Active next: [Slice 2C](#slice-2c--pass-35-expansion-assets--damage-review) and [Phase 3](#phase-3-larger-760760-m-valley--full-screen-world-map).**
 - **Automated baselines passing (20 Nov 2026)**:
+  - `scripts/tools/verify_opening_tutorial.gd` (`1600×900`): `OPENING TUTORIAL VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_campaign_save.gd`: `CAMPAIGN SAVE VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_campaign_ui.gd` (`1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`): `CAMPAIGN UI VERIFICATION PASSED` + `PASS action Quit` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_phase1_nav.gd`: `PHASE 1 NAV & SPATIAL VERIFICATION PASSED` (exit `0`; index vs container parity across spawn, cell moves, faction conversion, death, construction, rubble and save/load; palisade detour and rubble reopening; ford crossing).
   - `scripts/tools/benchmark_simulation.gd` (seed `17394`) completes with `SIMULATION BENCHMARK COMPLETE`; see the Phase 1 table.
-  - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (`--crag-born-trial` and `--check-default-roster`), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
+  - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (default promoted mode, `--check-default-roster`, and `--procedural-roster` opt-out), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
 
 ### Partially delivered (3D assets)
 - **Buildings**: `2/11` GLBs (`sleeping_hut_stages.glb`, `palisade_wall_stages.glb`); remaining `9` types use procedural 4-stage meshes. Blueprints and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 otherwise.
-- **Characters & gear**: `tribesman_base.glb` (opt-in leader via `--skinned-tribesman-trial`), `crag_born/{broad,braided,child}.glb` (`1/7` lineages, opt-in via `--crag-born-trial`), and `2/14` gear kits (`spearman/`, `forager/`). Default campaigns render procedural `HumanMeshBuilder` characters.
+- **Characters & gear**: `crag_born/{broad,braided,child}.glb` (`1/7` lineages, **default-enabled** for Crag-Born Foragers & adult Spearmen with full skeletal action clips and `--procedural-roster` opt-out), `tribesman_base.glb` (opt-in leader via `--skinned-tribesman-trial`), and `2/14` gear kits (`spearman/`, `forager/`). Other lineages and roles still render procedural `HumanMeshBuilder` meshes.
 - **Environment & wildlife**: `4` scenery GLBs (`windbent_pine`, `moss_limestone`, `berry_thicket`, `riverbank_reeds`), `2/6` wildlife GLBs (`tusked_boar`, `sabertooth`), plus `6` reviewed concept GLBs in `tools/assets/examples/`.
 
 ### Key architectural & hygiene bottlenecks
@@ -171,10 +174,29 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 ## Phase 2: Playable Opening Tutorial & Asset Rig Promotion
 
-1. **Playable opening tutorial**: Deliver all steps and the **Verification probe** in [FUTURE.md](FUTURE.md#playable-opening-tutorial).
-2. **Skinned rig promotion & Pass 3–5 rollout** ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout)):
-   - Resolve the procedural-to-skinned visual handoff (add skinned attack/work/hit/death clips or unified gear/mesh visibility) before removing the `--skinned-tribesman-trial` and `--crag-born-trial` opt-in gates.
-   - Deliver Pass 3 first candidates (**Goliath** and **Swift-Kin** scale extremes), Pass 4 **Reed Granary** / **Ridge Signal Tower** / **Standing-Stone Gate**, and Pass 5 **Reedjaw** / **Slateback Boar** / **Flintmask Scout** plus the 4-step damage review.
+### Slice 2A — Playable Opening Tutorial
+
+> **Completed (20 Nov 2026)**
+
+- **Single-source objective targeting** ([awakening_guide.gd](../scripts/core/awakening_guide.gd)): Added `AwakeningGuide.get_objective_target(state)` and `find_pending_building()`, and updated Step 4 to guide placing and finishing a constructed `SLEEPING_HUT`.
+- **3D beacon & world prompts** ([tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), [player_controller.gd](../scripts/entities/player_controller.gd)): Added unshaded ground ring + bobbing diamond/chevron marker with proximity `[E] Recruit`, `[E] Harvest`, and `[E] Help Build` prompts, respecting `reduced_motion` and hiding on pause/skip/completion.
+- **HUD, Build & Radar guidance** ([hud_controller.gd](../scripts/ui/hud_controller.gd), [build_drawer.gd](../scripts/ui/drawers/build_drawer.gd), [minimap_widget.gd](../scripts/ui/minimap_widget.gd)): Added compact `[x]`/`[ ]` step checklists, gold `Build [B]` / `Colony [C]` button highlights, `RECOMMENDED` building tag + auto-select (`CAMPFIRE` on Step 2, `SLEEPING_HUT` on Step 4), and pulsing golden Valley Radar objective rings.
+- **Verification**: [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) and [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) passed under Forward+ with mid-tutorial save/load, once-only reward, and `Skip` + Peace Buffer assertions.
+
+### Slice 2B — Skinned Rig Action Clips & Crag-Born Rig Promotion
+
+> **Completed (20 Nov 2026)**
+
+- **Skeletal action clips** ([generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py), [generate_crag_born.py](../tools/assets/generate_crag_born.py)): Added `Work`, `Wounded`, `Attack`, `Hit`, and `Death` clips alongside `Idle`, `Walk`, `GuardIdle`, and `GuardWalk` across `tribesman_base.glb` and `crag_born_{broad,braided,child}.glb`.
+- **Zero-swap animation & shader hit flash** ([skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd), [human_unit.gd](../scripts/entities/human_unit.gd)): Kept `_skinned_trial` visible across all states (idle, walk, work, attack, hit, hit-flash, wounded, and death) without swapping back to procedural blocks.
+- **Default Crag-Born promotion** ([crag_born_trial.gd](../scripts/entities/crag_born_trial.gd)): Promoted `CragBornTrial.enabled()` to `true` by default for Crag-Born Foragers and adult Spearmen outside the leader slot, with `--procedural-roster` opt-out (`--crag-born-trial` retained as a compatibility no-op).
+- **Verification**: [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) and [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) (default promoted, `--check-default-roster`, and `--procedural-roster` opt-out) passed under Forward+.
+
+### Slice 2C — Pass 3–5 Expansion Assets & Damage Review
+
+> **Active next (before or alongside Phase 3)** — ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout))
+
+- Deliver Pass 3 first candidates (**Goliath** and **Swift-Kin** scale extremes), Pass 4 **Reed Granary** / **Ridge Signal Tower** / **Standing-Stone Gate**, and Pass 5 **Reedjaw** / **Slateback Boar** / **Flintmask Scout** plus the 4-step damage review.
 
 ---
 
@@ -220,7 +242,8 @@ New-Item -ItemType Directory -Path $qa -Force | Out-Null
 $env:APPDATA = $qa
 $env:CHRIST_FALLOW_QA_APPDATA = $qa
 
-# 1. Campaign save & simulation baseline
+# 1. Opening tutorial, campaign save & simulation baseline
+& $godot --path $project --resolution 1600x900 --fixed-fps 60 --quit-after 1200 -s res://scripts/tools/verify_opening_tutorial.gd
 & $godot --path $project --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_save.gd
 
 # 2. Campaign UI baseline (repeat at 1280x720 without --large-ui, and 1920x810 with --large-ui)
@@ -230,10 +253,11 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_phase1_nav.gd
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/benchmark_simulation.gd
 
-# 4. Asset & trial rig gates (Forward+ display required)
+# 4. Asset & skinned rig gates (Forward+ display required)
 & $godot --path $project --quit-after 600 -s res://scripts/tools/verify_glb_assets.gd -- "--out-dir=$qa/glb" --require-gameplay-rig
-& $godot --path $project --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --crag-born-trial "--out-dir=$qa/crag"
+& $godot --path $project --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- "--out-dir=$qa/crag"
 & $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --check-default-roster
+& $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --check-default-roster --procedural-roster
 & $godot --path $project --resolution 1600x900 --quit-after 900 -s res://scripts/tools/verify_valley_assets.gd -- "--out-dir=$qa/valley"
 & $godot --path $project --quit-after 600 res://scenes/asset_showcase.tscn -- "--out-dir=$qa/showcase"
 ```
