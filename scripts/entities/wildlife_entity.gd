@@ -139,6 +139,17 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		kb.y = 0.0
 		if kb.length_squared() > 0.001:
 			var kb_str := 2.4 if is_boss else 5.5
+			if GameState.factions.has(attacker_faction) and int(GameState.factions[attacker_faction].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.VALK_TOR:
+				var atk_is_spear := false
+				if attacker.get("is_leader") == true:
+					atk_is_spear = true
+				elif attacker.has_method("_get_effective_warrior_class"):
+					var eff_cls: int = int(attacker._get_effective_warrior_class())
+					var atk_role: int = int(attacker.get("role"))
+					if (atk_role == GameData.Role.WARRIOR or attacker._is_warhorn_militia()) and (eff_cls == GameData.WarriorClass.SPEARMAN or eff_cls == GameData.WarriorClass.JAVELINEER):
+						atk_is_spear = true
+				if atk_is_spear:
+					kb_str *= 1.25
 			_knockback_vel = kb.normalized() * kb_str
 	CombatVFX.spawn_damage_popup(self, "-%d" % roundi(amount), Color(1.0, 0.88, 0.28), 1.25 if is_boss else 1.0, 2.9 if is_boss else 1.85)
 
@@ -147,7 +158,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		var away: Vector3 = global_position - (attacker as Node3D).global_position
 		away.y = 0.0
 		_flee_dir = away.normalized() if away.length() > 0.1 else Vector3(1, 0, 0)
-	elif attacker != null and is_instance_valid(attacker):
+	elif attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
 		_target_unit = attacker
 
 	if hp <= 0.0:
@@ -161,6 +172,8 @@ func _die(killer: Node, killer_faction: int) -> void:
 
 	if GameState.factions.has(killer_faction):
 		var mult := 1.0
+		if GameState.has_building(killer_faction, "FORAGER_LODGE", true):
+			mult += 0.25
 		if GameState.factions[killer_faction].get("patron_god") == GameData.PatronGod.FEN_ROR:
 			mult += 0.25
 		if GameState.has_tenet(killer_faction, "WILD_HARMONY"):
@@ -222,6 +235,7 @@ func _update_wildlife_animation(delta: float) -> void:
 			CombatVFX.apply_overlay_recursive(_visual_root, null)
 	if _knockback_vel.length_squared() > 0.04:
 		move_and_collide(_knockback_vel * delta)
+		_clamp_to_world_bounds()
 		_knockback_vel = _knockback_vel.lerp(Vector3.ZERO, minf(1.0, 10.0 * delta))
 	else:
 		_knockback_vel = Vector3.ZERO
@@ -319,9 +333,15 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 
 	move_and_slide()
+	_clamp_to_world_bounds()
 	if Vector2(velocity.x, velocity.z).length() > 0.25:
 		var look_t := global_position + Vector3(velocity.x, 0.0, velocity.z)
 		look_at(look_t, Vector3.UP)
+
+
+func _clamp_to_world_bounds() -> void:
+	global_position.x = clampf(global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	global_position.z = clampf(global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
 
 
 func _scan_for_prey(radius: float) -> Node:

@@ -51,6 +51,8 @@ static func run_day_work_routine(u, delta: float) -> void:
 			GameState.add_resource(u.faction_id, u._carry_type, u._carry_amount)
 			u._carry_amount = 0.0
 			u._carry_type = ""
+			if u.role == GameData.Role.STONEKNAPPER:
+				u._target_node = null
 		return
 
 	if u.role == GameData.Role.BUILDER_CRAFTER and _try_builder_crafter_work(u, delta):
@@ -67,9 +69,26 @@ static func run_day_work_routine(u, delta: float) -> void:
 	_run_gatherer_work(u, camp, delta)
 
 
+static func _nearest_building(origin: Vector3, buildings: Array) -> Node3D:
+	var best: Node3D = null
+	var best_d := 999999999.0
+	for b in buildings:
+		if not is_instance_valid(b):
+			continue
+		var b3d := b as Node3D
+		if b3d == null:
+			continue
+		var d := origin.distance_squared_to(b3d.global_position)
+		if d < best_d:
+			best_d = d
+			best = b3d
+	return best
+
+
 static func _try_builder_crafter_work(u, delta: float) -> bool:
 	var bp: Node = find_nearest_blueprint(u)
 	if bp != null:
+		u._active_craft_item = ""
 		var bp_pos: Vector3 = (bp as Node3D).global_position
 		if u.global_position.distance_to(bp_pos) > 3.2:
 			u._steer_toward(bp_pos, u.move_speed)
@@ -84,7 +103,10 @@ static func _try_builder_crafter_work(u, delta: float) -> bool:
 
 	var pits: Array = GameState.get_faction_buildings(u.faction_id, "CRAFTING_PIT", true)
 	if not pits.is_empty() and GameState.factions.has(u.faction_id) and not GameState.factions[u.faction_id]["craft_queue"].is_empty():
-		var pit_pos: Vector3 = (pits[0] as Node3D).global_position
+		var pit := _nearest_building((u as Node3D).global_position, pits)
+		if pit == null:
+			return false
+		var pit_pos: Vector3 = pit.global_position
 		if u.global_position.distance_to(pit_pos) > 3.0:
 			u._steer_toward(pit_pos, u.move_speed)
 		else:
@@ -92,15 +114,26 @@ static func _try_builder_crafter_work(u, delta: float) -> bool:
 			u.velocity.z = 0.0
 			u._face_point(pit_pos)
 			u._is_working_this_frame = true
-			u._work_timer += delta
-			if u._work_timer >= 3.2:
+			var queue: Array = GameState.factions[u.faction_id]["craft_queue"]
+			var current_item: String = str(queue[0])
+			if u._active_craft_item != current_item:
+				u._active_craft_item = current_item
 				u._work_timer = 0.0
-				var item_key: String = GameState.factions[u.faction_id]["craft_queue"].pop_front()
+			var recipe: Dictionary = GameData.CRAFT_RECIPES.get(current_item, {})
+			var craft_time: float = float(recipe.get("craft_time", 3.2))
+			u._work_timer += delta
+			if u._work_timer >= craft_time:
+				u._work_timer = 0.0
+				u._active_craft_item = ""
+				var item_key: String = str(queue.pop_front())
 				GameState.factions[u.faction_id]["stockpile"][item_key] = int(GameState.factions[u.faction_id]["stockpile"].get(item_key, 0)) + 1
 				if u.faction_id == 0:
 					GameState.resources_changed.emit(0)
 					GameState.push_log("Crafted 1x %s into Weapon Rack stockpile!" % item_key.capitalize(), "success")
 		return true
+	if u._active_craft_item != "":
+		u._active_craft_item = ""
+		u._work_timer = 0.0
 	return false
 
 
@@ -114,12 +147,15 @@ static func _run_shaman_work(u, camp: Vector3, delta: float) -> void:
 			if u.global_position.distance_to(w_pos) > 2.6:
 				u._steer_toward(w_pos, u.move_speed * 1.1)
 			else:
-				wounded.send_to_shaman_shack((shacks[0] as Node3D).global_position)
-				GameState.push_log("Shaman %s brought wounded %s to the Shaman Shack!" % [u.unit_name, wounded.unit_name], "success")
+				var shack := _nearest_building(w_pos, shacks)
+				if shack != null:
+					wounded.send_to_shaman_shack(shack.global_position)
+					GameState.push_log("Shaman %s brought wounded %s to the Shaman Shack!" % [u.unit_name, wounded.unit_name], "success")
 			return
 
 	var totems: Array = GameState.get_faction_buildings(u.faction_id, "SACRED_TOTEM", true)
-	var pray_pos: Vector3 = (totems[0] as Node3D).global_position if not totems.is_empty() else camp
+	var nearest_totem := _nearest_building((u as Node3D).global_position, totems)
+	var pray_pos: Vector3 = nearest_totem.global_position if nearest_totem != null else camp
 	if u.global_position.distance_to(pray_pos) > 3.5:
 		u._steer_toward(pray_pos, u.move_speed)
 		return
@@ -151,7 +187,7 @@ static func _try_hunter_work(u) -> bool:
 	if u._attack_cd <= 0.0:
 		u._attack_cd = 1.1
 		u.play_attack_animation("BOW_SHOT", 0.42)
-		u._fire_arrow_at(prey_pos + Vector3(0.0, 0.7, 0.0), 18.0)
+		u._fire_arrow_at(prey_pos + Vector3(0.0, 0.7, 0.0), float(u.ranged_attack_damage))
 	return true
 
 
@@ -166,7 +202,23 @@ static func _run_gatherer_work(u, camp: Vector3, delta: float) -> void:
 		res_out = "stone"
 
 	if u._target_node == null or not is_instance_valid(u._target_node):
-		u._target_node = find_nearest_resource_node(desired_node_types, camp, 70.0)
+		if u.role == GameData.Role.STONEKNAPPER:
+			var prefer_flint := false
+			if GameState.factions.has(u.faction_id):
+				var res: Dictionary = GameState.factions[u.faction_id]["resources"]
+				var stone_amt := float(res.get("stone", 0.0))
+				var flint_amt := float(res.get("flint", 0.0))
+				if is_equal_approx(flint_amt, stone_amt):
+					prefer_flint = (int(u.unit_id) % 2 == 0)
+				else:
+					prefer_flint = flint_amt < stone_amt
+			var primary_type: String = "FLINT" if prefer_flint else "STONE"
+			var fallback_type: String = "STONE" if prefer_flint else "FLINT"
+			u._target_node = find_nearest_resource_node([primary_type], camp, 70.0)
+			if u._target_node == null:
+				u._target_node = find_nearest_resource_node([fallback_type], camp, 70.0)
+		else:
+			u._target_node = find_nearest_resource_node(desired_node_types, camp, 70.0)
 
 	if u._target_node == null:
 		u._patrol_around(camp, 7.5, delta)
@@ -203,10 +255,11 @@ static func _run_gatherer_work(u, camp: Vector3, delta: float) -> void:
 
 static func run_train_at_barracks(u, delta: float) -> void:
 	var barracks: Array = GameState.get_faction_buildings(u.faction_id, "BARRACKS", true)
-	if barracks.is_empty():
+	var nearest_b := _nearest_building((u as Node3D).global_position, barracks)
+	if nearest_b == null:
 		u._patrol_around(u._get_home_camp_pos(), 7.0, delta)
 		return
-	var b_pos: Vector3 = (barracks[0] as Node3D).global_position
+	var b_pos: Vector3 = nearest_b.global_position
 	if u.global_position.distance_to(b_pos) > 3.4:
 		u._steer_toward(b_pos, u.move_speed)
 		return
@@ -320,22 +373,39 @@ static func find_nearest_prey(u, max_dist: float) -> Node:
 	return best
 
 
-static func find_nearest_hostile_wildlife(u, radius: float) -> Node:
+static func is_wildlife_hostile_to_faction(w: Node, faction_id: int, unit_ref: Node = null) -> bool:
+	if not is_instance_valid(w) or w.get("is_dead") == true:
+		return false
+	if w.get("is_aggro") == true:
+		return true
+	var wt: Variant = w.get("_target_unit")
+	if wt != null and is_instance_valid(wt):
+		if unit_ref != null and wt == unit_ref:
+			return true
+		var wt_fid: Variant = wt.get("faction_id")
+		if wt_fid != null and int(wt_fid) == faction_id:
+			return true
+	return false
+
+
+static func find_hostile_wildlife_near_point(u, point: Vector3, radius: float) -> Node:
 	if GameState.wildlife_container == null:
 		return null
 	var best: Node = null
 	var best_d := radius
+	var u_fid: int = int(u.faction_id)
 	for w in GameState.wildlife_container.get_children():
-		if not is_instance_valid(w) or w.get("is_dead"):
+		if not is_wildlife_hostile_to_faction(w, u_fid, u):
 			continue
-		var is_threat: bool = (w.get("is_aggro") == true) or (w.get("_target_unit") == u)
-		if not is_threat:
-			continue
-		var d: float = (u as Node3D).global_position.distance_to((w as Node3D).global_position)
+		var d: float = point.distance_to((w as Node3D).global_position)
 		if d < best_d:
 			best_d = d
 			best = w
 	return best
+
+
+static func find_nearest_hostile_wildlife(u, radius: float) -> Node:
+	return find_hostile_wildlife_near_point(u, (u as Node3D).global_position, radius)
 
 
 static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
@@ -394,7 +464,14 @@ static func find_nearest_enemy_building(u, radius: float) -> Node:
 static func respond_to_civilian_threat(u, enemy: Node) -> bool:
 	# Civilian self-defense (weak unarmed hand attacks) or fleeing to camp
 	var threat: Node = enemy
-	if threat == null and u._self_defense_target != null and is_instance_valid(u._self_defense_target) and not u._self_defense_target.get("is_dead") and u._self_defense_target.get("is_wounded") != true:
+	if u._self_defense_target != null:
+		if not is_instance_valid(u._self_defense_target) or u._self_defense_target.get("is_dead") == true or u._self_defense_target.get("is_wounded") == true:
+			u._self_defense_target = null
+		else:
+			var sd_fid: Variant = u._self_defense_target.get("faction_id")
+			if sd_fid != null and not GameState.is_hostile(u.faction_id, int(sd_fid)):
+				u._self_defense_target = null
+	if threat == null and u._self_defense_target != null:
 		if u.global_position.distance_to((u._self_defense_target as Node3D).global_position) <= 6.5:
 			threat = u._self_defense_target
 	if threat == null:

@@ -60,7 +60,7 @@ func build_content() -> void:
 		var key: String = _selected_building
 		var info: Dictionary = GameData.BUILDINGS[key]
 		var founded: bool = GameState.factions[0]["is_founded"]
-		var can_buy := GameState.can_afford(0, info["costs"])
+		var can_buy := GameState.can_afford(0, info["costs"], true)
 		var locked := not founded and key != "CAMPFIRE"
 		var discount: float = 0.8 if GameState.has_tenet(0, "ANCESTRAL_STONE") else 1.0
 		var materials := PackedStringArray()

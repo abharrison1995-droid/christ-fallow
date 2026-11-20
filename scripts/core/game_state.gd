@@ -558,11 +558,11 @@ func add_resource(faction_id: int, res_key: String, amount: float) -> void:
 		resources_changed.emit(faction_id)
 
 
-func can_afford(faction_id: int, costs: Dictionary) -> bool:
+func can_afford(faction_id: int, costs: Dictionary, is_building: bool = false) -> bool:
 	if not factions.has(faction_id):
 		return false
 	var res: Dictionary = factions[faction_id]["resources"]
-	var discount := 0.8 if has_tenet(faction_id, "ANCESTRAL_STONE") else 1.0
+	var discount := 0.8 if (is_building and has_tenet(faction_id, "ANCESTRAL_STONE")) else 1.0
 	for k in costs.keys():
 		var req := float(costs[k])
 		if k == "wood" or k == "stone":
@@ -572,11 +572,11 @@ func can_afford(faction_id: int, costs: Dictionary) -> bool:
 	return true
 
 
-func spend_resources(faction_id: int, costs: Dictionary) -> bool:
-	if not can_afford(faction_id, costs):
+func spend_resources(faction_id: int, costs: Dictionary, is_building: bool = false) -> bool:
+	if not can_afford(faction_id, costs, is_building):
 		return false
 	var res: Dictionary = factions[faction_id]["resources"]
-	var discount := 0.8 if has_tenet(faction_id, "ANCESTRAL_STONE") else 1.0
+	var discount := 0.8 if (is_building and has_tenet(faction_id, "ANCESTRAL_STONE")) else 1.0
 	for k in costs.keys():
 		var req := float(costs[k])
 		if k == "wood" or k == "stone":

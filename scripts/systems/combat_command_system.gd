@@ -45,11 +45,12 @@ func issue_order(order: int, leader_pos: Vector3) -> void:
 	last_issued_order = order
 	var count := 0
 	for u in GameState.get_faction_units(0, true):
-		if u.get("is_leader"):
+		if u.get("is_leader") == true or u.get("is_child") == true:
 			continue
 		if u.get("role") != GameData.Role.WARRIOR and not GameState.warhorn_active:
 			continue
-		if selected_warrior_class >= 0 and u.get("warrior_class") != selected_warrior_class:
+		var eff_cls: int = GameData.WarriorClass.SPEARMAN if (u.get("role") != GameData.Role.WARRIOR and GameState.warhorn_active) else int(u.get("warrior_class"))
+		if selected_warrior_class >= 0 and eff_cls != selected_warrior_class:
 			continue
 		u.squad_order = order
 		if order == GameData.SquadOrder.HOLD:
@@ -64,7 +65,7 @@ func issue_order(order: int, leader_pos: Vector3) -> void:
 func toggle_fire_at_will() -> void:
 	global_fire_at_will = not global_fire_at_will
 	for u in GameState.get_faction_units(0, true):
-		if u.get("role") == GameData.Role.WARRIOR:
+		if u.get("is_leader") != true:
 			u.fire_at_will = global_fire_at_will
 	GameState.push_log("Archers: %s" % ("Fire at Will" if global_fire_at_will else "Hold Fire"), "info")
 	selection_changed.emit(selected_warrior_class, last_issued_order, global_fire_at_will, GameState.warhorn_active)
@@ -74,7 +75,7 @@ func toggle_warhorn() -> void:
 	GameState.warhorn_active = not GameState.warhorn_active
 	for u in GameState.get_faction_units(0, true):
 		u._refresh_gear_visual()
-		if GameState.warhorn_active and u.get("role") != GameData.Role.WARRIOR and not u.get("is_leader"):
+		if GameState.warhorn_active and u.get("role") != GameData.Role.WARRIOR and u.get("is_leader") != true and u.get("is_child") != true:
 			u.squad_order = GameData.SquadOrder.GUARD_BASE
 	if GameState.warhorn_active:
 		GameState.push_log("WARHORN SOUNDED! All civilians armed to defend the colony!", "warning")
@@ -133,6 +134,9 @@ func preach_religion(target_fid: int) -> void:
 	# Chance to shift one tenet or convert small opinion
 	if GameState.get_diplomatic_opinion(0, target_fid) >= 35 and randf() < 0.45:
 		GameState.factions[target_fid]["patron_god"] = GameState.factions[0]["patron_god"]
+		for u in GameState.get_faction_units(target_fid, true):
+			u.recalculate_stats(false)
+		GameState.religion_changed.emit(target_fid)
 		GameState.push_log("Envoy converted %s to your Patron God!" % GameState.factions[target_fid]["name"], "success")
 	else:
 		GameState.push_log("Shaman preached to %s (+18 Opinion)." % GameState.factions[target_fid]["name"], "info")

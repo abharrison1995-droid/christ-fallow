@@ -275,8 +275,8 @@ func _move_leader(delta: float) -> void:
 		leader_unit.velocity.y = 0.0
 
 	leader_unit.move_and_slide()
-	leader_unit.global_position.x = clampf(leader_unit.global_position.x, -172.0, 172.0)
-	leader_unit.global_position.z = clampf(leader_unit.global_position.z, -172.0, 172.0)
+	leader_unit.global_position.x = clampf(leader_unit.global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	leader_unit.global_position.z = clampf(leader_unit.global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
 
 
 func _update_camera(delta: float) -> void:
@@ -332,7 +332,7 @@ func _try_place_blueprint() -> void:
 		GameState.push_log(warning, "warning")
 		return
 	var pos := _blueprint_ghost.global_position
-	GameState.spend_resources(0, b_info["costs"])
+	GameState.spend_resources(0, b_info["costs"], true)
 
 	var b_script := load("res://scripts/entities/building_entity.gd")
 	var b := StaticBody3D.new()
@@ -367,7 +367,7 @@ func blueprint_placement_message() -> String:
 	if not is_instance_valid(_blueprint_ghost) or not GameData.BUILDINGS.has(blueprint_type):
 		return ""
 	var info: Dictionary = GameData.BUILDINGS[blueprint_type]
-	if not GameState.can_afford(0, info["costs"]):
+	if not GameState.can_afford(0, info["costs"], true):
 		return "Not enough resources for %s." % info["name"]
 	for building in GameState.get_faction_buildings(0):
 		if _blueprint_ghost.global_position.distance_to(building.global_position) < 2.6:
@@ -452,7 +452,13 @@ func _try_throw_javelin() -> void:
 
 	var origin := leader_unit.global_position + Vector3(0.0, 1.5, 0.0)
 	var tier := int(GameState.factions[0].get("tech_tier", 1))
-	Projectile3D.spawn(leader_unit, 0, origin, aim + Vector3(0.0, 0.8, 0.0), leader_unit.attack_damage * 1.15, 32.0, "JAVELIN", tier, false)
+	var jav_dmg: float = float(leader_unit.ranged_attack_damage) * 1.25
+	var patron: int = int(GameState.factions[0].get("patron_god", GameData.PatronGod.NONE))
+	if patron == GameData.PatronGod.VALK_TOR:
+		jav_dmg *= 1.25
+	elif patron == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
+		jav_dmg *= 1.20
+	Projectile3D.spawn(leader_unit, 0, origin, aim + Vector3(0.0, 0.8, 0.0), jav_dmg, 32.0, "JAVELIN", tier, false)
 
 
 func _try_inspect_clicked_unit() -> bool:
@@ -498,7 +504,16 @@ func _try_interact_or_harvest() -> void:
 			if is_instance_valid(u) and not u.get("is_dead") and u.get("is_wounded") and not u.get("is_healing_in_shack"):
 				if leader_unit.global_position.distance_to((u as Node3D).global_position) <= 5.5:
 					if not shacks.is_empty():
-						u.send_to_shaman_shack((shacks[0] as Node3D).global_position)
+						var best_shack: Node3D = shacks[0] as Node3D
+						var best_sd: float = (u as Node3D).global_position.distance_squared_to(best_shack.global_position)
+						for s in shacks:
+							var s3d := s as Node3D
+							if s3d != null:
+								var sd: float = (u as Node3D).global_position.distance_squared_to(s3d.global_position)
+								if sd < best_sd:
+									best_sd = sd
+									best_shack = s3d
+						u.send_to_shaman_shack(best_shack.global_position)
 						GameState.push_log("Sent wounded %s to the Shaman Shack for healing!" % str(u.get("unit_name")), "success")
 					else:
 						if u.has_method("apply_field_aid") and u.apply_field_aid():

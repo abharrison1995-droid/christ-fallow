@@ -2,6 +2,7 @@ extends CharacterBody3D
 
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
+const Layout = preload("res://scripts/core/world_layout.gd")
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 
@@ -106,6 +107,8 @@ var _unarmed_punch_vis_timer: float = 0.0
 var _rescue_shaman: Node = null
 var _rescue_lease_timer: float = 0.0
 var _field_aid_applied: bool = false
+var _active_craft_item: String = ""
+var _campfire_heal_cd: float = 0.0
 
 
 func setup(p_params: Dictionary) -> void:
@@ -138,7 +141,12 @@ func setup(p_params: Dictionary) -> void:
 	has_armor = bool(p_params.get("has_armor", is_leader))
 	squad_order = int(p_params.get("squad_order", GameData.SquadOrder.FOLLOW))
 	hold_position = p_params.get("hold_position", Vector3.ZERO)
-	fire_at_will = bool(p_params.get("fire_at_will", true))
+	if p_params.has("fire_at_will"):
+		fire_at_will = bool(p_params["fire_at_will"])
+	elif faction_id == 0 and GameState.combat_command_system != null:
+		fire_at_will = bool(GameState.combat_command_system.global_fire_at_will)
+	else:
+		fire_at_will = true
 	is_raiding = bool(p_params.get("is_raiding", false))
 	raid_target_pos = p_params.get("raid_target_pos", Vector3.ZERO)
 
@@ -174,9 +182,19 @@ func _pick_random_name() -> String:
 	return GameData.FIRST_NAMES_FEMALE[randi() % GameData.FIRST_NAMES_FEMALE.size()]
 
 
+func _is_warhorn_militia() -> bool:
+	return faction_id == 0 and GameState.warhorn_active and role != GameData.Role.WARRIOR and not is_leader and not is_caveman and not is_child
+
+
+func _get_effective_warrior_class() -> int:
+	if _is_warhorn_militia():
+		return GameData.WarriorClass.SPEARMAN
+	return warrior_class
+
+
 func _get_class_key() -> String:
-	var militia := (faction_id == 0 and GameState.warhorn_active)
-	return GameData.resolve_class_key(role, warrior_class, is_leader, is_caveman, militia)
+	var militia := _is_warhorn_militia()
+	return GameData.resolve_class_key(role, _get_effective_warrior_class(), is_leader, is_caveman, militia)
 
 
 func _get_class_def() -> Dictionary:
@@ -199,10 +217,11 @@ func _rebuild_visual() -> void:
 	elif faction_id >= 0 and GameData.FACTION_COLORS.has(faction_id):
 		col = GameData.FACTION_COLORS[faction_id]
 
-	var militia := (faction_id == 0 and GameState.warhorn_active)
-	var eff_role := GameData.Role.WARRIOR if (militia and not is_leader and not is_caveman and not is_child) else role
+	var militia := _is_warhorn_militia()
+	var eff_role := GameData.Role.WARRIOR if militia else role
+	var eff_class := _get_effective_warrior_class()
 	_active_class_key = _get_class_key()
-	_visual_root = MeshFactory.build_human_mesh(lineage, gender, col, is_leader, is_caveman, eff_role, warrior_class, is_child)
+	_visual_root = MeshFactory.build_human_mesh(lineage, gender, col, is_leader, is_caveman, eff_role, eff_class, is_child)
 	add_child(_visual_root)
 	_body_pivot = _visual_root.get_node_or_null("BodyPivot")
 
@@ -232,10 +251,11 @@ func _rebuild_visual() -> void:
 			else:
 				trial.free()
 	elif CragBornTrial.enabled() and eff_lin == GameData.Lineage.CRAG_BORN and not is_leader and not is_dead and not is_wounded:
-		if _active_class_key == "FORAGER" or (_active_class_key == "SPEARMAN" and not is_child):
+		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
+		if trial_kit == "FORAGER" or (trial_kit == "SPEARMAN" and not is_child):
 			var pilot := CragBornTrial.new()
 			var variant := "child" if is_child else ("broad" if gender == GameData.Gender.MALE else "braided")
-			if pilot.setup_kit(MeshFactory, col, variant, _active_class_key):
+			if pilot.setup_kit(MeshFactory, col, variant, trial_kit):
 				pilot.name = "CragBornTrial"
 				add_child(pilot)
 				_skinned_trial = pilot
@@ -261,8 +281,8 @@ func _refresh_gear_visual() -> void:
 		return
 	var w_str := "SPEAR"
 	var use_tool := false
-	if role == GameData.Role.WARRIOR or is_leader or is_caveman or (faction_id == 0 and GameState.warhorn_active):
-		match warrior_class:
+	if not is_child and (role == GameData.Role.WARRIOR or is_leader or is_caveman or _is_warhorn_militia()):
+		match _get_effective_warrior_class():
 			GameData.WarriorClass.SPEARMAN:
 				w_str = "SPEAR"
 			GameData.WarriorClass.KNIFE_RAIDER:
@@ -533,7 +553,16 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
 	var kb_resist := float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("knockback_resist", 0.0))
 	var atk_is_boss: bool = (attacker != null and attacker.get("is_boss") == true)
-	var atk_is_brute: bool = (attacker != null and attacker.get("warrior_class") != null and int(attacker.get("warrior_class")) == GameData.WarriorClass.BRUTE)
+	var atk_is_brute: bool = (attacker != null and attacker.get("warrior_class") != null and int(attacker.get("warrior_class")) == GameData.WarriorClass.BRUTE and (attacker.get("role") == GameData.Role.WARRIOR or attacker.get("is_caveman") == true))
+	var atk_valk_spear := false
+	if attacker != null and GameState.factions.has(attacker_faction) and int(GameState.factions[attacker_faction].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.VALK_TOR:
+		if attacker.get("is_leader") == true:
+			atk_valk_spear = true
+		elif attacker.has_method("_get_effective_warrior_class"):
+			var atk_cls: int = int(attacker._get_effective_warrior_class())
+			var atk_role: int = int(attacker.get("role"))
+			if (atk_role == GameData.Role.WARRIOR or attacker._is_warhorn_militia()) and (atk_cls == GameData.WarriorClass.SPEARMAN or atk_cls == GameData.WarriorClass.JAVELINEER):
+				atk_valk_spear = true
 	if attacker != null and attacker is Node3D:
 		var atk_pos: Vector3 = (attacker as Node3D).global_position
 		var kb := global_position - atk_pos
@@ -542,6 +571,8 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 			var kb_str := 6.5 * (1.0 - kb_resist * 0.7)
 			if atk_is_boss or atk_is_brute:
 				kb_str *= 1.45
+			if atk_valk_spear:
+				kb_str *= 1.25
 			_knockback_vel = kb.normalized() * kb_str
 			var to_atk := (atk_pos - global_position)
 			to_atk.y = 0.0
@@ -674,6 +705,7 @@ func _update_wounded_animation(delta: float) -> void:
 func _update_procedural_animation(delta: float) -> void:
 	if _knockback_vel.length_squared() > 0.04:
 		move_and_collide(_knockback_vel * delta)
+		_clamp_to_world_bounds()
 		_knockback_vel = _knockback_vel.lerp(Vector3.ZERO, minf(1.0, 11.0 * delta))
 	else:
 		_knockback_vel = Vector3.ZERO
@@ -755,9 +787,13 @@ func set_role_and_class(new_role: int, new_warrior_class: int = -1) -> void:
 		warrior_class = new_warrior_class
 	_target_node = null
 	_carry_amount = 0.0
+	_work_timer = 0.0
+	_active_craft_item = ""
 	if faction_id == 0 and GameState.game_active and not is_leader:
 		GameState.tutorial_assigned_role = true
 	if role == GameData.Role.WARRIOR:
+		if faction_id == 0 and GameState.combat_command_system != null:
+			fire_at_will = bool(GameState.combat_command_system.global_fire_at_will)
 		try_equip_from_stockpile()
 	recalculate_stats(false)
 
@@ -768,6 +804,7 @@ func try_equip_from_stockpile() -> void:
 	var fdata: Dictionary = GameState.factions[faction_id]
 	var stock: Dictionary = fdata["stockpile"]
 	var tier: int = int(fdata.get("tech_tier", 1))
+	var equipped_any := false
 
 	if not has_equipped_weapon or weapon_tier < tier:
 		var key := "spears"
@@ -783,14 +820,17 @@ func try_equip_from_stockpile() -> void:
 			stock[key] = int(stock[key]) - 1
 			has_equipped_weapon = true
 			weapon_tier = tier
+			equipped_any = true
 
 	if not has_armor and int(stock.get("armor", 0)) > 0:
 		stock["armor"] = int(stock["armor"]) - 1
 		has_armor = true
+		equipped_any = true
 
-	if faction_id == 0:
-		GameState.resources_changed.emit(0)
-	recalculate_stats(false)
+	if equipped_any:
+		if faction_id == 0:
+			GameState.resources_changed.emit(0)
+		recalculate_stats(false)
 
 
 func _physics_process(delta: float) -> void:
@@ -802,6 +842,7 @@ func _physics_process(delta: float) -> void:
 
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_leader_blessing_cd = maxf(0.0, _leader_blessing_cd - delta)
+	_campfire_heal_cd = maxf(0.0, _campfire_heal_cd - delta)
 	_self_defense_timer = maxf(0.0, _self_defense_timer - delta)
 	if _self_defense_timer <= 0.0:
 		_self_defense_target = null
@@ -917,10 +958,16 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 
 	move_and_slide()
+	_clamp_to_world_bounds()
 	if not _kiting_this_frame and Vector2(velocity.x, velocity.z).length() > 0.25:
 		var look_p := global_position + Vector3(velocity.x, 0.0, velocity.z)
 		look_at(look_p, Vector3.UP)
 	_update_procedural_animation(delta)
+
+
+func _clamp_to_world_bounds() -> void:
+	global_position.x = clampf(global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	global_position.z = clampf(global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
 
 
 func _process_wild_wanderer(_delta: float) -> void:
@@ -938,14 +985,27 @@ func _process_wild_wanderer(_delta: float) -> void:
 	velocity.z = 0.0
 
 
-func _process_feral_caveman(delta: float) -> void:
-	var target := _find_nearest_enemy_unit(22.0)
+func _process_feral_caveman(_delta: float) -> void:
+	var target := _find_nearest_enemy_unit(32.0)
 	if target == null:
-		# March toward nearest founded colony or player campfire
+		# March toward nearest founded non-caveman colony (or player leader if none founded)
 		var march_pos := Vector3.ZERO
-		if GameState.factions.has(0) and GameState.factions[0]["is_founded"]:
-			march_pos = GameState.factions[0]["camp_position"]
-		else:
+		var best_d := 999999999.0
+		var found_goal := false
+		for fid in GameState.factions.keys():
+			var fid_int: int = int(fid)
+			if fid_int == 5:
+				continue
+			var fdata: Dictionary = GameState.factions[fid_int]
+			if bool(fdata.get("is_defeated", false)) or not bool(fdata.get("is_founded", false)):
+				continue
+			var c_pos: Vector3 = fdata.get("camp_position", Vector3.ZERO)
+			var d := global_position.distance_squared_to(c_pos)
+			if d < best_d:
+				best_d = d
+				march_pos = c_pos
+				found_goal = true
+		if not found_goal:
 			var p_leader := GameState.get_faction_leader(0)
 			if p_leader != null:
 				march_pos = p_leader.global_position
@@ -976,11 +1036,13 @@ func _process_rebel_ai(delta: float) -> void:
 
 
 func _process_tribal_ai(delta: float) -> void:
-	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or (faction_id == 0 and GameState.warhorn_active)
+	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or _is_warhorn_militia()
 
 	# Enemy detection
 	var scan_radius := 24.0 if is_warrior_mode else 9.0
 	var enemy := _find_nearest_enemy_unit(scan_radius)
+	if enemy == null and is_warrior_mode:
+		enemy = _find_nearest_hostile_wildlife(scan_radius)
 
 	if is_warrior_mode:
 		if faction_id == 0 and not is_leader:
@@ -1005,9 +1067,12 @@ func _process_tribal_ai(delta: float) -> void:
 func _process_player_warrior(delta: float, enemy: Node) -> void:
 	var p_leader := GameState.get_faction_leader(0)
 	var camp := _get_home_camp_pos()
+	var eff_class := _get_effective_warrior_class()
+	var is_ranged_unit := (eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER)
 
-	# If unequipped and Rack exists, visit rack occasionally
-	if not has_equipped_weapon and _ai_think_cd <= 0.0:
+	# If unequipped or below faction tech tier and Rack/stockpile exists, equip periodically
+	var cur_tier: int = int(GameState.factions.get(faction_id, {}).get("tech_tier", 1))
+	if role == GameData.Role.WARRIOR and (not has_equipped_weapon or weapon_tier < cur_tier or not has_armor) and _ai_think_cd <= 0.0:
 		_ai_think_cd = 3.0
 		try_equip_from_stockpile()
 
@@ -1028,7 +1093,9 @@ func _process_player_warrior(delta: float, enemy: Node) -> void:
 				velocity.z = 0.0
 		GameData.SquadOrder.GUARD_BASE:
 			var base_enemy := _find_enemy_near_point(camp, 28.0)
-			if base_enemy != null:
+			if base_enemy == null:
+				base_enemy = UnitAIRoutines.find_hostile_wildlife_near_point(self, camp, 28.0)
+			if base_enemy != null and (not is_ranged_unit or fire_at_will or global_position.distance_to((base_enemy as Node3D).global_position) < 8.0):
 				_engage_target(base_enemy)
 			elif GameState.current_phase == GameData.SchedulePhase.DAY_WORK and GameState.has_building(faction_id, "BARRACKS", true):
 				_train_at_barracks(delta)
@@ -1038,11 +1105,11 @@ func _process_player_warrior(delta: float, enemy: Node) -> void:
 			var charge_target := enemy
 			if charge_target == null:
 				charge_target = _find_nearest_enemy_unit(65.0)
-			if charge_target != null:
+			if charge_target != null and (not is_ranged_unit or fire_at_will or global_position.distance_to((charge_target as Node3D).global_position) < 8.0):
 				_engage_target(charge_target)
 			else:
 				var b_target := _find_nearest_enemy_building(65.0)
-				if b_target != null:
+				if b_target != null and (not is_ranged_unit or fire_at_will):
 					_engage_building(b_target)
 				elif p_leader != null:
 					_follow_point(p_leader.global_position, 4.5)
@@ -1099,7 +1166,8 @@ func _cast_rival_leader_blessing() -> void:
 
 func _can_shoot_or_reach(enemy: Node) -> bool:
 	var d := global_position.distance_to(enemy.global_position)
-	if warrior_class == GameData.WarriorClass.ARCHER or warrior_class == GameData.WarriorClass.JAVELINEER:
+	var eff_class := _get_effective_warrior_class()
+	if eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER:
 		return fire_at_will and d <= attack_range
 	return d <= 5.5
 
@@ -1113,7 +1181,8 @@ func _face_point(p: Vector3) -> void:
 func _engage_target(target: Node) -> void:
 	var t_pos: Vector3 = (target as Node3D).global_position
 	var d := global_position.distance_to(t_pos)
-	var is_ranged_kiter := (warrior_class == GameData.WarriorClass.ARCHER and d < 6.0) or (warrior_class == GameData.WarriorClass.JAVELINEER and d < 4.2)
+	var eff_class := _get_effective_warrior_class()
+	var is_ranged_kiter := (eff_class == GameData.WarriorClass.ARCHER and d < 6.0) or (eff_class == GameData.WarriorClass.JAVELINEER and d < 4.2)
 	if is_ranged_kiter and _attack_cd > 0.15:
 		# Ranged skirmisher/archer kites away from closing melee threats while keeping aim
 		var away := global_position - t_pos
@@ -1126,8 +1195,9 @@ func _engage_target(target: Node) -> void:
 		_face_point(t_pos)
 		return
 
-	if d > attack_range:
-		if warrior_class == GameData.WarriorClass.KNIFE_RAIDER and d > attack_range * 1.4:
+	var effective_range := attack_range + (0.8 if target.get("is_boss") == true else 0.0)
+	if d > effective_range:
+		if eff_class == GameData.WarriorClass.KNIFE_RAIDER and d > effective_range * 1.4:
 			var diff := t_pos - global_position
 			diff.y = 0.0
 			if diff.length() > 0.2:
@@ -1150,6 +1220,7 @@ func _engage_target(target: Node) -> void:
 func _engage_building(b: Node) -> void:
 	var d := global_position.distance_to(b.global_position)
 	var reach := maxf(attack_range, 3.0)
+	var eff_class := _get_effective_warrior_class()
 	if d > reach:
 		_steer_toward(b.global_position, move_speed * _buff_speed_mult)
 	else:
@@ -1158,16 +1229,16 @@ func _engage_building(b: Node) -> void:
 		_face_point(b.global_position)
 		if _attack_cd <= 0.0:
 			_attack_cd = attack_cooldown_max
-			var anim_dur := 0.44 if warrior_class == GameData.WarriorClass.BRUTE else 0.38
+			var anim_dur := 0.44 if eff_class == GameData.WarriorClass.BRUTE else 0.38
 			play_attack_animation("", anim_dur)
 			var dmg := attack_damage
-			if warrior_class == GameData.WarriorClass.BRUTE:
+			if eff_class == GameData.WarriorClass.BRUTE:
 				dmg *= 1.35
 			if GameState.has_tenet(faction_id, "SACRED_CONQUEST"):
 				dmg *= 1.18
-			if warrior_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+			if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
 				_fire_arrow_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
-			elif warrior_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null:
+			elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null:
 				_fire_javelin_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
 			else:
 				b.take_damage(dmg, faction_id)
@@ -1175,7 +1246,8 @@ func _engage_building(b: Node) -> void:
 
 func _execute_attack_on(target: Node) -> void:
 	_attack_cd = attack_cooldown_max
-	var anim_dur := 0.44 if warrior_class == GameData.WarriorClass.BRUTE else (0.34 if warrior_class == GameData.WarriorClass.KNIFE_RAIDER else 0.40)
+	var eff_class := _get_effective_warrior_class()
+	var anim_dur := 0.44 if eff_class == GameData.WarriorClass.BRUTE else (0.34 if eff_class == GameData.WarriorClass.KNIFE_RAIDER else 0.40)
 	play_attack_animation("", anim_dur)
 	var dmg := attack_damage
 
@@ -1184,18 +1256,18 @@ func _execute_attack_on(target: Node) -> void:
 		var god: int = int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE))
 		if god == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
 			dmg *= 1.20
-		if god == GameData.PatronGod.FEN_ROR and (warrior_class == GameData.WarriorClass.KNIFE_RAIDER or warrior_class == GameData.WarriorClass.ARCHER):
+		if god == GameData.PatronGod.FEN_ROR and (eff_class == GameData.WarriorClass.KNIFE_RAIDER or eff_class == GameData.WarriorClass.ARCHER):
 			if randf() < 0.22:
 				dmg *= 1.65
 		if GameState.has_tenet(faction_id, "SACRED_CONQUEST") and target.get("faction_id") != null:
 			dmg *= 1.18
 
-	if warrior_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+	if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
 		_fire_arrow_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
-	elif warrior_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null and global_position.distance_to(target.global_position) > 3.2:
+	elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null and global_position.distance_to(target.global_position) > 3.2:
 		_fire_javelin_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
 	else:
-		var arc_scale := 1.25 if (warrior_class == GameData.WarriorClass.BRUTE or is_leader) else 0.95
+		var arc_scale := 1.25 if (eff_class == GameData.WarriorClass.BRUTE or is_leader) else 0.95
 		CombatVFX.spawn_slash_arc(
 			GameState.world_node if GameState.world_node != null else self,
 			global_position,

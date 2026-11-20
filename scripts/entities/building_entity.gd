@@ -2,6 +2,7 @@ extends StaticBody3D
 
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
+const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 
 var building_type: String = "CAMPFIRE"
 var faction_id: int = 0
@@ -507,15 +508,17 @@ func _physics_process(delta: float) -> void:
 			if c_light != null:
 				var energy_base := 1.0 if damage_stage == 2 else 3.2
 				c_light.light_energy = energy_base * flicker
-		_dusk_heal_timer += delta
-		if _dusk_heal_timer >= 2.0:
-			_dusk_heal_timer = 0.0
-			var heal_amt := 5.0
-			if GameState.factions.has(faction_id) and GameState.factions[faction_id].get("patron_god") == GameData.PatronGod.SOL_KAR:
-				heal_amt = 8.5
-			for u in GameState.get_faction_units(faction_id, true):
-				if u.global_position.distance_to(global_position) <= 10.0:
-					u.heal(heal_amt)
+		if damage_stage < 3 and GameState.current_phase == GameData.SchedulePhase.DUSK_HEARTH:
+			_dusk_heal_timer += delta
+			if _dusk_heal_timer >= 2.0:
+				_dusk_heal_timer = 0.0
+				var heal_amt := 5.0
+				if GameState.factions.has(faction_id) and GameState.factions[faction_id].get("patron_god") == GameData.PatronGod.SOL_KAR:
+					heal_amt = 8.5
+				for u in GameState.get_faction_units(faction_id, true):
+					if u.global_position.distance_to(global_position) <= 10.0 and float(u.get("_campfire_heal_cd")) <= 0.0:
+						u._campfire_heal_cd = 1.95
+						u.heal(heal_amt)
 
 	# Sleeping Hut natural reproduction at night
 	if building_type == "SLEEPING_HUT" and damage_stage < 3 and GameState.current_phase == GameData.SchedulePhase.NIGHT_SLEEP:
@@ -582,22 +585,32 @@ func _try_reproduce() -> void:
 
 
 func _find_nearest_hostile(max_range: float) -> Node3D:
-	if GameState.units_container == null:
-		return null
 	var best: Node3D = null
 	var best_d := max_range
-	for u in GameState.units_container.get_children():
-		if not is_instance_valid(u) or u.get("is_dead"):
-			continue
-		if not GameState.is_hostile(faction_id, u.get("faction_id")):
-			continue
-		var u3d := u as Node3D
-		if u3d == null:
-			continue
-		var d := global_position.distance_to(u3d.global_position)
-		if d < best_d:
-			best_d = d
-			best = u3d
+	if GameState.units_container != null:
+		for u in GameState.units_container.get_children():
+			if not is_instance_valid(u) or u.get("is_dead") == true:
+				continue
+			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
+				continue
+			var u3d := u as Node3D
+			if u3d == null:
+				continue
+			var d := global_position.distance_to(u3d.global_position)
+			if d < best_d:
+				best_d = d
+				best = u3d
+	if GameState.wildlife_container != null:
+		for w in GameState.wildlife_container.get_children():
+			if not UnitAIRoutines.is_wildlife_hostile_to_faction(w, faction_id):
+				continue
+			var w3d := w as Node3D
+			if w3d == null:
+				continue
+			var d := global_position.distance_to(w3d.global_position)
+			if d < best_d:
+				best_d = d
+				best = w3d
 	return best
 
 

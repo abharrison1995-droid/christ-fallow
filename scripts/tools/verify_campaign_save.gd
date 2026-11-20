@@ -1,6 +1,8 @@
 extends SceneTree
 ## Builds temporary v1, v2, and v3 fixtures through the real campaign save path.
 
+const Layout = preload("res://scripts/core/world_layout.gd")
+
 var _state: Node
 var _main: Node
 var _failures := 0
@@ -118,6 +120,7 @@ func _run() -> void:
 	_check_guide_reward()
 	_check_combat()
 	_check_slice_0a()
+	_check_slice_0b()
 	_unmount()
 	DirAccess.remove_absolute(path)
 	await process_frame
@@ -348,3 +351,163 @@ func _check_slice_0a() -> void:
 	rebel_unit._physics_process(0.1)
 	_check(_state.campaign_finished and defeat_events.size() == 1, "Wounded defection triggers defeat when no healthy player units remain")
 	_state.defeat_triggered.disconnect(on_defeat)
+
+
+func _check_slice_0b() -> void:
+	_state.start_new_campaign("Enoch", "Slice0B Probe", GameData.Lineage.CRAG_BORN)
+	var colony: Node = _state.faction_controllers[0]
+	var leader: Node = _state.get_faction_leader(0)
+	var base := Vector3(130.0, 0.0, 120.0)
+	_state.factions[0]["is_founded"] = true
+	_state.factions[0]["camp_position"] = base
+
+	# 1. Warrior & Watchtower engage hostile Wildlife (WOLF) without errors
+	var wolf_script: Script = load("res://scripts/entities/wildlife_entity.gd") as Script
+	var wolf := CharacterBody3D.new()
+	wolf.set_script(wolf_script)
+	_state.wildlife_container.add_child(wolf)
+	wolf.setup("WOLF", base + Vector3(2.0, 0.0, 0.0))
+
+	var guard: Node = colony.spawn_colonist(base, GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.WARRIOR)
+	guard.set_role_and_class(GameData.Role.WARRIOR, GameData.WarriorClass.SPEARMAN)
+	guard.squad_order = GameData.SquadOrder.GUARD_BASE
+	var wolf_hp_before: float = float(wolf.hp)
+	guard._process_tribal_ai(0.016)
+	_check(float(wolf.hp) < wolf_hp_before, "Guard warrior engages and damages hostile Wolf")
+
+	var tower: Node = colony.spawn_building("WATCHTOWER", base + Vector3(0.0, 0.0, 8.0), 0.0, true)
+	var wt_target: Node3D = tower._find_nearest_hostile(22.0)
+	_check(wt_target == wolf, "Watchtower acquires hostile Wolf as target")
+	var proj_count_before: int = _state.projectiles_container.get_child_count()
+	tower._watchtower_cd = 0.0
+	tower._physics_process(0.016)
+	_check(_state.projectiles_container.get_child_count() > proj_count_before, "Watchtower fires arrow at hostile Wolf")
+	# Ensure Watchtower damaging Wolf does not set BuildingEntity as _target_unit
+	wolf.take_damage(5.0, tower, 0)
+	_check(wolf._target_unit != tower, "Watchtower hit does not assign BuildingEntity as wildlife _target_unit")
+	wolf._physics_process(0.016)
+
+	# 2. Stoneknapper balances STONE and FLINT instead of locking onto one forever
+	for n in _state.resources_container.get_children():
+		if is_instance_valid(n) and (n.get_meta("node_type", "") == "STONE" or n.get_meta("node_type", "") == "FLINT"):
+			_state.resources_container.remove_child(n)
+			n.queue_free()
+	var knap_camp := Vector3(-120.0, 0.0, 120.0)
+	_state.factions[0]["camp_position"] = knap_camp
+	var stone_node := Node3D.new()
+	stone_node.set_meta("node_type", "STONE")
+	_state.resources_container.add_child(stone_node)
+	stone_node.global_position = knap_camp + Vector3(2.0, 0.0, 0.0)
+	var flint_node := Node3D.new()
+	flint_node.set_meta("node_type", "FLINT")
+	_state.resources_container.add_child(flint_node)
+	flint_node.global_position = knap_camp + Vector3(-2.0, 0.0, 0.0)
+	_state.factions[0]["resources"]["stone"] = 20.0
+	_state.factions[0]["resources"]["flint"] = 5.0
+	var knapper: Node = colony.spawn_colonist(knap_camp, GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.STONEKNAPPER)
+	knapper._day_work_routine(0.1)
+	_check(knapper._target_node == flint_node, "Stoneknapper picks FLINT when flint stockpile is lower than stone")
+	knapper.global_position = flint_node.global_position
+	knapper._day_work_routine(3.5)
+	_check(knapper._carry_type == "flint" and float(knapper._carry_amount) > 0.0, "Stoneknapper gathers flint")
+	_state.factions[0]["resources"]["flint"] = 30.0
+	knapper.global_position = knap_camp
+	knapper._day_work_routine(0.1)
+	_check(knapper._target_node == null, "Stoneknapper clears _target_node on drop-off")
+	knapper._day_work_routine(0.1)
+	_check(knapper._target_node == stone_node, "Stoneknapper switches to STONE when stone stockpile is lower than flint")
+
+	# 3. Warhorn does NOT arm children, and keeps civilian militia consistently SPEARMAN
+	var child: Node = colony.spawn_colonist(base + Vector3(4.0, 0.0, 0.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.FORAGER, false, true)
+	var archer_civ: Node = colony.spawn_colonist(base + Vector3(5.0, 0.0, 0.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER, false, false)
+	archer_civ.warrior_class = GameData.WarriorClass.ARCHER
+	archer_civ.recalculate_stats(false)
+	_state.combat_command_system.toggle_warhorn()
+	_check(_state.warhorn_active, "Warhorn activated")
+	_check(child._get_class_key() == "FORAGER" and not child._is_warhorn_militia(), "Warhorn does NOT arm children")
+	_check(archer_civ._get_class_key() == "SPEARMAN" and archer_civ._get_effective_warrior_class() == GameData.WarriorClass.SPEARMAN, "Warhorn civilian militia resolves consistently as SPEARMAN")
+	_state.combat_command_system.toggle_warhorn()
+
+	# 4. Tech Tier upgrade advances tech_tier & Leader weapon_tier without upgrading ordinary living warriors until crafted
+	colony.spawn_building("CRAFTING_PIT", base + Vector3(8.0, 0.0, 0.0), 0.0, true)
+	for rk in ["wood", "stone", "flint", "hide", "bone"]:
+		_state.factions[0]["resources"][rk] = 100.0
+	_state.factions[0]["stockpile"]["spears"] = 0
+	var spear_before_tier: int = int(guard.weapon_tier)
+	var upgraded: bool = colony.upgrade_stone_age_tier()
+	_check(upgraded and int(_state.factions[0]["tech_tier"]) == 2, "upgrade_stone_age_tier advances faction tech_tier to 2")
+	_check(int(leader.weapon_tier) == 2, "Leader auto-scales to new weapon_tier")
+	_check(int(guard.weapon_tier) == spear_before_tier, "Living ordinary warrior keeps old weapon_tier until crafted gear is equipped")
+	_state.factions[0]["stockpile"]["spears"] = 1
+	guard.try_equip_from_stockpile()
+	_check(int(guard.weapon_tier) == 2 and int(_state.factions[0]["stockpile"]["spears"]) == 0, "Living warrior upgrades weapon_tier by consuming crafted stockpile")
+
+	# 5. HumanUnit & WildlifeEntity stay clamped inside WorldLayout.UNIT_HALF_EXTENT
+	guard.global_position = Vector3(220.0, 0.0, -230.0)
+	guard.velocity = Vector3(10.0, 0.0, -10.0)
+	guard._physics_process(0.1)
+	_check(absf(guard.global_position.x) <= Layout.UNIT_HALF_EXTENT + 0.01 and absf(guard.global_position.z) <= Layout.UNIT_HALF_EXTENT + 0.01, "HumanUnit XZ stays clamped inside world bounds")
+	wolf.global_position = Vector3(-240.0, 0.0, 210.0)
+	wolf.velocity = Vector3(-10.0, 0.0, 10.0)
+	wolf._physics_process(0.1)
+	_check(absf(wolf.global_position.x) <= Layout.UNIT_HALF_EXTENT + 0.01 and absf(wolf.global_position.z) <= Layout.UNIT_HALF_EXTENT + 0.01, "WildlifeEntity XZ stays clamped inside world bounds")
+
+	# 6. ANCESTRAL_STONE discounts buildings (is_building=true) ONLY, not crafting/tier/gifts (is_building=false)
+	_state.factions[0]["tenets"] = ["ANCESTRAL_STONE"]
+	_state.factions[0]["resources"]["wood"] = 10.0
+	_state.factions[0]["resources"]["stone"] = 10.0
+	_check(_state.can_afford(0, {"wood": 12, "stone": 12}, true), "ANCESTRAL_STONE discounts building wood/stone cost (-20%)")
+	_check(not _state.can_afford(0, {"wood": 12, "stone": 12}, false), "ANCESTRAL_STONE does NOT discount non-building wood/stone costs")
+	_check(not _state.can_afford(0, {"wood": 12, "stone": 12}), "Default can_afford does NOT apply building discount")
+
+	# 7. Vertical projectile (horiz == 0) spawns/flies cleanly, and swept segment catches fast low-FPS hits
+	var proj_script: Script = load("res://scripts/entities/projectile_3d.gd") as Script
+	var vert_proj: Node3D = proj_script.spawn(leader, 0, Vector3(0.0, 2.0, 0.0), Vector3(0.0, 8.0, 0.0), 10.0, 20.0, "ARROW", 1, false)
+	_check(vert_proj != null, "Vertical projectile spawns cleanly without look_at error")
+	vert_proj._physics_process(0.05)
+	if is_instance_valid(vert_proj) and not vert_proj.is_queued_for_deletion():
+		vert_proj.queue_free()
+
+	var rival_fc: Node = _state.faction_controllers[1]
+	_state.set_diplomatic_state(0, 1, GameData.DiplomaticState.AT_WAR)
+	var target_u: Node = rival_fc.spawn_colonist(Vector3(40.0, 0.0, 40.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	target_u.armor = 0.0
+	var t_hp_before: float = float(target_u.hp)
+	var fast_proj: Node3D = proj_script.spawn(leader, 0, Vector3(36.0, 1.0, 40.0), Vector3(44.0, 1.0, 40.0), 15.0, 32.0, "JAVELIN", 1, false)
+	fast_proj.gravity = 0.0
+	fast_proj.velocity = Vector3(32.0, 0.0, 0.0)
+	# Single 0.25s step moves 8m from x=36 to x=44 right through target at x=40
+	fast_proj._physics_process(0.25)
+	_check(float(target_u.hp) < t_hp_before, "Swept projectile segment detects hit at low FPS without tunneling")
+
+	# 8. Post-truce civilian _self_defense_target clears, Campfire heals only at Dusk & doesn't stack,
+	#    and toggle_fire_at_will propagates to newly assigned warriors
+	var civ: Node = colony.spawn_colonist(Vector3(41.5, 0.0, 40.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.FORAGER)
+	civ._self_defense_target = target_u
+	civ._self_defense_timer = 5.0
+	_state.set_diplomatic_state(0, 1, GameData.DiplomaticState.NEUTRAL)
+	var truce_hp_before: float = float(target_u.hp)
+	civ._process_tribal_ai(0.016)
+	_check(civ._self_defense_target == null and is_equal_approx(float(target_u.hp), truce_hp_before), "Civilian clears _self_defense_target and stops attacking after truce")
+
+	_state.combat_command_system.toggle_fire_at_will()
+	_check(not _state.combat_command_system.global_fire_at_will, "Fire-at-will toggled off")
+	civ.set_role_and_class(GameData.Role.WARRIOR, GameData.WarriorClass.ARCHER)
+	_check(not civ.fire_at_will, "Newly assigned warrior inherits faction fire_at_will state")
+	_state.combat_command_system.toggle_fire_at_will()
+
+	var camp1: Node = colony.spawn_building("CAMPFIRE", Vector3(-60.0, 0.0, -60.0), 0.0, true)
+	var camp2: Node = colony.spawn_building("CAMPFIRE", Vector3(-58.0, 0.0, -60.0), 0.0, true)
+	var hurt_u: Node = colony.spawn_colonist(Vector3(-59.0, 0.0, -60.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	hurt_u.hp = hurt_u.max_hp * 0.5
+	var hp_day_before: float = float(hurt_u.hp)
+	_state.current_phase = GameData.SchedulePhase.DAY_WORK
+	camp1._dusk_heal_timer = 2.0
+	camp1._physics_process(0.1)
+	_check(is_equal_approx(float(hurt_u.hp), hp_day_before), "Campfire does not heal during DAY_WORK")
+	_state.current_phase = GameData.SchedulePhase.DUSK_HEARTH
+	camp1._dusk_heal_timer = 2.0
+	camp2._dusk_heal_timer = 2.0
+	camp1._physics_process(0.1)
+	camp2._physics_process(0.1)
+	_check(is_equal_approx(float(hurt_u.hp), hp_day_before + 5.0), "Campfire heals at Dusk and does not stack linearly across overlapping Campfires")

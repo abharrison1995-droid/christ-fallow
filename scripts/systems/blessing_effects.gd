@@ -48,22 +48,28 @@ static func _apply_allied_buff(caster: Node, faction_id: int, radius: float, dur
 
 static func aoe_damage(caster: Node, faction_id: int, radius: float, dmg: float, max_targets: int = 99, include_wildlife: bool = false) -> void:
 	var c_pos: Vector3 = (caster as Node3D).global_position
-	var hits: int = 0
+	var radius_sq := radius * radius
+	var candidates: Array[Dictionary] = []
 	if GameState.units_container != null:
 		for u in GameState.units_container.get_children():
-			if hits >= max_targets:
-				break
-			if is_instance_valid(u) and not u.get("is_dead") and GameState.is_hostile(faction_id, int(u.get("faction_id"))):
-				if c_pos.distance_to((u as Node3D).global_position) <= radius:
-					u.take_damage(dmg, caster, faction_id)
-					hits += 1
+			if is_instance_valid(u) and u.get("is_dead") != true and u.get("is_wounded") != true and GameState.is_hostile(faction_id, int(u.get("faction_id"))):
+				var d_sq: float = c_pos.distance_squared_to((u as Node3D).global_position)
+				if d_sq <= radius_sq:
+					candidates.append({"node": u, "dist_sq": d_sq})
 	if include_wildlife and GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
-			if hits >= max_targets:
-				break
-			if is_instance_valid(w) and not w.get("is_dead") and c_pos.distance_to((w as Node3D).global_position) <= radius:
-				w.take_damage(dmg, caster, faction_id)
-				hits += 1
+			if is_instance_valid(w) and w.get("is_dead") != true:
+				var d_sq: float = c_pos.distance_squared_to((w as Node3D).global_position)
+				if d_sq <= radius_sq:
+					candidates.append({"node": w, "dist_sq": d_sq})
+	candidates.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a["dist_sq"]) < float(b["dist_sq"])
+	)
+	var limit: int = mini(candidates.size(), max_targets)
+	for i in range(limit):
+		var target: Node = candidates[i]["node"]
+		if is_instance_valid(target) and target.get("is_dead") != true:
+			target.take_damage(dmg, caster, faction_id)
 
 
 static func aoe_heal(caster: Node, faction_id: int, radius: float, amount: float) -> void:

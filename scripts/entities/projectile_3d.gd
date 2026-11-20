@@ -37,12 +37,29 @@ func setup(p_shooter: Node, p_faction_id: int, p_origin: Vector3, p_target_pos: 
 	var horiz := Vector3(diff.x, 0.0, diff.z)
 	var dist := maxf(horiz.length(), 0.5)
 	var flight_t := dist / maxf(p_speed, 5.0)
-	var dir_h := horiz.normalized()
+	var dir_h := horiz.normalized() if horiz.length_squared() > 0.0001 else Vector3.ZERO
 	var vy := (diff.y + 0.5 * gravity * flight_t * flight_t) / maxf(flight_t, 0.05)
 	velocity = dir_h * p_speed + Vector3.UP * vy
 
-	if velocity.length() > 0.1:
-		look_at(global_position + velocity.normalized(), Vector3.UP)
+	_orient_along_velocity()
+
+
+func _orient_along_velocity() -> void:
+	if velocity.length_squared() <= 0.01:
+		return
+	var up_vec := Vector3.UP
+	if Vector2(velocity.x, velocity.z).length_squared() < 0.0001:
+		up_vec = Vector3.FORWARD
+	look_at(global_position + velocity.normalized(), up_vec)
+
+
+static func _segment_distance_to_point(a: Vector3, b: Vector3, p: Vector3) -> float:
+	var ab := b - a
+	var ab_len_sq := ab.length_squared()
+	if ab_len_sq <= 0.000001:
+		return a.distance_to(p)
+	var t := clampf((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
+	return (a + ab * t).distance_to(p)
 
 
 func _physics_process(delta: float) -> void:
@@ -53,27 +70,23 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 		return
 
+	var prev_pos := global_position
 	velocity.y -= gravity * delta
-	var next_pos := global_position + velocity * delta
-	if velocity.length() > 0.2:
-		look_at(next_pos, Vector3.UP)
+	var next_pos := prev_pos + velocity * delta
 	global_position = next_pos
-
-	if global_position.y <= 0.1:
-		queue_free()
-		return
+	_orient_along_velocity()
 
 	var attacker: Node = shooter if is_instance_valid(shooter) else null
 
-	# Hit detection against units
+	# Hit detection against units (swept segment from prev_pos to next_pos)
 	if GameState.units_container != null:
 		for u in GameState.units_container.get_children():
-			if not is_instance_valid(u) or u.get("is_dead"):
+			if not is_instance_valid(u) or u.get("is_dead") == true:
 				continue
-			if not GameState.is_hostile(faction_id, u.get("faction_id")):
+			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 				continue
-			var hit_center: Vector3 = u.global_position + Vector3(0.0, 1.0, 0.0)
-			if global_position.distance_to(hit_center) < 1.15:
+			var hit_center: Vector3 = (u as Node3D).global_position + Vector3(0.0, 1.0, 0.0)
+			if _segment_distance_to_point(prev_pos, next_pos, hit_center) < 1.15:
 				u.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return
@@ -81,11 +94,11 @@ func _physics_process(delta: float) -> void:
 	# Hit detection against wildlife
 	if GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
-			if not is_instance_valid(w) or w.get("is_dead"):
+			if not is_instance_valid(w) or w.get("is_dead") == true:
 				continue
-			var w_radius := 1.8 if w.get("is_boss") else 1.05
-			var w_center: Vector3 = w.global_position + Vector3(0.0, 0.9, 0.0)
-			if global_position.distance_to(w_center) < w_radius:
+			var w_radius := 1.8 if w.get("is_boss") == true else 1.05
+			var w_center: Vector3 = (w as Node3D).global_position + Vector3(0.0, 0.9, 0.0)
+			if _segment_distance_to_point(prev_pos, next_pos, w_center) < w_radius:
 				w.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return
@@ -93,12 +106,16 @@ func _physics_process(delta: float) -> void:
 	# Hit detection against hostile buildings
 	if GameState.buildings_container != null:
 		for b in GameState.buildings_container.get_children():
-			if not is_instance_valid(b) or b.get("hp") <= 0.0:
+			if not is_instance_valid(b) or float(b.get("hp")) <= 0.0:
 				continue
-			if not GameState.is_hostile(faction_id, b.get("faction_id")):
+			if not GameState.is_hostile(faction_id, int(b.get("faction_id"))):
 				continue
-			var b_pos: Vector3 = b.global_position + Vector3(0.0, 1.2, 0.0)
-			if global_position.distance_to(b_pos) < 1.9:
+			var b_pos: Vector3 = (b as Node3D).global_position + Vector3(0.0, 1.2, 0.0)
+			if _segment_distance_to_point(prev_pos, next_pos, b_pos) < 1.9:
 				b.take_damage(damage, faction_id)
 				queue_free()
 				return
+
+	if global_position.y <= 0.1:
+		queue_free()
+		return

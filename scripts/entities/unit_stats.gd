@@ -71,7 +71,7 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 		attack_damage = close_quarters_damage * 1.38
 		attack_range = 2.45
 		attack_cooldown_max = 1.32 / float(l_data["attack_speed_mult"])
-	elif warrior_class == GameData.WarriorClass.KNIFE_RAIDER:
+	elif warrior_class == GameData.WarriorClass.KNIFE_RAIDER and (role == GameData.Role.WARRIOR or is_leader):
 		attack_damage = close_quarters_damage * 0.92
 		attack_range = 1.9
 		attack_cooldown_max = 0.65 / float(l_data["attack_speed_mult"])

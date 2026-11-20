@@ -41,7 +41,7 @@ func spawn_colonist(pos: Vector3, lineage: int, gender: int, role: int, is_leade
 		"is_player_controlled": (faction_id == 0 and is_leader),
 		"is_child": is_child,
 		"is_caveman": is_caveman,
-		"weapon_tier": tier,
+		"weapon_tier": tier if (is_leader or is_caveman) else 1,
 		"has_equipped_weapon": (role == GameData.Role.WARRIOR or is_leader or is_caveman),
 		"has_armor": is_leader,
 		"unit_name": custom_name,
@@ -128,12 +128,13 @@ func upgrade_stone_age_tier() -> bool:
 		return false
 
 	fdata["tech_tier"] = next_tier
-	for u in GameState.get_faction_units(faction_id, true):
-		u.weapon_tier = next_tier
-		u.recalculate_stats(false)
+	var leader := GameState.get_faction_leader(faction_id)
+	if leader != null:
+		leader.weapon_tier = next_tier
+		leader.recalculate_stats(false)
 	if faction_id == 0:
 		GameState.resources_changed.emit(0)
-		GameState.push_log("Unlocked %s!" % GameData.TECH_TIER_NAMES[next_tier], "success")
+		GameState.push_log("Unlocked %s! Craft new gear to equip warriors." % GameData.TECH_TIER_NAMES[next_tier], "success")
 	return true
 
 
@@ -287,12 +288,12 @@ func _run_rival_leader_ai() -> void:
 
 	# 2. Construct new buildings around AI camp
 	var huts := GameState.get_faction_buildings(faction_id, "SLEEPING_HUT", false)
-	if huts.size() < 4 and GameState.can_afford(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"]):
-		GameState.spend_resources(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"])
+	if huts.size() < 4 and GameState.can_afford(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"], true):
+		GameState.spend_resources(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"], true)
 		var ang := randf_range(0.0, TAU)
 		spawn_building("SLEEPING_HUT", camp + Vector3(cos(ang) * 11.0, 0.0, sin(ang) * 11.0), ang, false)
-	elif GameState.get_faction_buildings(faction_id, "WATCHTOWER", false).size() < 2 and GameState.can_afford(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"]):
-		GameState.spend_resources(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"])
+	elif GameState.get_faction_buildings(faction_id, "WATCHTOWER", false).size() < 2 and GameState.can_afford(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"], true):
+		GameState.spend_resources(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"], true)
 		var ang := randf_range(0.0, TAU)
 		spawn_building("WATCHTOWER", camp + Vector3(cos(ang) * 15.0, 0.0, sin(ang) * 15.0), ang, false)
 
