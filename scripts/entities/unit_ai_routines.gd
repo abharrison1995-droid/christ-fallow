@@ -109,7 +109,7 @@ static func _run_shaman_work(u, camp: Vector3, delta: float) -> void:
 	if not shacks.is_empty():
 		var wounded: Node = find_wounded_ally(u)
 		if wounded != null:
-			wounded.being_rescued = true
+			wounded.claim_rescue(u, 1.5)
 			var w_pos: Vector3 = (wounded as Node3D).global_position
 			if u.global_position.distance_to(w_pos) > 2.6:
 				u._steer_toward(w_pos, u.move_speed * 1.1)
@@ -250,6 +250,9 @@ static func find_wounded_ally(u) -> Node:
 	for other in GameState.units_container.get_children():
 		if is_instance_valid(other) and not other.get("is_dead") and other.get("is_wounded") and not other.get("is_healing_in_shack"):
 			if int(other.get("original_faction_id")) == u.faction_id:
+				var claimer: Variant = other.get("_rescue_shaman")
+				if other.get("being_rescued") == true and claimer != null and claimer != u and is_instance_valid(claimer):
+					continue
 				var d: float = (u as Node3D).global_position.distance_to((other as Node3D).global_position)
 				if d < best_d:
 					best_d = d

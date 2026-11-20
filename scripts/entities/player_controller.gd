@@ -110,9 +110,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP and mb.pressed:
-			target_cam_distance = clampf(target_cam_distance - 2.2, 5.5, 42.0)
+			if not _is_pointer_over_ui():
+				target_cam_distance = clampf(target_cam_distance - 2.2, 5.5, 42.0)
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN and mb.pressed:
-			target_cam_distance = clampf(target_cam_distance + 2.2, 5.5, 42.0)
+			if not _is_pointer_over_ui():
+				target_cam_distance = clampf(target_cam_distance + 2.2, 5.5, 42.0)
 		elif mb.button_index == MOUSE_BUTTON_RIGHT:
 			if mb.pressed:
 				if _is_pointer_over_ui():
@@ -210,13 +212,15 @@ func _physics_process(delta: float) -> void:
 	if not GameState.game_active or camera_pivot == null or camera == null:
 		return
 
-	_dash_cd = maxf(0.0, _dash_cd - delta)
-	_attack_cd = maxf(0.0, _attack_cd - delta)
-	_javelin_cd = maxf(0.0, _javelin_cd - delta)
-	_blessing_cd = maxf(0.0, _blessing_cd - delta)
-	_harvest_cd = maxf(0.0, _harvest_cd - delta)
+	var sim_running := not GameState.is_paused and not GameState.campaign_finished
+	if sim_running:
+		_dash_cd = maxf(0.0, _dash_cd - delta)
+		_attack_cd = maxf(0.0, _attack_cd - delta)
+		_javelin_cd = maxf(0.0, _javelin_cd - delta)
+		_blessing_cd = maxf(0.0, _blessing_cd - delta)
+		_harvest_cd = maxf(0.0, _harvest_cd - delta)
 
-	var has_world_input := not GameState.is_paused and not GameState.campaign_finished and not _world_input_blocked()
+	var has_world_input := sim_running and not _world_input_blocked()
 	if not has_world_input or not Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
 		_rmb_dragging = false
 	if leader_unit != null and is_instance_valid(leader_unit) and not leader_unit.is_dead:
@@ -226,7 +230,7 @@ func _physics_process(delta: float) -> void:
 		if _leader_light != null:
 			var t_sec := float(Time.get_ticks_msec()) * 0.001
 			_leader_light.light_energy = 2.20 + sin(t_sec * 11.0) * 0.14 + cos(t_sec * 17.3) * 0.08
-		if is_build_mode and _blueprint_ghost != null:
+		if has_world_input and is_build_mode and _blueprint_ghost != null:
 			_update_blueprint_ghost()
 
 
@@ -342,6 +346,8 @@ func _try_place_blueprint() -> void:
 		GameState.factions[0]["camp_position"] = pos
 		GameState.push_log("Campfire lit! Your colony is founded. Assign jobs in [C] Colony!", "success")
 	else:
+		if blueprint_type == "CAMPFIRE" and not GameState.has_building(0, "CAMPFIRE", true):
+			GameState.factions[0]["camp_position"] = pos
 		GameState.push_log("Placed %s blueprint. Builders will construct it." % b_info["name"], "info")
 		if not GameState.builder_tip_shown:
 			var has_builder := false
@@ -453,12 +459,18 @@ func _try_inspect_clicked_unit() -> bool:
 	if GameState.units_container == null or GameState.hud_controller == null:
 		return false
 	var click_pos: Vector3 = _get_ground_mouse_pos()
-	# Do not hijack click if enemy hostile is right next to cursor
+	# Do not hijack click if enemy hostile or nearby wildlife is right next to cursor
 	for u in GameState.units_container.get_children():
 		if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded"):
 			var u_fid: int = int(u.get("faction_id"))
 			if GameState.is_hostile(0, u_fid):
 				if click_pos.distance_to((u as Node3D).global_position) <= 4.2:
+					return false
+	if GameState.wildlife_container != null:
+		for w in GameState.wildlife_container.get_children():
+			if is_instance_valid(w) and not w.get("is_dead"):
+				var check_r := 4.8 if w.get("is_boss") == true else 4.2
+				if click_pos.distance_to((w as Node3D).global_position) <= check_r:
 					return false
 	var best_u: Node = null
 	var best_d := 1.5
@@ -489,9 +501,10 @@ func _try_interact_or_harvest() -> void:
 						u.send_to_shaman_shack((shacks[0] as Node3D).global_position)
 						GameState.push_log("Sent wounded %s to the Shaman Shack for healing!" % str(u.get("unit_name")), "success")
 					else:
-						u.being_rescued = true
-						u.wounded_timer += 20.0
-						GameState.push_log("Applied field aid to %s! Build a Shaman's Healing Shack ([B]) so they can recover." % str(u.get("unit_name")), "warning")
+						if u.has_method("apply_field_aid") and u.apply_field_aid():
+							GameState.push_log("Applied field aid to %s (+20s). Build a Shaman's Healing Shack ([B]) so they can recover!" % str(u.get("unit_name")), "warning")
+						else:
+							GameState.push_log("%s needs a constructed Shaman's Healing Shack ([B]) to recover!" % str(u.get("unit_name")), "warning")
 					return
 
 	# 1. Recruit nearby wild wanderers

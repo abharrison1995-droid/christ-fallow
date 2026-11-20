@@ -339,49 +339,62 @@ func modify_opinion(a: int, b: int, delta: int) -> void:
 	diplomacy_changed.emit()
 
 
-func get_diplomatic_opinion(a: int, b: int) -> int:
-	if a == b:
-		return 100
-	if a == 5 or b == 5:
-		return -100
-	if not factions.has(a) or not factions.has(b):
-		return 0
+func get_diplomatic_opinion_breakdown(fid_a: int, fid_b: int) -> Dictionary:
+	if fid_a == fid_b:
+		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": 100, "state_bound": 0, "total": 100}
+	if fid_a == 5 or fid_b == 5:
+		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": -100, "state_bound": 0, "total": -100}
+	if not factions.has(fid_a) or not factions.has(fid_b):
+		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": 0, "state_bound": 0, "total": 0}
 
-	var fa: Dictionary = factions[a]
-	var fb: Dictionary = factions[b]
-	var key := get_diplomatic_key(a, b)
-	var opinion: int = 0
-	if diplomacy.has(key):
-		opinion += int(diplomacy[key]["opinion_mod"])
+	var fa: Dictionary = factions[fid_a]
+	var fb: Dictionary = factions[fid_b]
+	var key := get_diplomatic_key(fid_a, fid_b)
+	var actions: int = int(diplomacy[key]["opinion_mod"]) if diplomacy.has(key) else 0
 
 	# Religious alignment scoring
+	var god: int = 0
 	var god_a: int = int(fa.get("patron_god", GameData.PatronGod.NONE))
 	var god_b: int = int(fb.get("patron_god", GameData.PatronGod.NONE))
-	if god_a != GameData.PatronGod.NONE and god_b != GameData.PatronGod.NONE:
-		if god_a == god_b:
-			opinion += 30
+	if god_a != GameData.PatronGod.NONE and god_b != GameData.PatronGod.NONE and god_a == god_b:
+		god = 30
 
+	var tenets: int = 0
 	var tenets_a: Array = fa.get("tenets", [])
 	var tenets_b: Array = fb.get("tenets", [])
 	for t in tenets_a:
 		if tenets_b.has(t):
-			opinion += 20
+			tenets += 20
 		var t_data: Dictionary = GameData.TENET_DATA.get(t, {})
-		var opp: String = t_data.get("opposing", "")
+		var opp: String = str(t_data.get("opposing", ""))
 		if opp != "" and tenets_b.has(opp):
-			opinion -= 20
+			tenets -= 20
 
 	# Peaceful Offering tenet passive bonus
-	if tenets_a.has("PEACEFUL_OFFERING") or tenets_b.has("PEACEFUL_OFFERING"):
-		opinion += 15
+	var peaceful_offering: int = 15 if (tenets_a.has("PEACEFUL_OFFERING") or tenets_b.has("PEACEFUL_OFFERING")) else 0
 
-	var state := get_diplomatic_state(a, b)
+	var raw_total: int = actions + god + tenets + peaceful_offering
+	var bounded: int = raw_total
+	var state := get_diplomatic_state(fid_a, fid_b)
 	if state == GameData.DiplomaticState.AT_WAR:
-		opinion = mini(opinion, -35)
+		bounded = mini(bounded, -35)
 	elif state == GameData.DiplomaticState.ALLIED:
-		opinion = maxi(opinion, 50)
+		bounded = maxi(bounded, 50)
 
-	return clampi(opinion, -100, 100)
+	var total: int = clampi(bounded, -100, 100)
+	var state_bound: int = total - raw_total
+	return {
+		"god": god,
+		"tenets": tenets,
+		"peaceful_offering": peaceful_offering,
+		"actions": actions,
+		"state_bound": state_bound,
+		"total": total,
+	}
+
+
+func get_diplomatic_opinion(a: int, b: int) -> int:
+	return int(get_diplomatic_opinion_breakdown(a, b)["total"])
 
 
 func is_hostile(a: int, b: int) -> bool:
@@ -649,26 +662,47 @@ func trigger_conquest_if_eligible(target_faction_id: int, attacker_faction_id: i
 		return
 	if _conquest_pending_factions.has(target_faction_id):
 		return
-	if attacker_faction_id != 0:
-		if attacker_faction_id <= 0 or attacker_faction_id == target_faction_id:
-			return
-		if get_diplomatic_state(0, attacker_faction_id) != GameData.DiplomaticState.ALLIED:
-			return
-		var player_at_war := get_diplomatic_state(0, target_faction_id) == GameData.DiplomaticState.AT_WAR
-		var ally_at_war := get_diplomatic_state(attacker_faction_id, target_faction_id) == GameData.DiplomaticState.AT_WAR
-		if not player_at_war or not ally_at_war:
-			return
 
 	var has_camp := has_building(target_faction_id, "CAMPFIRE", true)
 	var has_totem := has_building(target_faction_id, "SACRED_TOTEM", true)
 	var leader := get_faction_leader(target_faction_id)
-	if (not has_camp and not has_totem) or leader == null:
+	var wiped_out := get_faction_units(target_faction_id, true).is_empty() and get_faction_buildings(target_faction_id, "", false).is_empty()
+	if not ((not has_camp and not has_totem) or leader == null or wiped_out):
+		return
+
+	var player_or_ally_conquest := false
+	if attacker_faction_id == 0:
+		player_or_ally_conquest = true
+	elif attacker_faction_id > 0 and attacker_faction_id != target_faction_id:
+		var is_player_ally := get_diplomatic_state(0, attacker_faction_id) == GameData.DiplomaticState.ALLIED
+		var player_at_war := get_diplomatic_state(0, target_faction_id) == GameData.DiplomaticState.AT_WAR
+		var ally_at_war := get_diplomatic_state(attacker_faction_id, target_faction_id) == GameData.DiplomaticState.AT_WAR
+		if is_player_ally and player_at_war and ally_at_war:
+			player_or_ally_conquest = true
+
+	if player_or_ally_conquest:
 		var first_conquest := _conquest_pending_factions.is_empty()
 		_conquest_pending_factions[target_faction_id] = true
 		if first_conquest:
 			_paused_before_conquest = is_paused
 			is_paused = true
 			conquest_triggered.emit(target_faction_id)
+	else:
+		_mark_faction_eliminated_by_third_party(target_faction_id, attacker_faction_id)
+
+
+func _mark_faction_eliminated_by_third_party(target_faction_id: int, attacker_faction_id: int) -> void:
+	var target: Dictionary = factions[target_faction_id]
+	target["is_defeated"] = true
+	var target_name: String = str(target.get("name", "Rival Tribe"))
+	var killer_name := "the wilderness"
+	if attacker_faction_id == -1:
+		killer_name = "wild beasts"
+	elif factions.has(attacker_faction_id):
+		killer_name = str(factions[attacker_faction_id].get("name", "a rival tribe"))
+	push_log("%s was wiped out by %s!" % [target_name, killer_name], "warning")
+	diplomacy_changed.emit()
+	check_victory_conditions()
 
 
 func resolve_conquest(target_faction_id: int, choice: String) -> void:
@@ -706,9 +740,12 @@ func resolve_conquest(target_faction_id: int, choice: String) -> void:
 		factions[0]["stockpile"]["spears"] += int(target["stockpile"]["spears"])
 		factions[0]["stockpile"]["bows"] += int(target["stockpile"]["bows"])
 		for u in survivor_units:
-			if not u.is_leader:
-				u.queue_free()
+			if units_container != null and u.get_parent() == units_container:
+				units_container.remove_child(u)
+			u.queue_free()
 		for b in get_faction_buildings(target_faction_id, "", false):
+			if buildings_container != null and b.get_parent() == buildings_container:
+				buildings_container.remove_child(b)
 			b.queue_free()
 		push_log("Razed %s and looted all tribal stockpiles!" % target_name, "warning")
 
@@ -736,6 +773,20 @@ func check_victory_conditions() -> void:
 		campaign_finished = true
 		defeat_triggered.emit("Your entire tribe and lineage perished in the Stone Age wilderness.")
 		return
+
+	# Mark any completely wiped rival/rebel faction (no living units or buildings) as defeated
+	var marked_any_defeated := false
+	for fid in range(1, 5):
+		if factions.has(fid) and not bool(factions[fid]["is_defeated"]) and not _conquest_pending_factions.has(fid):
+			if get_faction_units(fid, true).is_empty() and get_faction_buildings(fid, "", false).is_empty():
+				factions[fid]["is_defeated"] = true
+				marked_any_defeated = true
+	if factions.has(6) and bool(factions[6].get("is_founded", false)) and not bool(factions[6].get("is_defeated", false)) and not _conquest_pending_factions.has(6):
+		if get_faction_units(6, true).is_empty() and get_faction_buildings(6, "", false).is_empty():
+			factions[6]["is_defeated"] = true
+			marked_any_defeated = true
+	if marked_any_defeated:
+		diplomacy_changed.emit()
 
 	# Check victory: every rival tribe (1..4) and any founded rebel faction (6) is defeated or allied
 	var all_united := true

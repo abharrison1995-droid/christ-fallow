@@ -103,6 +103,9 @@ var _kiting_this_frame: bool = false
 var _self_defense_target: Node = null
 var _self_defense_timer: float = 0.0
 var _unarmed_punch_vis_timer: float = 0.0
+var _rescue_shaman: Node = null
+var _rescue_lease_timer: float = 0.0
+var _field_aid_applied: bool = false
 
 
 func setup(p_params: Dictionary) -> void:
@@ -223,7 +226,8 @@ func _rebuild_visual() -> void:
 				trial.scale = Vector3.ONE * lineage_height
 				add_child(trial)
 				_skinned_trial = trial
-				_skinned_trial.update_locomotion(0.0, 0.0, true)
+				var psx_enabled: bool = GameState.world_node.is_psx_filter_enabled() if (GameState.world_node != null and GameState.world_node.has_method("is_psx_filter_enabled")) else true
+				_skinned_trial.update_locomotion(0.0, 0.0, psx_enabled)
 				_set_trial_visible(true)
 			else:
 				trial.free()
@@ -235,7 +239,8 @@ func _rebuild_visual() -> void:
 				pilot.name = "CragBornTrial"
 				add_child(pilot)
 				_skinned_trial = pilot
-				pilot.update_locomotion(0.0, 0.0, GameState.world_node.is_psx_filter_enabled() if GameState.world_node != null else true)
+				var pilot_psx: bool = GameState.world_node.is_psx_filter_enabled() if (GameState.world_node != null and GameState.world_node.has_method("is_psx_filter_enabled")) else true
+				pilot.update_locomotion(0.0, 0.0, pilot_psx)
 				_set_trial_visible(true)
 			else:
 				pilot.free()
@@ -311,21 +316,7 @@ func _create_hp_bar() -> void:
 
 	# Leader indicator ring on ground
 	if is_leader:
-		var ring := MeshInstance3D.new()
-		var rm := TorusMesh.new()
-		rm.inner_radius = 0.65
-		rm.outer_radius = 0.78
-		ring.mesh = rm
-		var rmat := StandardMaterial3D.new()
-		var fc: Color = GameData.FACTION_COLORS.get(faction_id, Color.GOLD)
-		rmat.albedo_color = fc
-		rmat.emission_enabled = true
-		rmat.emission = fc
-		rmat.emission_energy_multiplier = 1.2
-		ring.material_override = rmat
-		ring.position = Vector3(0.0, 0.06, 0.0)
-		add_child(ring)
-		_selection_ring = ring
+		_ensure_selection_ring()
 
 	var lbl := Label3D.new()
 	lbl.font = Look.body_font()
@@ -340,6 +331,31 @@ func _create_hp_bar() -> void:
 	lbl.visible = false
 	add_child(lbl)
 	_state_label = lbl
+
+
+func _ensure_selection_ring() -> void:
+	var fc: Color = GameData.FACTION_COLORS.get(faction_id, Color.GOLD)
+	if _selection_ring == null or not is_instance_valid(_selection_ring):
+		var ring := MeshInstance3D.new()
+		var rm := TorusMesh.new()
+		rm.inner_radius = 0.65
+		rm.outer_radius = 0.78
+		ring.mesh = rm
+		var rmat := StandardMaterial3D.new()
+		rmat.albedo_color = fc
+		rmat.emission_enabled = true
+		rmat.emission = fc
+		rmat.emission_energy_multiplier = 1.2
+		ring.material_override = rmat
+		ring.position = Vector3(0.0, 0.06, 0.0)
+		add_child(ring)
+		_selection_ring = ring
+	else:
+		_selection_ring.visible = true
+		var rmat := _selection_ring.material_override as StandardMaterial3D
+		if rmat != null:
+			rmat.albedo_color = fc
+			rmat.emission = fc
 
 
 func recalculate_stats(reset_hp: bool = false) -> void:
@@ -454,6 +470,9 @@ func enter_wounded_state() -> void:
 	is_wounded = true
 	is_healing_in_shack = false
 	being_rescued = false
+	_rescue_shaman = null
+	_rescue_lease_timer = 0.0
+	_field_aid_applied = false
 	faction_id = -3
 	hp = 5.0
 	wounded_timer = 60.0
@@ -465,11 +484,37 @@ func enter_wounded_state() -> void:
 	GameState.push_log("%s was subdued and is WOUNDED! Send a Shaman or press [E] within 60s to heal at a Shaman Shack!" % unit_name, "warning")
 
 
+func claim_rescue(shaman: Node, lease_seconds: float = 1.5) -> void:
+	if not is_wounded or is_healing_in_shack:
+		return
+	_rescue_shaman = shaman
+	_rescue_lease_timer = maxf(_rescue_lease_timer, lease_seconds)
+	being_rescued = true
+
+
+func clear_rescue_claim() -> void:
+	_rescue_shaman = null
+	_rescue_lease_timer = 0.0
+	if not is_healing_in_shack:
+		being_rescued = false
+
+
+func apply_field_aid() -> bool:
+	if not is_wounded or is_healing_in_shack or _field_aid_applied:
+		return false
+	_field_aid_applied = true
+	wounded_timer = minf(wounded_timer + 20.0, 90.0)
+	_update_hp_bar()
+	return true
+
+
 func send_to_shaman_shack(shack_pos: Vector3) -> void:
 	if not is_wounded:
 		return
 	is_healing_in_shack = true
 	being_rescued = true
+	_rescue_shaman = null
+	_rescue_lease_timer = 0.0
 	global_position = shack_pos + Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2))
 	_update_hp_bar()
 
@@ -655,7 +700,7 @@ func _update_procedural_animation(delta: float) -> void:
 		var use_trial := not _is_working_this_frame and not _animator.is_attacking() and not _animator.is_taking_damage() and _hit_flash_timer <= 0.0
 		_set_trial_visible(use_trial)
 		if use_trial:
-			var jitter_enabled: bool = GameState.world_node == null or GameState.world_node.is_psx_filter_enabled()
+			var jitter_enabled: bool = GameState.world_node == null or not GameState.world_node.has_method("is_psx_filter_enabled") or GameState.world_node.is_psx_filter_enabled()
 			_skinned_trial.update_locomotion(horiz_speed, delta, jitter_enabled)
 
 
@@ -669,7 +714,13 @@ func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> v
 	is_wounded = false
 	is_healing_in_shack = false
 	being_rescued = false
+	_rescue_shaman = null
+	_rescue_lease_timer = 0.0
+	_field_aid_applied = false
 	is_raiding = false
+	_retreating_to_heal = false
+	if _selection_ring != null and is_instance_valid(_selection_ring):
+		_selection_ring.visible = false
 	morale = maxf(morale, 72.0)
 	role = GameData.Role.FORAGER
 	squad_order = GameData.SquadOrder.FOLLOW
@@ -683,9 +734,15 @@ func promote_to_player_leader() -> void:
 	is_leader = true
 	is_player_controlled = true
 	is_child = false
+	is_raiding = false
+	_retreating_to_heal = false
 	role = GameData.Role.WARRIOR
+	has_equipped_weapon = true
+	has_armor = true
 	if GameState.factions.has(0):
 		GameState.factions[0]["leader_name"] = unit_name
+		weapon_tier = maxi(weapon_tier, int(GameState.factions[0].get("tech_tier", 1)))
+	_ensure_selection_ring()
 	_rebuild_visual()
 	recalculate_stats(false)
 	hp = max_hp
@@ -737,7 +794,7 @@ func try_equip_from_stockpile() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not GameState.game_active or GameState.is_paused:
+	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
 		return
 	if is_dead:
 		_process_dead_corpse(delta)
@@ -788,6 +845,9 @@ func _physics_process(delta: float) -> void:
 				is_wounded = false
 				is_healing_in_shack = false
 				being_rescued = false
+				_rescue_shaman = null
+				_rescue_lease_timer = 0.0
+				_field_aid_applied = false
 				faction_id = original_faction_id
 				morale = 65.0
 				_rebuild_visual()
@@ -798,12 +858,32 @@ func _physics_process(delta: float) -> void:
 		else:
 			hp = minf(max_hp * 0.50, hp + 0.6 * delta)
 			_update_hp_bar()
+			if being_rescued:
+				var rescuer_valid := false
+				if _rescue_shaman != null and is_instance_valid(_rescue_shaman):
+					var r_dead: bool = (_rescue_shaman.get("is_dead") == true)
+					var r_wounded: bool = (_rescue_shaman.get("is_wounded") == true)
+					var r_revolting: bool = (_rescue_shaman.get("is_revolting") == true)
+					var r_role: int = int(_rescue_shaman.get("role"))
+					var r_fid: int = int(_rescue_shaman.get("faction_id"))
+					if not r_dead and not r_wounded and not r_revolting and r_role == GameData.Role.SHAMAN and r_fid == original_faction_id:
+						rescuer_valid = true
+				if rescuer_valid and _rescue_lease_timer > 0.0:
+					_rescue_lease_timer = maxf(0.0, _rescue_lease_timer - delta)
+					if _rescue_lease_timer <= 0.0:
+						clear_rescue_claim()
+				else:
+					clear_rescue_claim()
 			if not being_rescued:
 				wounded_timer -= delta
 				if wounded_timer <= 0.0:
 					is_wounded = false
+					being_rescued = false
+					_rescue_shaman = null
+					_rescue_lease_timer = 0.0
 					hp = max_hp * 0.75
 					GameState.found_rebel_faction(self)
+					GameState.check_victory_conditions()
 		return
 
 	if faction_id == 0 and not is_leader and not is_child:

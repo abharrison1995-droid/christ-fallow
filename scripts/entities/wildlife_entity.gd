@@ -260,7 +260,7 @@ func _update_wildlife_animation(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not GameState.game_active or GameState.is_paused:
+	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
 		return
 	if is_dead:
 		_process_dead_wildlife(delta)

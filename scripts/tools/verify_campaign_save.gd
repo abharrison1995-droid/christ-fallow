@@ -117,6 +117,7 @@ func _run() -> void:
 		ids[unit.unit_id] = true
 	_check_guide_reward()
 	_check_combat()
+	_check_slice_0a()
 	_unmount()
 	DirAccess.remove_absolute(path)
 	await process_frame
@@ -189,3 +190,161 @@ func _check_combat() -> void:
 	projectile.gravity = 0.0
 	projectile._physics_process(0.016)
 	_check(is_equal_approx(before - float(opponent.hp), 7.5), "Projectile retains faction attribution and armor mitigation after its shooter is freed")
+
+
+func _check_slice_0a() -> void:
+	_state.start_new_campaign("Enoch", "Slice0A Probe", GameData.Lineage.CRAG_BORN)
+
+	# (g) Diplomatic opinion breakdown matches get_diplomatic_opinion() across states & tenets
+	_state.factions[0]["patron_god"] = int(_state.factions[4]["patron_god"])
+	_state.factions[0]["tenets"] = ["PEACEFUL_OFFERING"]
+	for fid in range(1, 5):
+		var bd: Dictionary = _state.get_diplomatic_opinion_breakdown(0, fid)
+		var expected_sum: int = int(bd["god"]) + int(bd["tenets"]) + int(bd["peaceful_offering"]) + int(bd["actions"]) + int(bd["state_bound"])
+		_check(expected_sum == int(bd["total"]), "Opinion breakdown sums cleanly to total for faction %d" % fid)
+		_check(int(bd["total"]) == _state.get_diplomatic_opinion(0, fid), "Opinion breakdown total matches get_diplomatic_opinion for faction %d" % fid)
+	var neutral_bd: Dictionary = _state.get_diplomatic_opinion_breakdown(0, 4)
+	_check(int(neutral_bd["god"]) == 30 and int(neutral_bd["peaceful_offering"]) == 15, "Breakdown exposes god and peaceful_offering bonuses")
+	_state.set_diplomatic_state(0, 4, GameData.DiplomaticState.AT_WAR)
+	var war_bd: Dictionary = _state.get_diplomatic_opinion_breakdown(0, 4)
+	_check(int(war_bd["total"]) == -35 and int(war_bd["state_bound"]) < 0, "AT_WAR opinion cap is captured in state_bound")
+	_check(
+		int(war_bd["god"]) + int(war_bd["tenets"]) + int(war_bd["peaceful_offering"]) + int(war_bd["actions"]) + int(war_bd["state_bound"]) == int(war_bd["total"]),
+		"AT_WAR opinion breakdown sums to total"
+	)
+
+	# (e) promote_to_player_leader() creates _selection_ring, grants armor/weapon, clears raid & retreat flags
+	var colony: Node = _state.faction_controllers[0]
+	var heir: Node = colony.spawn_colonist(Vector3(12, 0, 52), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.FORAGER)
+	heir.is_raiding = true
+	heir._retreating_to_heal = true
+	heir.has_armor = false
+	heir.has_equipped_weapon = false
+	_check(heir._selection_ring == null, "Non-leader starts without _selection_ring")
+	heir.promote_to_player_leader()
+	_check(heir._selection_ring != null and is_instance_valid(heir._selection_ring), "promote_to_player_leader creates _selection_ring")
+	_check(heir.has_armor and heir.has_equipped_weapon, "promote_to_player_leader grants armor and equipped weapon")
+	_check(not heir.is_raiding and not heir._retreating_to_heal, "promote_to_player_leader clears raiding and retreat state")
+
+	# (f) Replacement Campfire updates camp_position after original Campfire is destroyed
+	var orig_camp_pos := Vector3(16.0, 0.0, 52.0)
+	var camp_a: Node = colony.spawn_building("CAMPFIRE", orig_camp_pos, 0.0, true)
+	_state.factions[0]["is_founded"] = true
+	_state.factions[0]["camp_position"] = orig_camp_pos
+	camp_a.take_damage(camp_a.max_hp + 50.0, 5)
+	_check(camp_a.is_destroyed, "Original Campfire enters destroyed state")
+	var new_camp_pos := Vector3(30.0, 0.0, 48.0)
+	var camp_b: Node = colony.spawn_building("CAMPFIRE", new_camp_pos, 0.0, false)
+	camp_b.advance_construction(camp_b.build_time + 1.0)
+	var updated_camp: Vector3 = _state.factions[0]["camp_position"]
+	_check(updated_camp.distance_to(new_camp_pos) < 0.05, "Completed replacement Campfire updates camp_position")
+
+	# (d) Pause and campaign_finished freeze entity ticks, rubble sinking, and PlayerController cooldowns
+	var pc: Node = _state.player_controller
+	pc._dash_cd = 1.5
+	pc._attack_cd = 0.4
+	pc._javelin_cd = 1.0
+	pc._blessing_cd = 10.0
+	pc._harvest_cd = 0.4
+	var sink_before: float = float(camp_a._sink_timer)
+	heir._attack_cd = 2.0
+	var wild: Node = _state.wildlife_container.get_child(0)
+	wild._attack_cd = 1.2
+	_state.is_paused = true
+	camp_a._physics_process(0.5)
+	heir._physics_process(0.5)
+	wild._physics_process(0.5)
+	pc._physics_process(0.5)
+	_check(is_equal_approx(float(camp_a._sink_timer), sink_before), "Paused rubble does not tick _sink_timer")
+	_check(is_equal_approx(float(heir._attack_cd), 2.0), "Paused HumanUnit does not tick cooldowns")
+	_check(is_equal_approx(float(wild._attack_cd), 1.2), "Paused WildlifeEntity does not tick cooldowns")
+	_check(
+		is_equal_approx(float(pc._dash_cd), 1.5) and is_equal_approx(float(pc._attack_cd), 0.4)
+		and is_equal_approx(float(pc._javelin_cd), 1.0) and is_equal_approx(float(pc._blessing_cd), 10.0)
+		and is_equal_approx(float(pc._harvest_cd), 0.4),
+		"Paused PlayerController does not tick cooldowns"
+	)
+	_state.is_paused = false
+	_state.campaign_finished = true
+	camp_a._physics_process(0.5)
+	heir._physics_process(0.5)
+	wild._physics_process(0.5)
+	pc._physics_process(0.5)
+	_check(is_equal_approx(float(camp_a._sink_timer), sink_before), "campaign_finished freezes rubble _sink_timer")
+	_check(is_equal_approx(float(heir._attack_cd), 2.0), "campaign_finished freezes HumanUnit ticks")
+	_check(is_equal_approx(float(wild._attack_cd), 1.2), "campaign_finished freezes WildlifeEntity ticks")
+	_check(
+		is_equal_approx(float(pc._dash_cd), 1.5) and is_equal_approx(float(pc._attack_cd), 0.4)
+		and is_equal_approx(float(pc._javelin_cd), 1.0) and is_equal_approx(float(pc._blessing_cd), 10.0)
+		and is_equal_approx(float(pc._harvest_cd), 0.4),
+		"campaign_finished freezes PlayerController cooldowns"
+	)
+	_state.campaign_finished = false
+
+	# (a) RAZE conquest frees living enemy leader
+	var rival1_leader: Node = _state.get_faction_leader(1)
+	_check(rival1_leader != null and not rival1_leader.is_dead, "Rival 1 has a living leader before RAZE")
+	for b in _state.get_faction_buildings(1, "CAMPFIRE", true):
+		b.take_damage(b.max_hp + 50.0, 0)
+	for b in _state.get_faction_buildings(1, "SACRED_TOTEM", true):
+		b.take_damage(b.max_hp + 50.0, 0)
+	_check(_state._conquest_pending_factions.has(1), "Destroying rival 1 Campfire+Totem triggers conquest while leader lives")
+	_state.resolve_conquest(1, "RAZE")
+	_check(_state.factions[1]["is_defeated"] == true, "RAZE marks rival 1 defeated")
+	_check(rival1_leader.is_queued_for_deletion(), "RAZE queues living enemy leader for deletion")
+	_check(_state.get_faction_units(1, true).is_empty(), "RAZE leaves no living units in faction 1")
+
+	# (b) Third-party rival wipe marks is_defeated = true and allows victory
+	var victory_events: Array[String] = []
+	var on_victory := func(reason: String): victory_events.append(reason)
+	_state.victory_achieved.connect(on_victory)
+	var rival2_leader: Node = _state.get_faction_leader(2)
+	rival2_leader.is_dead = true
+	_state.trigger_conquest_if_eligible(2, 5)
+	_check(_state.factions[2]["is_defeated"] == true and not _state._conquest_pending_factions.has(2), "Cavemen eliminating rival 2 marks it defeated without conquest modal")
+
+	var rival3_leader: Node = _state.get_faction_leader(3)
+	rival3_leader.is_dead = true
+	_state.trigger_conquest_if_eligible(3, -1)
+	_check(_state.factions[3]["is_defeated"] == true and not _state._conquest_pending_factions.has(3), "Wildlife eliminating rival 3 marks it defeated without conquest modal")
+
+	var rival4_leader: Node = _state.get_faction_leader(4)
+	rival4_leader.is_dead = true
+	_state.trigger_conquest_if_eligible(4, 2)
+	_check(_state.factions[4]["is_defeated"] == true, "Non-allied rival eliminating rival 4 marks it defeated")
+	_check(_state.campaign_finished and victory_events.size() == 1, "Victory triggers cleanly once all rivals are defeated including third-party wipes")
+	_state.victory_achieved.disconnect(on_victory)
+
+	# (c) Field aid without Shaman Shack does not freeze being_rescued, Shaman claim clears on interruption,
+	#     and wounded defection triggers defeat when no healthy player units remain
+	_state.start_new_campaign("Enoch", "Wounded Probe", GameData.Lineage.CRAG_BORN)
+	var p_leader: Node = _state.get_faction_leader(0)
+	var p_colony: Node = _state.faction_controllers[0]
+	var rebel_unit: Node = p_colony.spawn_colonist(p_leader.global_position + Vector3(1.5, 0.0, 0.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	rebel_unit.enter_wounded_state()
+	var timer_before_aid: float = float(rebel_unit.wounded_timer)
+	_state.player_controller._try_interact_or_harvest()
+	_check(not rebel_unit.being_rescued, "Field aid without Shaman Shack does not freeze being_rescued")
+	_check(float(rebel_unit.wounded_timer) > timer_before_aid, "First field aid applies one-time stabilization")
+	var timer_after_first: float = float(rebel_unit.wounded_timer)
+	_state.player_controller._try_interact_or_harvest()
+	_check(is_equal_approx(float(rebel_unit.wounded_timer), timer_after_first), "Repeated field aid cannot extend wounded_timer indefinitely")
+	rebel_unit._physics_process(1.0)
+	_check(float(rebel_unit.wounded_timer) < timer_after_first, "Wounded timer keeps ticking after field aid without a shack")
+
+	var shaman: Node = p_colony.spawn_colonist(p_leader.global_position + Vector3(8.0, 0.0, 0.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.SHAMAN)
+	rebel_unit.claim_rescue(shaman, 1.5)
+	_check(rebel_unit.being_rescued, "Shaman claim marks wounded unit as being_rescued")
+	shaman.set_role_and_class(GameData.Role.FORAGER)
+	rebel_unit._physics_process(0.1)
+	_check(not rebel_unit.being_rescued, "Shaman role change clears being_rescued automatically")
+
+	var defeat_events: Array[String] = []
+	var on_defeat := func(reason: String): defeat_events.append(reason)
+	_state.defeat_triggered.connect(on_defeat)
+	for u in _state.get_faction_units(0, true):
+		u.is_dead = true
+	rebel_unit.wounded_timer = 0.05
+	rebel_unit._physics_process(0.1)
+	_check(_state.campaign_finished and defeat_events.size() == 1, "Wounded defection triggers defeat when no healthy player units remain")
+	_state.defeat_triggered.disconnect(on_defeat)

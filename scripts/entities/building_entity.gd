@@ -372,10 +372,16 @@ func advance_construction(amount: float) -> void:
 	build_progress = minf(build_time, build_progress + amount)
 	hp = lerpf(max_hp * 0.25, max_hp, build_progress / maxf(build_time, 0.1))
 	if build_progress >= build_time:
+		var had_constructed_campfire := false
+		if building_type == "CAMPFIRE":
+			had_constructed_campfire = GameState.has_building(faction_id, "CAMPFIRE", true)
 		is_constructed = true
 		hp = max_hp
 		damage_stage = 0
 		_rebuild_visual()
+		if building_type == "CAMPFIRE" and GameState.factions.has(faction_id):
+			if not bool(GameState.factions[faction_id].get("is_founded", false)) or not had_constructed_campfire:
+				GameState.factions[faction_id]["camp_position"] = global_position
 		if faction_id == 0:
 			var b_name: String = GameData.BUILDINGS[building_type]["name"]
 			GameState.push_log("%s construction completed!" % b_name, "success")
@@ -439,11 +445,19 @@ func _destroy(attacker_faction: int) -> void:
 
 	_spawn_debris_burst()
 
+	if building_type == "CAMPFIRE" and GameState.factions.has(faction_id):
+		var remaining_camps := GameState.get_faction_buildings(faction_id, "CAMPFIRE", true)
+		if not remaining_camps.is_empty():
+			GameState.factions[faction_id]["camp_position"] = (remaining_camps[0] as Node3D).global_position
+
 	if faction_id == 0:
 		var b_name: String = GameData.BUILDINGS[building_type]["name"]
 		GameState.push_log("ALERT: Our %s was destroyed!" % b_name, "danger")
-	elif ((faction_id >= 1 and faction_id <= 4) or faction_id == 6) and (building_type == "CAMPFIRE" or building_type == "SACRED_TOTEM"):
-		GameState.trigger_conquest_if_eligible(faction_id, attacker_faction)
+	elif (faction_id >= 1 and faction_id <= 4) or faction_id == 6:
+		if building_type == "CAMPFIRE" or building_type == "SACRED_TOTEM":
+			GameState.trigger_conquest_if_eligible(faction_id, attacker_faction)
+		else:
+			GameState.call_deferred("check_victory_conditions")
 
 	_sync_stage_lights()
 	if _visual_root != null:
@@ -458,15 +472,15 @@ func _destroy(attacker_faction: int) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
+		return
+
 	if is_destroyed:
 		_sink_timer -= delta
 		if _sink_timer <= 3.0:
 			global_position.y -= delta * 0.15
 		if _sink_timer <= 0.0:
 			queue_free()
-		return
-
-	if not GameState.game_active or GameState.is_paused:
 		return
 
 	if _flash_timer > 0.0:
