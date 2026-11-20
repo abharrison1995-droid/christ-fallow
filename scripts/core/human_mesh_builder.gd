@@ -533,6 +533,26 @@ static func _build_class_kit(mf: Node, chest: Node3D, head: Node3D, cape_pivot: 
 			var pelt := BoxMesh.new()
 			pelt.size = Vector3(0.46 * shoulder_scale, 0.36, 0.18)
 			mf.add_mesh(chest, pelt, Vector3(-0.04, 0.24, -0.06), fur_mat, Vector3(8.0, 0.0, -14.0))
+		"DUAL_SHEATH":
+			for sx: float in [-1.0, 1.0]:
+				var sheath_pivot: Node3D = mf.make_pivot(
+					back_mount,
+					"DualSheath" + ("L" if sx > 0.0 else "R"),
+					Vector3(0.0, 0.01, -0.055 - (0.018 if sx > 0.0 else 0.0)),
+					Vector3(8.0, 0.0, sx * 36.0)
+				)
+				var sheath := BoxMesh.new()
+				sheath.size = Vector3(0.068, 0.36, 0.036)
+				mf.add_mesh(sheath_pivot, sheath, Vector3.ZERO, hide_mat)
+				var collar := BoxMesh.new()
+				collar.size = Vector3(0.088, 0.055, 0.048)
+				mf.add_mesh(sheath_pivot, collar, Vector3(0.0, 0.165, 0.0), bone_mat)
+				var band := BoxMesh.new()
+				band.size = Vector3(0.078, 0.045, 0.044)
+				mf.add_mesh(sheath_pivot, band, Vector3(0.0, -0.03, 0.0), fur_mat)
+				var chape := PrismMesh.new()
+				chape.size = Vector3(0.058, 0.08, 0.032)
+				mf.add_mesh(sheath_pivot, chape, Vector3(0.0, -0.21, 0.0), bone_mat, Vector3(0.0, 0.0, 180.0))
 
 
 static func _build_weapon_variants(mf: Node, mount: Node3D, wood_mat: Material, bone_mat: Material, hide_mat: Material, faction_color: Color) -> void:

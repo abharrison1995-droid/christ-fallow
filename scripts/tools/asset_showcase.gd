@@ -1,15 +1,23 @@
 extends Node3D
 
-const DEFAULT_OUT_DIR := "<USERPROFILE>/.gemini/antigravity/brain/25bfd11b-d070-4027-8aaf-08069c9fcc2b/scratch"
 const TribesmanAnimator = preload("res://scripts/entities/tribesman_animator.gd")
 
-var _out_dir: String = DEFAULT_OUT_DIR
+var _out_dir: String = ""
 var _cam: Camera3D = null
 var _stage: Node3D = null
 var _ui_layer: CanvasLayer = null
 
 
+static func _default_out_dir() -> String:
+	for env_key: String in ["TEMP", "TMP", "TMPDIR"]:
+		var env_dir: String = OS.get_environment(env_key)
+		if not env_dir.is_empty():
+			return env_dir.path_join("christ_fallow_showcase")
+	return ProjectSettings.globalize_path("user://showcase_out")
+
+
 func _ready() -> void:
+	_out_dir = _default_out_dir()
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out-dir="):
 			_out_dir = arg.substr("--out-dir=".length())
@@ -140,6 +148,7 @@ func _clear_stage() -> void:
 	for parent in [_stage, GameState.units_container, GameState.buildings_container, GameState.resources_container, GameState.wildlife_container]:
 		if parent != null:
 			for c in parent.get_children():
+				parent.remove_child(c)
 				c.queue_free()
 
 
@@ -159,7 +168,7 @@ func _capture(filename: String, cam_pos: Vector3, look_pos: Vector3) -> void:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var img: Image = get_viewport().get_texture().get_image()
-	var full_path := _out_dir + "/" + filename
+	var full_path := _out_dir.path_join(filename)
 	var err := img.save_png(full_path)
 	print("Saved screenshot: ", full_path, " status=", err)
 

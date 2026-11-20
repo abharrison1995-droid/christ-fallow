@@ -48,11 +48,6 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 			return false
 
 	_body_materials = apply_materials(mesh_factory, model, faction_color)
-	for material in _body_materials:
-		# Fine snapping keeps thin tools and braids intact at the default 12 m camera distance.
-		material.set_shader_parameter("snap_resolution", Vector2(560, 315))
-		material.set_shader_parameter("jitter_intensity", 0.13)
-		material.set_shader_parameter("enable_jitter", true)
 	if variant == "child":
 		scale = Vector3.ONE * CHILD_SCALE
 	_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL

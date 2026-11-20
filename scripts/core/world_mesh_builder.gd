@@ -14,30 +14,67 @@ static func _instantiate_model(path: String) -> Node3D:
 
 
 static func build_environment_mesh(asset: String) -> Node3D:
-	return _instantiate_model("res://assets/models/environment/%s.glb" % asset)
+	var model := _instantiate_model("res://assets/models/environment/%s.glb" % asset)
+	if model != null:
+		_apply_psx_glb_materials(model)
+	return model
+
+
+static func _make_blueprint_material(mf: Node) -> StandardMaterial3D:
+	return mf.make_mat(Color(0.25, 0.85, 1.0, 0.45), 0.3, Color(0.2, 0.7, 1.0), 0.8, 0.45)
+
+
+static func _instantiate_building_glb(building_type: String) -> Node3D:
+	var glb_path := "res://assets/models/buildings/%s_stages.glb" % building_type.to_lower()
+	var inst := _instantiate_model(glb_path)
+	if inst == null:
+		return null
+	if has_building_stages(inst):
+		return inst
+	inst.free()
+	return null
 
 
 static func build_building_mesh(mf: Node, building_type: String, faction_color: Color, is_blueprint: bool, damage_stage: int = 0) -> Node3D:
 	var root := Node3D.new()
 	root.name = "BuildingVisual"
+	var glb_inst := _instantiate_building_glb(building_type)
+	if glb_inst != null:
+		var stage_idx := 0 if is_blueprint else clampi(damage_stage, 0, BUILDING_STAGE_NAMES.size() - 1)
+		var stage_node := glb_inst.get_node_or_null(str(BUILDING_STAGE_NAMES[stage_idx])) as Node3D
+		if stage_node != null:
+			glb_inst.remove_child(stage_node)
+			stage_node.transform = glb_inst.transform * stage_node.transform
+			stage_node.visible = true
+			glb_inst.free()
+			_strip_non_visual_nodes(stage_node, is_blueprint)
+			root.add_child(stage_node)
+			if is_blueprint:
+				_apply_material_recursive(root, _make_blueprint_material(mf))
+			else:
+				_apply_glb_materials_and_tint(mf, stage_node, faction_color)
+			return root
+		glb_inst.free()
+
 	_build_stage_geometry(root, mf, building_type, faction_color, is_blueprint, damage_stage)
 	if is_blueprint:
-		var bp_mat: StandardMaterial3D = mf.make_mat(Color(0.25, 0.85, 1.0, 0.45), 0.3, Color(0.2, 0.7, 1.0), 0.8, 0.45)
-		_apply_material_recursive(root, bp_mat)
+		_apply_material_recursive(root, _make_blueprint_material(mf))
 	return root
 
 
 static func build_building_stages(mf: Node, building_type: String, faction_color: Color, is_blueprint: bool) -> Node3D:
-	var glb_path := "res://assets/models/buildings/%s_stages.glb" % building_type.to_lower()
-	if not is_blueprint and ResourceLoader.exists(glb_path):
-		var packed := load(glb_path) as PackedScene
-		if packed != null:
-			var inst := packed.instantiate() as Node3D
-			if inst != null:
-				if has_building_stages(inst):
-					_apply_glb_materials_and_tint(mf, inst, faction_color)
-					return inst
-				inst.free()
+	var glb_inst := _instantiate_building_glb(building_type)
+	if glb_inst != null:
+		if is_blueprint:
+			_strip_non_visual_nodes(glb_inst, true)
+			for i in range(BUILDING_STAGE_NAMES.size()):
+				var stage_node := glb_inst.get_node_or_null(str(BUILDING_STAGE_NAMES[i])) as Node3D
+				if stage_node != null:
+					stage_node.visible = (i == 0)
+			_apply_material_recursive(glb_inst, _make_blueprint_material(mf))
+		else:
+			_apply_glb_materials_and_tint(mf, glb_inst, faction_color)
+		return glb_inst
 
 	var root := Node3D.new()
 	root.name = "BuildingVisual"
@@ -67,8 +104,7 @@ static func build_building_stages(mf: Node, building_type: String, faction_color
 	root.add_child(s3)
 
 	if is_blueprint:
-		var bp_mat: StandardMaterial3D = mf.make_mat(Color(0.25, 0.85, 1.0, 0.45), 0.3, Color(0.2, 0.7, 1.0), 0.8, 0.45)
-		_apply_material_recursive(root, bp_mat)
+		_apply_material_recursive(root, _make_blueprint_material(mf))
 
 	return root
 
@@ -78,6 +114,36 @@ static func has_building_stages(model: Node3D) -> bool:
 		if not model.get_node_or_null(stage_name) is Node3D:
 			return false
 	return true
+
+
+static func _strip_non_visual_nodes(node: Node, strip_lights: bool = false) -> void:
+	for c in node.get_children():
+		if c is StaticBody3D or c is CollisionShape3D or (strip_lights and c is Light3D):
+			node.remove_child(c)
+			if c.is_inside_tree():
+				c.queue_free()
+			else:
+				c.free()
+		else:
+			_strip_non_visual_nodes(c, strip_lights)
+
+
+static func _apply_psx_glb_materials(node: Node) -> void:
+	if node is MeshInstance3D:
+		var mi := node as MeshInstance3D
+		if mi.mesh != null:
+			for slot in range(mi.mesh.get_surface_count()):
+				var base_mat: Material = mi.get_surface_override_material(slot)
+				if base_mat == null:
+					base_mat = mi.mesh.surface_get_material(slot)
+				if base_mat is StandardMaterial3D:
+					var mat_dup := (base_mat as StandardMaterial3D).duplicate() as StandardMaterial3D
+					mat_dup.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+					mat_dup.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+					mat_dup.roughness = maxf(mat_dup.roughness, 0.86)
+					mi.set_surface_override_material(slot, mat_dup)
+	for c in node.get_children():
+		_apply_psx_glb_materials(c)
 
 
 static func _apply_material_recursive(node: Node, mat: Material) -> void:
@@ -93,7 +159,10 @@ static func _apply_glb_materials_and_tint(mf: Node, node: Node, faction_color: C
 		var p := node.get_parent()
 		if p != null:
 			p.remove_child(node)
-			node.queue_free()
+			if node.is_inside_tree():
+				node.queue_free()
+			else:
+				node.free()
 			return
 
 	if node is MeshInstance3D:
@@ -713,6 +782,7 @@ static func build_wildlife_mesh(mf: Node, animal_type: String) -> Node3D:
 			var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 			if player != null and player.has_animation("Bite"):
 				player.name = "BiteAnimation"
+				_apply_psx_glb_materials(model)
 				model.rotation.y = PI  # The existing procedural pivot turns +Z models around.
 				anim_pivot.add_child(model)
 				return root

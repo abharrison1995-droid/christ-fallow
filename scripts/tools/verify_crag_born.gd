@@ -170,15 +170,21 @@ func _verify_gameplay() -> void:
 			var entry: Dictionary = hud._drawer_views["COLONY"]._roster_rows.get(unit.unit_id, {})
 			if _check(not entry.is_empty(), "Colony drawer opened via C and populated the roster"):
 				var row: Node = entry["label"].get_parent()
-				var colony_role := row.get_child(2) as OptionButton
-				var forage_index := colony_role.get_item_index(_data.Role.FORAGER)
-				colony_role.select(forage_index)
-				colony_role.item_selected.emit(forage_index)
-				var restored := unit.get_node_or_null("CragBornTrial") as Trial
-				_check(unit.role == _data.Role.FORAGER and restored != null and restored != guard
-					and restored.find_child("Back", true, false) != null
-					and restored.find_child("Offhand", true, false) == null,
-					"Colony roster returns to Forager and clears the old offhand")
+				var expected_tag := "unit-role:%d" % unit.unit_id
+				var colony_role: OptionButton = null
+				for candidate in row.find_children("*", "OptionButton", true, false):
+					if str(candidate.get_meta("drawer_focus", "")) == expected_tag:
+						colony_role = candidate as OptionButton
+						break
+				if _check(colony_role != null, "Colony roster exposes the role dropdown for unit %d" % unit.unit_id):
+					var forage_index := colony_role.get_item_index(_data.Role.FORAGER)
+					colony_role.select(forage_index)
+					colony_role.item_selected.emit(forage_index)
+					var restored := unit.get_node_or_null("CragBornTrial") as Trial
+					_check(unit.role == _data.Role.FORAGER and restored != null and restored != guard
+						and restored.find_child("Back", true, false) != null
+						and restored.find_child("Offhand", true, false) == null,
+						"Colony roster returns to Forager and clears the old offhand")
 	main.free()
 	await process_frame
 	print("Campaign path checked from Awakening through role selection, harvest, thrust and hit.")
