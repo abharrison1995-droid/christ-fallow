@@ -111,6 +111,9 @@ var _last_move_idle: bool = false
 var _work_timer: float = 0.0
 var _swing_timer: float = 0.0
 var _swing_duration: float = 0.34
+var _active_attack_anim: String = ""
+var _skinned_hit_priority: bool = false
+var _death_anim_state: String = "DEATH_BACK"
 var _is_working_this_frame: bool = false
 var _hit_flash_timer: float = 0.0
 var _death_timer: float = 0.0
@@ -283,7 +286,7 @@ func _rebuild_visual() -> void:
 		_animator.update(0.5, {"idle_stance": str(cdef.get("idle_stance", "RELAXED"))})
 
 	_refresh_gear_visual()
-	if is_player_controlled and is_leader and faction_id == 0 and not is_wounded and not is_dead:
+	if is_player_controlled and is_leader and faction_id == 0 and not is_dead:
 		if SkinnedTribesmanTrial.LAUNCH_FLAG in OS.get_cmdline_user_args():
 			var trial := SkinnedTribesmanTrial.new()
 			var spear := _visual_root.find_child("GREAT_SPEAR", true, false) as Node3D
@@ -293,12 +296,11 @@ func _rebuild_visual() -> void:
 				trial.scale = Vector3.ONE * lineage_height
 				add_child(trial)
 				_skinned_trial = trial
-				var psx_enabled: bool = GameState.world_node.is_psx_filter_enabled() if (GameState.world_node != null and GameState.world_node.has_method("is_psx_filter_enabled")) else true
-				_skinned_trial.update_locomotion(0.0, 0.0, psx_enabled)
+				_skinned_trial.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 				_set_trial_visible(true)
 			else:
 				trial.free()
-	elif CragBornTrial.enabled() and eff_lin == GameData.Lineage.CRAG_BORN and not is_leader and not is_dead and not is_wounded:
+	elif CragBornTrial.enabled() and eff_lin == GameData.Lineage.CRAG_BORN and not is_leader and not is_dead:
 		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
 		if trial_kit == "FORAGER" or (trial_kit == "SPEARMAN" and not is_child):
 			var pilot := CragBornTrial.new()
@@ -307,11 +309,18 @@ func _rebuild_visual() -> void:
 				pilot.name = "CragBornTrial"
 				add_child(pilot)
 				_skinned_trial = pilot
-				var pilot_psx: bool = GameState.world_node.is_psx_filter_enabled() if (GameState.world_node != null and GameState.world_node.has_method("is_psx_filter_enabled")) else true
-				pilot.update_locomotion(0.0, 0.0, pilot_psx)
+				pilot.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 				_set_trial_visible(true)
 			else:
 				pilot.free()
+
+
+func _is_psx_jitter_enabled() -> bool:
+	return GameState.world_node == null or not GameState.world_node.has_method("is_psx_filter_enabled") or GameState.world_node.is_psx_filter_enabled()
+
+
+func _hit_flash_ratio() -> float:
+	return clampf(_hit_flash_timer / 0.16, 0.0, 1.0)
 
 
 func _set_trial_visible(use_trial: bool) -> void:
@@ -348,13 +357,20 @@ func _refresh_gear_visual() -> void:
 
 
 func play_attack_animation(anim_name: String = "", duration: float = 0.40) -> void:
-	_set_trial_visible(false)
 	var eff_anim := anim_name
 	if eff_anim == "":
 		eff_anim = str(_get_class_def().get("attack_anim", "TOOL_SWING"))
+	_active_attack_anim = eff_anim
+	_skinned_hit_priority = false
 	_swing_duration = duration
 	_swing_timer = duration
 	_animator.trigger_attack(eff_anim, duration)
+	if _skinned_trial != null:
+		_set_trial_visible(true)
+		if eff_anim == "TOOL_SWING" or eff_anim.begins_with("WORK_"):
+			_skinned_trial.restart_clip(&"Work")
+		else:
+			_skinned_trial.restart_clip(&"Attack")
 
 
 func _create_hp_bar() -> void:
@@ -632,6 +648,9 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	var has_shield: bool = (ckey == "SPEARMAN" or ckey == "JAVELINEER" or ckey == "LEADER" or ckey == "TRAINEE")
 	var is_heavy: bool = (mitigated >= max_hp * 0.16) or atk_is_boss or atk_is_brute
 	_animator.trigger_damage(hit_dir_body, is_heavy, has_shield)
+	_skinned_hit_priority = true
+	if _skinned_trial != null:
+		_skinned_trial.restart_clip(&"Hit")
 
 	if attacker != null and is_instance_valid(attacker) and not attacker.get("is_dead") and attacker is Node3D:
 		_self_defense_target = attacker
@@ -706,38 +725,62 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 	else:
 		dv = TribesmanAnimator.DeathVariant.BACKWARD_STAGGER
 	_animator.trigger_death(dv, hit_dir_body)
+	if dv == TribesmanAnimator.DeathVariant.KNEE_CRUMPLE:
+		_death_anim_state = "DEATH_KNEE_CRUMPLE"
+	elif dv == TribesmanAnimator.DeathVariant.SIDE_COLLAPSE:
+		_death_anim_state = "DEATH_SIDE_COLLAPSE"
+	else:
+		_death_anim_state = "DEATH_BACK"
+	if _skinned_trial != null:
+		_set_trial_visible(true)
+		_skinned_trial.restart_clip(&"Death")
+		_skinned_trial.update_action(_death_anim_state, 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 	CombatVFX.spawn_damage_popup(self, "SLAIN!", Color(1.0, 0.20, 0.16), 1.35)
 	CombatVFX.spawn_blood_pool(self, 0.72)
 	GameState.call_deferred("check_victory_conditions")
 
 
 func _set_hit_flash(duration: float) -> void:
-	_set_trial_visible(false)
 	_hit_flash_timer = maxf(_hit_flash_timer, duration)
-	CombatVFX.apply_overlay_recursive(_visual_root, CombatVFX.get_hit_flash_material())
+	if _skinned_trial != null:
+		_set_trial_visible(true)
+		_skinned_trial.set_hit_flash(_hit_flash_ratio())
+	else:
+		CombatVFX.apply_overlay_recursive(_visual_root, CombatVFX.get_hit_flash_material())
 
 
 func _update_hit_flash(delta: float) -> void:
 	if _hit_flash_timer > 0.0:
-		_hit_flash_timer -= delta
-		if _hit_flash_timer <= 0.0:
+		_hit_flash_timer = maxf(0.0, _hit_flash_timer - delta)
+		if _skinned_trial != null:
+			_skinned_trial.set_hit_flash(_hit_flash_ratio())
+		elif _hit_flash_timer <= 0.0:
 			CombatVFX.apply_overlay_recursive(_visual_root, null)
 
 
 func _process_dead_corpse(delta: float) -> void:
-	_set_trial_visible(false)
 	_update_hit_flash(delta)
 	_animator.update(delta, {"is_dead": true})
+	if _skinned_trial != null:
+		_set_trial_visible(true)
+		_skinned_trial.update_action(_death_anim_state, 0.0, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
 	_death_timer -= delta
-	if _death_timer <= 1.0 and _visual_root != null:
+	if _death_timer <= 1.0:
 		var s := clampf(_death_timer, 0.05, 1.0)
-		_visual_root.scale = Vector3(1.0, s, 1.0)
+		if _visual_root != null:
+			_visual_root.scale = Vector3(1.0, s, 1.0)
+		if _skinned_trial != null:
+			var base_s := _skinned_trial.scale.x
+			_skinned_trial.scale = Vector3(base_s, base_s * s, base_s)
 	if _death_timer <= 0.0:
 		queue_free()
 
 
 func _update_wounded_animation(delta: float) -> void:
 	_animator.update(delta, {"is_wounded": true})
+	if _skinned_trial != null:
+		_set_trial_visible(true)
+		_skinned_trial.update_action("WOUNDED", 0.0, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
 	if _state_label != null:
 		_state_label.visible = true
 		_state_label.position = Vector3(0.0, 1.35, 0.0)
@@ -784,11 +827,17 @@ func _update_procedural_animation(delta: float) -> void:
 		"work_anim": str(cdef.get("work_anim", "WORK_BUILD")),
 	})
 	if _skinned_trial != null:
-		var use_trial := not _is_working_this_frame and not _animator.is_attacking() and not _animator.is_taking_damage() and _hit_flash_timer <= 0.0
-		_set_trial_visible(use_trial)
-		if use_trial:
-			var jitter_enabled: bool = GameState.world_node == null or not GameState.world_node.has_method("is_psx_filter_enabled") or GameState.world_node.is_psx_filter_enabled()
-			_skinned_trial.update_locomotion(horiz_speed, delta, jitter_enabled)
+		_set_trial_visible(true)
+		var anim_state := "IDLE"
+		if _animator.is_taking_damage() and (_skinned_hit_priority or not _animator.is_attacking()):
+			anim_state = "DAMAGE_HEAVY"
+		elif _animator.is_attacking():
+			anim_state = _active_attack_anim if _active_attack_anim != "" else str(cdef.get("attack_anim", "TOOL_SWING"))
+		elif _is_working_this_frame:
+			anim_state = str(cdef.get("work_anim", "WORK_BUILD"))
+		elif horiz_speed > 0.25:
+			anim_state = "KITE" if _kiting_this_frame else "WALK"
+		_skinned_trial.update_action(anim_state, horiz_speed, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
 
 
 func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> void:
@@ -1465,6 +1514,8 @@ func _find_nearest_prey(max_dist: float) -> Node:
 
 func _set_hand_mounts_visible(vis: bool) -> void:
 	HumanMeshBuilder.set_hand_mounts_visible(_visual_root, vis)
+	if _skinned_trial != null:
+		_skinned_trial.set_hand_mounts_visible(vis)
 
 
 func _engage_unarmed_self_defense(target: Node) -> void:

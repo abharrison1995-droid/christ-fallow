@@ -1,6 +1,7 @@
 extends "res://scripts/entities/skinned_tribesman_trial.gd"
 
 const PILOT_FLAG := "--crag-born-trial"
+const PROCEDURAL_ROSTER_FLAG := "--procedural-roster"
 const BODIES := "res://assets/models/characters/lineages/crag_born"
 const GEAR := "res://assets/models/gear"
 const CHILD_SCALE := 0.68
@@ -9,7 +10,7 @@ const GRIP_L := Vector3(0.012, -0.054, -0.006)
 
 
 static func enabled() -> bool:
-	return PILOT_FLAG in OS.get_cmdline_user_args()
+	return not (PROCEDURAL_ROSTER_FLAG in OS.get_cmdline_user_args())
 
 
 func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_key: String) -> bool:
@@ -48,10 +49,14 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 			return false
 
 	_body_materials = apply_materials(mesh_factory, model, faction_color)
+	if _body_materials.is_empty():
+		return false
+	_capture_base_emissions()
 	if variant == "child":
-		scale = Vector3.ONE * CHILD_SCALE
+		_base_scale = Vector3.ONE * CHILD_SCALE
+		scale = _base_scale
 	_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
-	return not _body_materials.is_empty()
+	return true
 
 
 func _mount(skeleton: Skeleton3D, bone_name: String, slot_name: String, asset: String,

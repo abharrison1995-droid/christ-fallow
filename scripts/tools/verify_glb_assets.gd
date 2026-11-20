@@ -172,7 +172,12 @@ func _verify_character() -> void:
 		var player: AnimationPlayer = players[0]
 		_verify_clip(player, skeleton, "Idle")
 		if _require_gameplay_rig:
-			_verify_clip(player, skeleton, "Walk")
+			_verify_clip(player, skeleton, "Walk", true)
+			_verify_clip(player, skeleton, "Work", true)
+			_verify_clip(player, skeleton, "Wounded", true)
+			_verify_clip(player, skeleton, "Attack", false)
+			_verify_clip(player, skeleton, "Hit", false)
+			_verify_clip(player, skeleton, "Death", false)
 	if _require_gameplay_rig:
 		var has_trim := false
 		for mesh in mesh_instances:
@@ -207,12 +212,14 @@ func _verify_character() -> void:
 	_clear()
 
 
-func _verify_clip(player: AnimationPlayer, skeleton: Skeleton3D, clip_name: String) -> void:
+func _verify_clip(player: AnimationPlayer, skeleton: Skeleton3D, clip_name: String, expect_loop: bool = true) -> void:
 	if not _check(player.has_animation(clip_name), "Tribesman is missing the %s clip" % clip_name):
 		return
 	var clip := player.get_animation(clip_name)
 	if _require_gameplay_rig:
-		_check(clip.loop_mode == Animation.LOOP_LINEAR, "%s must loop for gameplay" % clip_name)
+		var expected_mode := Animation.LOOP_LINEAR if expect_loop else Animation.LOOP_NONE
+		_check(clip.loop_mode == expected_mode,
+			"%s must have %s loop mode for gameplay" % [clip_name, "linear" if expect_loop else "one-shot"])
 	if not _check(clip.length > 0.0 and clip.get_track_count() > 0, "%s must contain animation tracks" % clip_name):
 		return
 	player.play(clip_name)

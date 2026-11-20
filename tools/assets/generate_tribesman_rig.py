@@ -298,6 +298,202 @@ def animate(armature, name, frames, walking=False, guard=False):
     strip.action_slot = slot
 
 
+def _smoothstep(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def _lerp(a, b, t):
+    return a + (b - a) * t
+
+
+def _reset_pose(armature):
+    for pose_bone in armature.pose.bones:
+        pose_bone.rotation_mode = "QUATERNION"
+        pose_rotation(pose_bone)
+
+
+def _finalize_action(armature, action):
+    data = armature.animation_data
+    slot = data.action_slot
+    data.action = None
+    track = data.nla_tracks.new()
+    track.name = action.name
+    strip = track.strips.new(action.name, 1, action)
+    strip.action_slot = slot
+
+
+def _insert_frame(armature, hips, shift, y_offset, bob, frame):
+    hips.location = hips.bone.matrix_local.to_quaternion().inverted() @ Vector((shift, y_offset, bob))
+    hips.keyframe_insert(data_path="location", frame=frame)
+    for pose_bone in armature.pose.bones:
+        pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
+
+
+def animate_action_clips(armature):
+    """Add gameplay action clips (Attack, Work, Hit, Death, Wounded) to the 17-bone rig."""
+    data = armature.animation_data
+    hips = armature.pose.bones["Hips"]
+    bones = armature.pose.bones
+
+    # 1. Attack (one-shot, 17 frames = 0.567 s)
+    attack = bpy.data.actions.new("Attack")
+    attack.use_cyclic = False
+    data.action = attack
+    attack_frames = 17
+    for i in range(attack_frames + 1):
+        t = i / attack_frames
+        _reset_pose(armature)
+        if t <= 0.28:
+            w = _smoothstep(t / 0.28)
+            shift, y_off, bob = -0.02 * w, -0.05 * w, -0.04 * w
+            pose_rotation(hips, twist=0.25 * w)
+            pose_rotation(bones["Chest"], pitch=0.12 * w, twist=0.38 * w)
+            pose_rotation(bones["Head"], twist=-0.15 * w)
+            pose_rotation(bones["UpperArm.R"], pitch=-0.52 * w, lean=-0.20 * w)
+            pose_rotation(bones["LowerArm.R"], pitch=0.14 + 0.96 * w)
+            pose_rotation(bones["UpperArm.L"], pitch=0.45 * w, lean=-0.08 * w, twist=-0.18 * w)
+            pose_rotation(bones["LowerArm.L"], pitch=0.14 + 0.72 * w)
+            pose_rotation(bones["UpperLeg.L"], pitch=0.18 * w)
+            pose_rotation(bones["LowerLeg.L"], pitch=-0.22 * w)
+            pose_rotation(bones["UpperLeg.R"], pitch=-0.16 * w)
+            pose_rotation(bones["LowerLeg.R"], pitch=-0.18 * w)
+        elif t <= 0.54:
+            s = _smoothstep((t - 0.28) / 0.26)
+            shift, y_off, bob = _lerp(-0.02, 0.02, s), _lerp(-0.05, 0.12, s), _lerp(-0.04, -0.08, s)
+            pose_rotation(hips, twist=_lerp(0.25, -0.35, s))
+            pose_rotation(bones["Chest"], pitch=_lerp(0.12, -0.24, s), twist=_lerp(0.38, -0.52, s))
+            pose_rotation(bones["Head"], twist=_lerp(-0.15, 0.35, s))
+            pose_rotation(bones["UpperArm.R"], pitch=_lerp(-0.52, 1.42, s), lean=_lerp(-0.20, 0.14, s), twist=0.25 * s)
+            pose_rotation(bones["LowerArm.R"], pitch=_lerp(1.10, 0.18, s))
+            pose_rotation(bones["UpperArm.L"], pitch=_lerp(0.45, 0.20, s), lean=_lerp(-0.08, 0.15, s), twist=_lerp(-0.18, 0.0, s))
+            pose_rotation(bones["LowerArm.L"], pitch=_lerp(0.86, 0.65, s))
+            pose_rotation(bones["UpperLeg.L"], pitch=_lerp(0.18, 0.46, s))
+            pose_rotation(bones["LowerLeg.L"], pitch=_lerp(-0.22, -0.45, s))
+            pose_rotation(bones["UpperLeg.R"], pitch=_lerp(-0.16, -0.42, s))
+            pose_rotation(bones["LowerLeg.R"], pitch=_lerp(-0.18, -0.12, s))
+        else:
+            r = _smoothstep((t - 0.54) / 0.46)
+            shift, y_off, bob = _lerp(0.02, 0.0, r), _lerp(0.12, 0.0, r), _lerp(-0.08, 0.0, r)
+            pose_rotation(hips, twist=_lerp(-0.35, 0.0, r))
+            pose_rotation(bones["Chest"], pitch=_lerp(-0.24, 0.0, r), twist=_lerp(-0.52, 0.0, r))
+            pose_rotation(bones["Head"], twist=_lerp(0.35, 0.0, r))
+            pose_rotation(bones["UpperArm.R"], pitch=_lerp(1.42, 0.0, r), lean=_lerp(0.14, 0.0, r), twist=_lerp(0.25, 0.0, r))
+            pose_rotation(bones["LowerArm.R"], pitch=_lerp(0.18, 0.14, r))
+            pose_rotation(bones["UpperArm.L"], pitch=_lerp(0.20, 0.0, r), lean=_lerp(0.15, 0.0, r))
+            pose_rotation(bones["LowerArm.L"], pitch=_lerp(0.65, 0.14, r))
+            pose_rotation(bones["UpperLeg.L"], pitch=_lerp(0.46, 0.0, r))
+            pose_rotation(bones["LowerLeg.L"], pitch=_lerp(-0.45, 0.0, r))
+            pose_rotation(bones["UpperLeg.R"], pitch=_lerp(-0.42, 0.0, r))
+            pose_rotation(bones["LowerLeg.R"], pitch=_lerp(-0.12, 0.0, r))
+        _insert_frame(armature, hips, shift, y_off, bob, i + 1)
+    _finalize_action(armature, attack)
+
+    # 2. Work (looping, 26 frames = 0.867 s)
+    work = bpy.data.actions.new("Work-loop")
+    work.use_cyclic = True
+    data.action = work
+    work_frames = 26
+    for i in range(0, work_frames + 1, 2):
+        phase = math.tau * (i % work_frames) / work_frames
+        swing = math.sin(phase)
+        chop_down = 0.5 - 0.5 * math.cos(phase)
+        _reset_pose(armature)
+        shift = 0.015 * swing
+        bob = -0.06 - 0.045 * chop_down
+        pose_rotation(hips, lean=0.03 * swing, twist=-0.08 * swing)
+        pose_rotation(bones["Spine"], pitch=-0.14 - 0.08 * chop_down)
+        pose_rotation(bones["Chest"], pitch=-0.26 - 0.18 * chop_down, twist=-0.18 * swing)
+        pose_rotation(bones["Head"], pitch=0.18 + 0.08 * chop_down)
+        pose_rotation(bones["UpperArm.R"], pitch=0.62 + 0.68 * swing, lean=0.08)
+        pose_rotation(bones["LowerArm.R"], pitch=0.58 + 0.34 * swing)
+        pose_rotation(bones["UpperArm.L"], pitch=0.48 - 0.22 * swing, lean=-0.06)
+        pose_rotation(bones["LowerArm.L"], pitch=0.68 - 0.18 * swing)
+        pose_rotation(bones["UpperLeg.L"], pitch=0.24)
+        pose_rotation(bones["LowerLeg.L"], pitch=-0.32)
+        pose_rotation(bones["Foot.L"], pitch=0.08)
+        pose_rotation(bones["UpperLeg.R"], pitch=-0.20)
+        pose_rotation(bones["LowerLeg.R"], pitch=-0.24)
+        pose_rotation(bones["Foot.R"], pitch=0.24)
+        _insert_frame(armature, hips, shift, 0.0, bob, i + 1)
+    _finalize_action(armature, work)
+
+    # 3. Hit (one-shot, 11 frames = 0.367 s)
+    hit = bpy.data.actions.new("Hit")
+    hit.use_cyclic = False
+    data.action = hit
+    hit_frames = 11
+    for i in range(hit_frames + 1):
+        t = i / hit_frames
+        env = _smoothstep(t / 0.30) if t <= 0.30 else (1.0 - _smoothstep((t - 0.30) / 0.70))
+        _reset_pose(armature)
+        pose_rotation(hips, pitch=0.14 * env, twist=-0.12 * env)
+        pose_rotation(bones["Spine"], pitch=0.18 * env)
+        pose_rotation(bones["Chest"], pitch=0.28 * env, twist=-0.22 * env)
+        pose_rotation(bones["Head"], pitch=0.30 * env, twist=0.18 * env)
+        pose_rotation(bones["UpperArm.L"], pitch=-0.24 * env, lean=0.30 * env)
+        pose_rotation(bones["LowerArm.L"], pitch=0.14 + 0.42 * env)
+        pose_rotation(bones["UpperArm.R"], pitch=-0.28 * env, lean=-0.30 * env)
+        pose_rotation(bones["LowerArm.R"], pitch=0.14 + 0.42 * env)
+        pose_rotation(bones["UpperLeg.L"], pitch=0.22 * env)
+        pose_rotation(bones["LowerLeg.L"], pitch=-0.38 * env)
+        pose_rotation(bones["UpperLeg.R"], pitch=0.16 * env)
+        pose_rotation(bones["LowerLeg.R"], pitch=-0.30 * env)
+        _insert_frame(armature, hips, 0.0, -0.09 * env, -0.05 * env, i + 1)
+    _finalize_action(armature, hit)
+
+    # 4. Death (one-shot, 21 frames = 0.70 s, holds fallen pose cleanly)
+    death = bpy.data.actions.new("Death")
+    death.use_cyclic = False
+    data.action = death
+    death_frames = 21
+    for i in range(death_frames + 1):
+        t = i / death_frames
+        c = _smoothstep(min(1.0, t / 0.78))
+        b = _smoothstep(min(1.0, t / 0.45))
+        _reset_pose(armature)
+        pose_rotation(hips, pitch=1.48 * c, lean=0.08 * c)
+        pose_rotation(bones["Spine"], pitch=0.06 * c)
+        pose_rotation(bones["Chest"], pitch=0.08 * c, twist=0.12 * c)
+        pose_rotation(bones["Head"], pitch=0.14 * c, twist=0.24 * c)
+        pose_rotation(bones["UpperArm.L"], pitch=0.28 * c, lean=0.62 * c)
+        pose_rotation(bones["LowerArm.L"], pitch=0.14 + 0.22 * c)
+        pose_rotation(bones["UpperArm.R"], pitch=0.22 * c, lean=-0.64 * c)
+        pose_rotation(bones["LowerArm.R"], pitch=0.14 + 0.26 * c)
+        pose_rotation(bones["UpperLeg.L"], pitch=-0.05 * c, lean=0.14 * c)
+        pose_rotation(bones["LowerLeg.L"], pitch=-0.24 * b)
+        pose_rotation(bones["UpperLeg.R"], pitch=-0.08 * c, lean=-0.14 * c)
+        pose_rotation(bones["LowerLeg.R"], pitch=-0.18 * b)
+        _insert_frame(armature, hips, 0.0, -0.18 * c, -0.80 * c, i + 1)
+    _finalize_action(armature, death)
+
+    # 5. Wounded (looping, 36 frames = 1.20 s)
+    wounded = bpy.data.actions.new("Wounded-loop")
+    wounded.use_cyclic = True
+    data.action = wounded
+    wounded_frames = 36
+    for i in range(0, wounded_frames + 1, 3):
+        phase = math.tau * (i % wounded_frames) / wounded_frames
+        breath = math.sin(phase)
+        _reset_pose(armature)
+        pose_rotation(hips, pitch=-0.12, lean=0.04 * breath)
+        pose_rotation(bones["Spine"], pitch=-0.36)
+        pose_rotation(bones["Chest"], pitch=-0.32 - 0.065 * breath, twist=0.05 * breath)
+        pose_rotation(bones["Head"], pitch=-0.22 + 0.055 * breath)
+        pose_rotation(bones["UpperArm.L"], pitch=0.68, lean=-0.14, twist=-0.24)
+        pose_rotation(bones["LowerArm.L"], pitch=0.98)
+        pose_rotation(bones["UpperArm.R"], pitch=0.56, lean=0.10)
+        pose_rotation(bones["LowerArm.R"], pitch=0.84)
+        pose_rotation(bones["UpperLeg.L"], pitch=0.96)
+        pose_rotation(bones["LowerLeg.L"], pitch=-1.66)
+        pose_rotation(bones["Foot.L"], pitch=0.56)
+        pose_rotation(bones["UpperLeg.R"], pitch=0.38)
+        pose_rotation(bones["LowerLeg.R"], pitch=-1.52)
+        pose_rotation(bones["Foot.R"], pitch=0.82)
+        _insert_frame(armature, hips, 0.012 * breath, 0.0, -0.34 + 0.010 * breath, i + 1)
+    _finalize_action(armature, wounded)
+
+
 def build_tribesman(output_dir):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     armature = make_armature()
@@ -312,6 +508,7 @@ def build_tribesman(output_dir):
     armature.animation_data_create()
     animate(armature, "Idle", 60)
     animate(armature, "Walk", 24, walking=True)
+    animate_action_clips(armature)
     bpy.context.scene.frame_set(1)
 
     out_path = os.path.join(output_dir, "tribesman_base.glb")

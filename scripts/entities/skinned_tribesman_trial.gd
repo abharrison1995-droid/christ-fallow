@@ -9,9 +9,15 @@ const DEFAULT_JITTER_INTENSITY := 0.13
 
 var _animation: AnimationPlayer
 var _body_materials: Array[ShaderMaterial] = []
+var _base_emissions: Array[Dictionary] = []
 var _jitter_enabled := true
 var _idle_clip: StringName = &"Idle"
 var _walk_clip: StringName = &"Walk"
+var _current_clip: StringName = &""
+var _pending_restart_clip: StringName = &""
+var _oneshot_elapsed := 0.0
+var _last_hit_flash := -1.0
+var _base_scale := Vector3.ONE
 
 
 func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> bool:
@@ -48,22 +54,133 @@ func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> 
 	_body_materials = apply_materials(mesh_factory, model, faction_color)
 	if _body_materials.is_empty():
 		return false
+	_capture_base_emissions()
 
 	_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	return true
 
 
-func update_locomotion(speed: float, delta: float, jitter_enabled: bool) -> void:
-	var walking := speed > 0.25
-	var clip := _walk_clip if walking else _idle_clip
-	if _animation.current_animation != clip:
-		_animation.play(clip, 0.14)
-	_animation.speed_scale = clampf(speed / 4.3, 0.45, 1.85) if walking else 1.0
-	_animation.advance(delta)
+func _capture_base_emissions() -> void:
+	_base_emissions.clear()
+	for material in _body_materials:
+		var col_v: Variant = material.get_shader_parameter("emission_color")
+		var energy_v: Variant = material.get_shader_parameter("emission_energy")
+		var col: Color = col_v if col_v is Color else Color(0.0, 0.0, 0.0, 1.0)
+		var energy: float = float(energy_v) if energy_v != null else 0.0
+		_base_emissions.append({"color": col, "energy": energy})
+
+
+func restart_clip(clip_name: StringName) -> void:
+	_pending_restart_clip = clip_name
+	_oneshot_elapsed = 0.0
+
+
+func set_hit_flash(hit_flash: float) -> void:
+	var clamped := maxf(0.0, hit_flash)
+	if is_equal_approx(_last_hit_flash, clamped):
+		return
+	_last_hit_flash = clamped
+	for i in range(_body_materials.size()):
+		var material: ShaderMaterial = _body_materials[i]
+		if clamped > 0.0:
+			material.set_shader_parameter("emission_color", Color(1.0, 0.25, 0.2))
+			material.set_shader_parameter("emission_energy", clamped * 1.4)
+		else:
+			var base_col := Color(0.0, 0.0, 0.0, 1.0)
+			var base_energy := 0.0
+			if i < _base_emissions.size():
+				var entry: Dictionary = _base_emissions[i]
+				base_col = entry["color"]
+				base_energy = float(entry["energy"])
+			material.set_shader_parameter("emission_color", base_col)
+			material.set_shader_parameter("emission_energy", base_energy)
+
+
+func set_hand_mounts_visible(vis: bool) -> void:
+	for slot_name in ["Weapon", "Offhand", "TrialWeaponHand"]:
+		var slot := find_child(slot_name, true, false) as Node3D
+		if slot != null:
+			slot.visible = vis
+
+
+func _resolve_clip(anim_state: String) -> StringName:
+	if anim_state == "WALK" or anim_state == "KITE":
+		return _walk_clip
+	if anim_state == "TOOL_SWING" or anim_state.begins_with("WORK_"):
+		return &"Work"
+	if anim_state in [
+		"SPEAR_THRUST", "DUAL_SLASH", "BOW_SHOT", "HEAVY_SMASH",
+		"JAVELIN_THROW", "LEADER_CLEAVE", "SHAMAN_CAST", "UNARMED_PUNCH"
+	]:
+		return &"Attack"
+	if anim_state.begins_with("DAMAGE_"):
+		return &"Hit"
+	if anim_state.begins_with("DEATH_"):
+		return &"Death"
+	if anim_state == "WOUNDED":
+		return &"Wounded"
+	return _idle_clip
+
+
+static func _is_oneshot_clip(clip: StringName) -> bool:
+	return clip == &"Attack" or clip == &"Hit" or clip == &"Death"
+
+
+func update_action(anim_state: String, speed: float, delta: float, jitter_enabled: bool, hit_flash: float = 0.0) -> void:
 	if _jitter_enabled != jitter_enabled:
 		_jitter_enabled = jitter_enabled
 		for material in _body_materials:
 			material.set_shader_parameter("enable_jitter", jitter_enabled)
+	set_hit_flash(hit_flash)
+	if _animation == null:
+		return
+
+	var target_clip := _resolve_clip(anim_state)
+	if not _animation.has_animation(target_clip):
+		target_clip = _idle_clip
+
+	var is_oneshot := _is_oneshot_clip(target_clip)
+	var need_start := (_current_clip != target_clip) or (_pending_restart_clip == target_clip)
+	if need_start:
+		_current_clip = target_clip
+		if _pending_restart_clip == target_clip:
+			_pending_restart_clip = &""
+		_oneshot_elapsed = 0.0
+		var blend := 0.06 if is_oneshot else 0.14
+		if is_oneshot:
+			_animation.stop(true)
+			_animation.play(target_clip, blend)
+			_animation.seek(0.0, true)
+		else:
+			_animation.play(target_clip, blend)
+
+	var dt := maxf(0.0, delta)
+	if is_oneshot:
+		var clip_res: Animation = _animation.get_animation(target_clip)
+		var clip_len := clip_res.length if clip_res != null else 0.5
+		var hold_pos := maxf(0.0, clip_len - 0.001)
+		_oneshot_elapsed = minf(_oneshot_elapsed + dt, hold_pos)
+		if _oneshot_elapsed >= hold_pos:
+			if _animation.current_animation != target_clip:
+				_animation.play(target_clip, 0.0)
+			_animation.speed_scale = 0.0
+			_animation.seek(hold_pos, true)
+		else:
+			_animation.speed_scale = 1.0
+			if _animation.current_animation != target_clip:
+				_animation.play(target_clip, 0.0)
+				_animation.seek(_oneshot_elapsed, true)
+			else:
+				_animation.advance(dt)
+	else:
+		if _animation.current_animation != target_clip:
+			_animation.play(target_clip, 0.14)
+		_animation.speed_scale = clampf(speed / 4.3, 0.45, 1.85) if target_clip == _walk_clip else 1.0
+		_animation.advance(dt)
+
+
+func update_locomotion(speed: float, delta: float, jitter_enabled: bool) -> void:
+	update_action("WALK" if speed > 0.25 else "IDLE", speed, delta, jitter_enabled, 0.0)
 
 
 static func _resolve_texture_kind(mat_name: String) -> String:

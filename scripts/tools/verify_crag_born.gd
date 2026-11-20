@@ -25,7 +25,9 @@ func _run() -> void:
 	_state = root.get_node("GameState")
 	_factory = root.get_node("MeshFactory")
 	if "--check-default-roster" in OS.get_cmdline_user_args():
-		if not _check(not Trial.enabled(), "Default roster check requires the pilot flag to be off"):
+		var expect_enabled := not (Trial.PROCEDURAL_ROSTER_FLAG in OS.get_cmdline_user_args())
+		if not _check(Trial.enabled() == expect_enabled,
+				"Default roster check expects Crag-Born skinned rig enabled unless --procedural-roster is passed"):
 			quit(1)
 			return
 		await _verify_gameplay()
@@ -37,7 +39,7 @@ func _run() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--out-dir="):
 			out_dir = arg.trim_prefix("--out-dir=")
-	if not _check(Trial.enabled(), "Pass --crag-born-trial as a user argument"):
+	if not _check(Trial.enabled(), "Crag-Born skinned rig must be enabled (do not pass --procedural-roster)"):
 		quit(1)
 		return
 	if not _check(out_dir.is_absolute_path() and DirAccess.make_dir_recursive_absolute(out_dir) == OK,
@@ -71,22 +73,31 @@ func _verify_gameplay() -> void:
 	child.set_physics_process(false)
 	var forager := unit.get_node_or_null("CragBornTrial") as Trial
 	var child_model := child.get_node_or_null("CragBornTrial") as Trial
+	var goliath: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.GOLIATH,
+		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Goliath Check")
+	var swift: Node = faction.spawn_colonist(base_pos + Vector3(9, 0, 0), _data.Lineage.SWIFT_KIN,
+		_data.Gender.FEMALE, _data.Role.WARRIOR, false, false, false, "Swift Check")
+	goliath.set_physics_process(false)
+	swift.set_physics_process(false)
+	_check(goliath.get_node_or_null("CragBornTrial") == null and goliath._visual_root.visible
+		and swift.get_node_or_null("CragBornTrial") == null and swift._visual_root.visible,
+		"Non-Crag-Born lineages continue to use procedural rigs cleanly")
+	var leader_trial_enabled := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
+	_check((leader.get_node_or_null("SkinnedTribesmanTrial") != null) == leader_trial_enabled,
+		"The leader still respects the --skinned-tribesman-trial flag")
 	if not Trial.enabled():
 		_check(forager == null and child_model == null and unit._visual_root.visible and child._visual_root.visible,
-			"Default launch uses the procedural Crag-Born roster")
-		var leader_trial_enabled := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
-		_check((leader.get_node_or_null("SkinnedTribesmanTrial") != null) == leader_trial_enabled,
-			"The leader still respects the original trial flag")
+			"--procedural-roster opts out to the procedural Crag-Born roster")
 		main.free()
 		return
-	if _check(forager != null and child_model != null, "Campaign adults and children spawn the opt-in pilot"):
+	if _check(forager != null and child_model != null, "Default Crag-Born adults and children spawn the promoted skinned rig"):
 		_check(child_model.scale.is_equal_approx(Vector3.ONE * Trial.CHILD_SCALE), "Child scale is applied")
-		_check(leader.get_node_or_null("CragBornTrial") == null, "The pilot does not replace the leader")
+		_check(leader.get_node_or_null("CragBornTrial") == null, "Crag-Born promotion does not replace the leader slot")
 		_check(world.is_psx_filter_enabled(), "Campaign PSX filter is enabled")
 		world.toggle_psx_filter()
 		unit._update_procedural_animation(0.017)
 		_check(forager._body_materials[0].get_shader_parameter("enable_jitter") == false,
-			"Disabling PSX also disables pilot vertex jitter")
+			"Disabling PSX also disables skinned vertex jitter")
 		world.toggle_psx_filter()
 		# Drive the real gather routine with a nearby berry bush, then deliver its yield to camp.
 		var camp: Node3D = faction.spawn_building("CAMPFIRE", unit.global_position + Vector3(-2, 0, 0))
@@ -97,13 +108,17 @@ func _verify_gameplay() -> void:
 		unit._target_node = bush
 		unit._day_work_routine(0.1)
 		unit._update_procedural_animation(0.1)
-		_check(forager.visible and forager._animation.current_animation == &"Walk",
+		_check(forager.visible and not unit._visual_root.visible and forager._animation.current_animation == &"Walk",
 			"Forager approaching berries uses the imported Walk")
 		bush.global_position = unit.global_position + Vector3(0, 0, -1.5)
 		unit._day_work_routine(3.2)
 		unit._update_procedural_animation(0.1)
-		_check(unit._is_working_this_frame and unit._visual_root.visible and not forager.visible,
-			"Berry harvesting uses the procedural work pose")
+		_check(unit._is_working_this_frame and forager.visible and not unit._visual_root.visible
+			and forager._animation.current_animation == &"Work",
+			"Berry harvesting stays on the skinned rig with the Work clip")
+		forager.update_action("WORK_GATHER", 0.0, 0.05, true, 0.0)
+		_check(forager.visible and not unit._visual_root.visible and forager._animation.current_animation == &"Work",
+			"WORK_GATHER maps to the skinned Work clip without swapping")
 		_check(unit._carry_type == "food" and unit._carry_amount > 0.0, "Berry work yields food")
 		var stock: Dictionary = _state.factions[0]["resources"]
 		var before_food := float(stock["food"])
@@ -133,7 +148,7 @@ func _verify_gameplay() -> void:
 				"Crag-Born Spearman equips starter stock and keeps existing HP, reach and armor formulas")
 			unit.velocity = Vector3(4.3, 0, 0)
 			unit._update_procedural_animation(0.10)
-			_check(guard._animation.current_animation == &"GuardWalk",
+			_check(guard.visible and not unit._visual_root.visible and guard._animation.current_animation == &"GuardWalk",
 				"The same colonist walks in the guard stance after the role change")
 
 			var enemy: Node = _state.faction_controllers[1].spawn_colonist(
@@ -143,23 +158,60 @@ func _verify_gameplay() -> void:
 			var prior_hp: float = enemy.hp
 			unit._engage_target(enemy)
 			unit._update_procedural_animation(0.12)
-			_check(unit._animator.is_attacking() and unit._visual_root.visible and not guard.visible,
-				"Spearman thrust uses the procedural attack pose")
+			_check(unit._animator.is_attacking() and guard.visible and not unit._visual_root.visible
+				and guard._animation.current_animation == &"Attack",
+				"SPEAR_THRUST stays on the skinned rig with the Attack clip")
 			_check(is_equal_approx(prior_hp - enemy.hp, maxf(2.0, unit.attack_damage - enemy.armor * 0.45)),
 				"Thrust applies normal human armor mitigation")
 			enemy._update_procedural_animation(0.05)
 			var enemy_trial := enemy.get_node_or_null("CragBornTrial") as Trial
-			_check(enemy_trial != null and not enemy_trial.visible and enemy._visual_root.visible
+			var hit_energy_v: Variant = enemy_trial._body_materials[0].get_shader_parameter("emission_energy") if enemy_trial != null else 0.0
+			var hit_color_v: Variant = enemy_trial._body_materials[0].get_shader_parameter("emission_color") if enemy_trial != null else Color.BLACK
+			_check(enemy_trial != null and enemy_trial.visible and not enemy._visual_root.visible
 				and enemy._animator.is_taking_damage() and enemy._hit_flash_timer > 0.0
-				and _has_flash(enemy._visual_root), "Hit reaction and flash use the procedural model")
+				and enemy_trial._animation.current_animation == &"Hit"
+				and float(hit_energy_v) > 0.0 and hit_color_v == Color(1.0, 0.25, 0.2),
+				"Hit reaction and shader flash stay on the skinned rig without procedural swap")
+			enemy_trial.update_action("DAMAGE_FRONT", 0.0, 0.05, true, 0.8)
+			var explicit_flash_v: Variant = enemy_trial._body_materials[0].get_shader_parameter("emission_energy")
+			_check(enemy_trial.visible and not enemy._visual_root.visible
+				and enemy_trial._animation.current_animation == &"Hit" and float(explicit_flash_v) > 0.0,
+				"DAMAGE_FRONT with hit_flash > 0 uses skinned Hit clip and shader emission")
 			for i in range(60):
 				unit._update_hit_flash(1.0 / 60.0)
 				unit._update_procedural_animation(1.0 / 60.0)
 				enemy._update_hit_flash(1.0 / 60.0)
 				enemy._update_procedural_animation(1.0 / 60.0)
-			_check(guard.visible and not unit._visual_root.visible, "Imported guard resumes after thrust")
-			_check(enemy_trial != null and enemy_trial.visible and not _has_flash(enemy._visual_root),
-				"Imported Forager resumes when the hit flash and reaction end")
+			var cleared_flash_v: Variant = enemy_trial._body_materials[0].get_shader_parameter("emission_energy")
+			_check(guard.visible and not unit._visual_root.visible and guard._animation.current_animation == &"GuardIdle",
+				"Imported guard resumes GuardIdle after thrust")
+			_check(enemy_trial != null and enemy_trial.visible and not enemy._visual_root.visible
+				and is_zero_approx(float(cleared_flash_v)),
+				"Skinned Forager clears shader emission when hit flash and reaction end")
+
+			# Verify Wounded state stays on the skinned rig with the Wounded clip.
+			var wounded_unit: Node = _state.faction_controllers[0].spawn_colonist(
+				unit.global_position + Vector3(2, 0, 0), _data.Lineage.CRAG_BORN,
+				_data.Gender.MALE, _data.Role.FORAGER)
+			wounded_unit.set_physics_process(false)
+			wounded_unit.is_revolting = true
+			wounded_unit.original_faction_id = 0
+			wounded_unit.enter_wounded_state()
+			wounded_unit._update_wounded_animation(0.1)
+			var wounded_trial := wounded_unit.get_node_or_null("CragBornTrial") as Trial
+			_check(wounded_trial != null and wounded_trial.visible and not wounded_unit._visual_root.visible
+				and wounded_trial._animation.current_animation == &"Wounded",
+				"WOUNDED state stays on the skinned rig with the Wounded clip")
+
+			# Verify Death state stays on the skinned rig and clamps cleanly at fallen pose.
+			enemy._die(unit, 0, Vector3(0.0, 0.0, 1.0))
+			for i in range(10):
+				enemy._process_dead_corpse(0.1)
+			var enemy_skel := enemy_trial.find_child("Skeleton3D", true, false) as Skeleton3D
+			var enemy_hips := enemy_skel.get_bone_global_pose(enemy_skel.find_bone("Hips")).origin.y
+			_check(enemy_trial.visible and not enemy._visual_root.visible
+				and enemy_trial._animation.current_animation == &"Death" and enemy_hips < 0.45,
+				"DEATH_BACK plays skinned Death clip, clamps fallen pose, and never swaps to procedural")
 
 			# Exercise the Colony hotkey and its roster dropdown on the return to Forager.
 			hud._inspector_panel.hide()
@@ -250,7 +302,7 @@ func _verify_rig(model: Trial, tint: Color, shared_rig: Skeleton3D) -> void:
 					and shader.get_shader_parameter("enable_jitter") == true, "PSX shader tints body and kit trim")
 	_check(trim_count >= 3, "Body and both trim-bearing gear pieces have faction surfaces")
 
-	for clip_name in [&"Idle", &"Walk", &"GuardIdle", &"GuardWalk"]:
+	for clip_name in [&"Idle", &"Walk", &"GuardIdle", &"GuardWalk", &"Work", &"Wounded"]:
 		var clip := model._animation.get_animation(clip_name)
 		if not _check(clip != null and clip.loop_mode == Animation.LOOP_LINEAR and clip.get_track_count() > 0,
 				"%s imports as a looping, nonempty clip" % clip_name):
@@ -264,6 +316,26 @@ func _verify_rig(model: Trial, tint: Color, shared_rig: Skeleton3D) -> void:
 		model._animation.seek(clip.length, true)
 		_check(rest.is_equal_approx(skeleton.get_bone_pose(skeleton.find_bone("Hips"))),
 			"%s returns to its opening pose at the loop seam" % clip_name)
+	for clip_name in [&"Attack", &"Hit", &"Death"]:
+		var clip := model._animation.get_animation(clip_name)
+		if not _check(clip != null and clip.loop_mode == Animation.LOOP_NONE and clip.get_track_count() > 0,
+				"%s imports as a one-shot, nonempty clip" % clip_name):
+			continue
+		model._animation.play(clip_name)
+		model._animation.seek(0.0, true)
+		var initial_pose: Array[Transform3D] = []
+		for bone in range(skeleton.get_bone_count()):
+			initial_pose.append(skeleton.get_bone_pose(bone))
+		var animated := false
+		for sample in [0.25, 0.50, 0.85]:
+			model._animation.seek(clip.length * sample, true)
+			for bone in range(skeleton.get_bone_count()):
+				animated = animated or not initial_pose[bone].is_equal_approx(skeleton.get_bone_pose(bone))
+		_check(animated, "%s animates the bound skeleton" % clip_name)
+		if clip_name == &"Death":
+			model._animation.seek(clip.length, true)
+			_check(skeleton.get_bone_global_pose(skeleton.find_bone("Hips")).origin.y < 0.45,
+				"Death ends in a collapsed ground pose")
 	model._animation.stop()
 
 

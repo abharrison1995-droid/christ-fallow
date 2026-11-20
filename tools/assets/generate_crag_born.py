@@ -9,7 +9,7 @@ import bpy
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from generate_tribesman_rig import SkinnedMesh, animate, joint, make_armature, material
+from generate_tribesman_rig import SkinnedMesh, animate, animate_action_clips, joint, make_armature, material
 
 
 class PilotMesh(SkinnedMesh):
@@ -279,6 +279,7 @@ def build_models(models):
         animate(armature, "Walk", 24, walking=True)
         animate(armature, "GuardIdle", 60, guard=True)
         animate(armature, "GuardWalk", 24, walking=True, guard=True)
+        animate_action_clips(armature)
         bpy.context.scene.frame_set(1)
         export(models / "characters" / "lineages" / "crag_born" / f"crag_born_{variant}.glb", True)
 
