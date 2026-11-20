@@ -44,6 +44,8 @@ var _tutorial_panel: PanelContainer = null
 var _tutorial_title: Label = null
 var _tutorial_body: Label = null
 var _tutorial_progress: Label = null
+var _highlighted_hud_tab: String = ""
+var _highlight_style: StyleBoxFlat = null
 
 var _build_banner: PanelContainer = null
 var _build_banner_label: Label = null
@@ -121,7 +123,7 @@ func _align_upper_hud() -> void:
 	_objective_panel.offset_top = objective_top
 	_objective_panel.offset_bottom = objective_top + objective_height
 	_tutorial_panel.offset_top = below_objectives
-	_tutorial_panel.offset_bottom = below_objectives + 126.0
+	_tutorial_panel.offset_bottom = below_objectives + 132.0
 	var build_banner_height := maxf(47.0, _build_banner.get_combined_minimum_size().y)
 	_build_banner.offset_top = below_objectives
 	_build_banner.offset_bottom = below_objectives + build_banner_height
@@ -262,6 +264,7 @@ func _set_hud_visible(vis: bool) -> void:
 		_build_banner.hide()
 		_inspector_panel.close()
 		_raid_panel.hide()
+		_clear_hud_highlight()
 
 
 func _build_top_bar() -> void:
@@ -348,7 +351,7 @@ func _build_tutorial_panel() -> void:
 	add_child(_tutorial_panel)
 
 	var vb := VBoxContainer.new()
-	vb.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("separation", 4)
 	_tutorial_panel.add_child(vb)
 
 	var hdr := HBoxContainer.new()
@@ -378,7 +381,8 @@ func _build_tutorial_panel() -> void:
 	vb.add_child(_tutorial_body)
 
 	_tutorial_progress = Label.new()
-	_tutorial_progress.text = "Progress: 0/3 wanderers recruited"
+	_tutorial_progress.text = "[ ] Recruit tribesfolk (0/3)"
+	_tutorial_progress.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_tutorial_progress.add_theme_color_override("font_color", Color(1.0, 0.88, 0.48))
 	_tutorial_progress.add_theme_font_size_override("font_size", 12)
 	vb.add_child(_tutorial_progress)
@@ -387,6 +391,9 @@ func _build_tutorial_panel() -> void:
 func _on_skip_tutorial_pressed() -> void:
 	GameState.skip_awakening_guide()
 	_tutorial_panel.hide()
+	_sync_tutorial_highlights()
+	if is_instance_valid(GameState.player_controller) and GameState.player_controller.has_method("_sync_tutorial_beacon"):
+		GameState.player_controller._sync_tutorial_beacon(0.0)
 
 
 func _build_mode_banner() -> void:
@@ -696,6 +703,9 @@ func close_drawer() -> void:
 	for button in _drawer_links.values():
 		button.set_pressed_no_signal(false)
 	_active_tab = ""
+	if GameState.game_active:
+		AwakeningGuide.advance(GameState)
+		_update_tutorial_and_banners()
 
 
 func _refresh_open_drawer() -> void:
@@ -810,8 +820,52 @@ func _update_objective_banner(f0: Dictionary) -> void:
 		_objective_label.text = "Objective: Unite the Valley (%d/4 Rival Tribes Allied or Conquered) — [V] Diplomacy." % united
 
 
+func refresh_awakening_guide() -> void:
+	_update_tutorial_and_banners()
+
+
+func get_highlighted_hud_tab() -> String:
+	return _highlighted_hud_tab
+
+
+func _clear_hud_highlight() -> void:
+	_highlighted_hud_tab = ""
+	for btn in _drawer_links.values():
+		var button: Button = btn as Button
+		if button != null:
+			button.remove_theme_stylebox_override("normal")
+			button.remove_theme_color_override("font_color")
+
+
+func _sync_tutorial_highlights() -> void:
+	var target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	var next_tab: String = str(target.get("highlight_hud", "")) if bool(target.get("active", false)) else ""
+	if next_tab == _highlighted_hud_tab:
+		return
+	_highlighted_hud_tab = next_tab
+	if _highlighted_hud_tab.is_empty():
+		_clear_hud_highlight()
+		return
+	for key in _drawer_links.keys():
+		var button: Button = _drawer_links[key] as Button
+		if button == null:
+			continue
+		if str(key) == _highlighted_hud_tab:
+			if _highlight_style == null:
+				_highlight_style = Look.panel(Color("3d3320"), Look.GOLD, 6, 4)
+				_highlight_style.set_border_width_all(2)
+				_highlight_style.content_margin_left = 11
+				_highlight_style.content_margin_right = 11
+			button.add_theme_stylebox_override("normal", _highlight_style)
+			button.add_theme_color_override("font_color", Look.GOLD)
+		else:
+			button.remove_theme_stylebox_override("normal")
+			button.remove_theme_color_override("font_color")
+
+
 func _update_tutorial_and_banners() -> void:
 	_sync_build_banner()
+	_sync_tutorial_highlights()
 	if _tutorial_panel == null or not GameState.factions.has(0):
 		return
 	if GameState.tutorial_completed or GameState.tutorial_skipped:
@@ -822,25 +876,35 @@ func _update_tutorial_and_banners() -> void:
 	var cur: int = GameState.tutorial_step
 	_tutorial_title.text = "Awakening Guide (Step %d/5)" % cur
 	if cur == 1:
-		_tutorial_body.text = "Walk near wandering locals and press [E] to recruit them to your tribe."
-		_tutorial_progress.text = "Progress: %d/3 wanderers recruited" % mini(AwakeningGuide.recruit_count(GameState), 3)
+		var rec: int = mini(AwakeningGuide.recruit_count(GameState), 3)
+		_tutorial_body.text = "Follow the golden beacon to wandering locals and press [E] to recruit 3 into your tribe."
+		_tutorial_progress.text = "[%s] Recruit tribesfolk (%d/3)" % ["x" if rec >= 3 else " ", rec]
 	elif cur == 2:
+		var founded: bool = bool(GameState.factions[0].get("is_founded", false))
 		_tutorial_body.text = "Open [B] Build, select Tribal Campfire, then [LMB] click clear ground to light it."
-		_tutorial_progress.text = "Progress: Campfire %s" % ("lit" if GameState.factions[0]["is_founded"] else "0/1 placed")
+		_tutorial_progress.text = "[%s] Open [B] Build & light Tribal Campfire" % ("x" if founded else " ")
 	elif cur == 3:
-		_tutorial_body.text = "Press [E] near a Berry, Tree, or Stone node to gather, and set a villager role in [C] Colony."
-		_tutorial_progress.text = "Progress: Gather %s | Role %s" % [
-			"OK" if GameState.tutorial_harvested else "0/1",
-			"OK" if GameState.tutorial_assigned_role else "0/1"
+		_tutorial_body.text = "Press [E] near a marked resource node to gather, and assign a villager role in [C] Colony."
+		_tutorial_progress.text = "%s Harvest resource ([E])\n%s Assign villager role ([C] Colony)" % [
+			"[x]" if GameState.tutorial_harvested else "[ ]",
+			"[x]" if GameState.tutorial_assigned_role else "[ ]",
 		]
 	elif cur == 4:
-		_tutorial_body.text = "Assign at least 1 Warrior or Trainee ([C] Colony) and place a 2nd building ([B] Build). Villagers punch if cornered, but Warriors guard camp!"
-		_tutorial_progress.text = "Progress: Guards %d/1 | Buildings %d/2" % [mini(AwakeningGuide.guard_count(GameState), 1), mini(GameState.get_faction_buildings(0).size(), 2)]
+		var has_hut_bp: bool = not GameState.get_faction_buildings(0, "SLEEPING_HUT", false).is_empty()
+		var has_hut_done: bool = not GameState.get_faction_buildings(0, "SLEEPING_HUT", true).is_empty()
+		if has_hut_bp and not has_hut_done:
+			_tutorial_body.text = "Walk to your Sleeping Hut blueprint and press [E] to help finish building it."
+		else:
+			_tutorial_body.text = "Open [B] Build to place a Sleeping Hut, then press [E] near it to help build."
+		_tutorial_progress.text = "%s Place Sleeping Hut ([B] Build)\n%s Finish Sleeping Hut ([E] to help)" % [
+			"[x]" if (has_hut_bp or has_hut_done) else "[ ]",
+			"[x]" if has_hut_done else "[ ]",
+		]
 	else:
-		_tutorial_body.text = "Practice your Leader attacks: [LMB] Heavy Cleave and [RMB] or [F] Throw Javelin."
-		_tutorial_progress.text = "Progress: Cleave %s | Javelin %s" % [
-			"OK" if GameState.tutorial_cleaved else "0/1",
-			"OK" if GameState.tutorial_thrown else "0/1"
+		_tutorial_body.text = "Practice your Leader attacks: [LMB] Heavy Cleave and [F] or [RMB] Throw Javelin."
+		_tutorial_progress.text = "%s Heavy Cleave ([LMB])\n%s Throw Javelin ([F] / [RMB])" % [
+			"[x]" if GameState.tutorial_cleaved else "[ ]",
+			"[x]" if GameState.tutorial_thrown else "[ ]",
 		]
 
 

@@ -5,11 +5,14 @@ const Layout = preload("res://scripts/core/world_layout.gd")
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
+const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
+const TutorialBeacon = preload("res://scripts/core/tutorial_beacon.gd")
 
 var leader_unit: CharacterBody3D = null
 var camera_pivot: Node3D = null
 var camera: Camera3D = null
 var _leader_light: OmniLight3D = null
+var _tutorial_beacon: Node3D = null
 
 var cam_yaw: float = 0.0
 var cam_pitch: float = 28.0
@@ -65,16 +68,53 @@ func setup(p_leader: CharacterBody3D) -> void:
 		_leader_light.light_energy = 2.20
 		_leader_light.position = Vector3(0.0, 1.4, 0.0)
 		camera_pivot.add_child(_leader_light)
+	_ensure_tutorial_beacon()
 	attach_leader(p_leader)
 
 
 func attach_leader(p_leader: CharacterBody3D) -> void:
 	reset_cooldowns()
+	_ensure_tutorial_beacon()
 	leader_unit = p_leader
 	if leader_unit != null:
 		leader_unit.is_player_controlled = true
 		if camera_pivot != null:
 			camera_pivot.global_position = leader_unit.global_position + Vector3(0.0, 1.4, 0.0)
+	_sync_tutorial_beacon(0.0)
+
+
+func get_tutorial_beacon() -> Node3D:
+	return _tutorial_beacon
+
+
+func _ensure_tutorial_beacon() -> void:
+	if is_instance_valid(_tutorial_beacon):
+		return
+	var host: Node = GameState.world_node if is_instance_valid(GameState.world_node) else get_parent()
+	if host == null:
+		return
+	_tutorial_beacon = TutorialBeacon.new()
+	host.add_child(_tutorial_beacon)
+
+
+func _sync_tutorial_beacon(delta: float) -> void:
+	if is_instance_valid(_tutorial_beacon) and _tutorial_beacon.has_method("sync_with_state"):
+		_tutorial_beacon.sync_with_state(leader_unit, delta)
+
+
+func _notify_tutorial_progress() -> void:
+	AwakeningGuide.advance(GameState)
+	_sync_tutorial_beacon(0.0)
+	if is_instance_valid(GameState.hud_controller) and GameState.hud_controller.has_method("refresh_awakening_guide"):
+		GameState.hud_controller.refresh_awakening_guide()
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_tutorial_beacon):
+		if _tutorial_beacon.get_parent() != null:
+			_tutorial_beacon.get_parent().remove_child(_tutorial_beacon)
+		_tutorial_beacon.queue_free()
+	_tutorial_beacon = null
 
 
 func reset_cooldowns() -> void:
@@ -97,6 +137,7 @@ func serialize() -> Dictionary:
 
 func restore_from_save(snapshot: Dictionary) -> void:
 	_blessing_cd = maxf(0.0, float(snapshot.get("blessing_cooldown", 0.0)))
+	_sync_tutorial_beacon(0.0)
 
 
 func enter_build_mode(b_type: String) -> void:
@@ -235,6 +276,7 @@ func _physics_process(delta: float) -> void:
 	if not GameState.game_active or camera_pivot == null or camera == null:
 		return
 
+	_sync_tutorial_beacon(delta)
 	var sim_running := not GameState.is_paused and not GameState.campaign_finished
 	if sim_running:
 		_dash_cd = maxf(0.0, _dash_cd - delta)
@@ -384,6 +426,7 @@ func _try_place_blueprint() -> void:
 
 	if not Input.is_key_pressed(KEY_SHIFT):
 		exit_build_mode()
+	_notify_tutorial_progress()
 
 
 func blueprint_placement_message() -> String:
@@ -412,6 +455,7 @@ func _try_melee_cleave() -> void:
 		return
 	_attack_cd = 0.48
 	GameState.tutorial_cleaved = true
+	_notify_tutorial_progress()
 	leader_unit.play_attack_animation("LEADER_CLEAVE", 0.40)
 
 	# Face mouse ground cursor
@@ -466,6 +510,7 @@ func _try_throw_javelin() -> void:
 		return
 	_javelin_cd = 1.15
 	GameState.tutorial_thrown = true
+	_notify_tutorial_progress()
 	leader_unit.play_attack_animation("JAVELIN_THROW", 0.36)
 	var aim := _get_ground_mouse_pos()
 	var dir := aim - leader_unit.global_position
@@ -555,6 +600,7 @@ func _try_interact_or_harvest() -> void:
 					recruited += 1
 	if recruited > 0:
 		GameState.push_log("Recruited %d wandering tribesfolk!" % recruited, "success")
+		_notify_tutorial_progress()
 		return
 
 	# 1.5 Direct assist on unfinished blueprint nearby
@@ -571,6 +617,7 @@ func _try_interact_or_harvest() -> void:
 				leader_unit.play_attack_animation("TOOL_SWING", 0.30)
 				b.advance_construction(1.6)
 				CombatVFX.spawn_damage_popup(b as Node3D, "+Build", Color(0.55, 0.90, 1.0), 0.95, 2.2)
+				_notify_tutorial_progress()
 				return
 
 	# 2. Direct harvest nearby resource node
@@ -603,6 +650,7 @@ func _try_interact_or_harvest() -> void:
 				GameState.add_resource(0, str(hy["res"]), float(hy["amount"]))
 				CombatVFX.spawn_damage_popup(leader_unit, str(hy["label"]), hy["col"], 0.95)
 				GameState.push_log("%s %s." % [hy["verb"], hy["label"]], "info")
+			_notify_tutorial_progress()
 
 
 func _try_god_blessing() -> void:

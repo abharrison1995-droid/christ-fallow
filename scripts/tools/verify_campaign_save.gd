@@ -747,6 +747,12 @@ func _check_slice_0c(path: String) -> void:
 	_state.tutorial_assigned_role = true
 	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide step 4")
 	_check(_state.tutorial_step == 4 and _state.tutorial_harvested and _state.tutorial_assigned_role, "AwakeningGuide step 4 persists")
+	var step4_hut: Node = _state.faction_controllers[0].spawn_building("SLEEPING_HUT", Vector3(6.0, 0.0, 56.0), 0.0, false)
+	_state._process(0.36)
+	_check(_state.tutorial_step == 4 and not step4_hut.is_constructed, "Unfinished Sleeping Hut blueprint keeps AwakeningGuide at step 4")
+	step4_hut.advance_construction(step4_hut.build_time + 1.0)
+	_state._process(0.36)
+	_check(step4_hut.is_constructed and _state.tutorial_step == 5, "Constructed Sleeping Hut advances AwakeningGuide from step 4 to step 5")
 	_state.skip_awakening_guide()
 	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide skip")
 	_check(_state.tutorial_skipped and not _state.tutorial_completed and _state.bandit_grace_remaining > 0.0, "AwakeningGuide skip and Peace Buffer persist")

@@ -1,6 +1,7 @@
 extends "res://scripts/ui/drawers/feature_drawer.gd"
 
 const Preview = preload("res://scripts/ui/mesh_preview.gd")
+const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 
 const BUILD_GROUPS := {
 	"Settlement": ["CAMPFIRE", "SLEEPING_HUT", "FORAGER_LODGE", "STORAGE_PIT"],
@@ -9,7 +10,18 @@ const BUILD_GROUPS := {
 }
 
 var _selected_building := "CAMPFIRE"
+var _user_picked_step: int = -1
+var _recommended_building := ""
+var _recommended_badge: Label = null
 var _refresh_requirements: Callable
+
+
+func get_selected_building() -> String:
+	return _selected_building
+
+
+func get_recommended_building() -> String:
+	return _recommended_building
 
 
 func _init() -> void:
@@ -30,11 +42,26 @@ func build_content() -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 4)
 	catalogue.add_child(list)
+	var target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	var active_step: int = int(target.get("step", 0))
+	var rec_key: String = str(target.get("highlight_building", "")) if bool(target.get("active", false)) else ""
+	_recommended_building = rec_key
+	if not rec_key.is_empty() and GameData.BUILDINGS.has(rec_key) and _user_picked_step != active_step:
+		_selected_building = rec_key
+
 	var detail := VBoxContainer.new()
 	detail.add_theme_constant_override("separation", 6)
 	_card(row).add_child(detail)
+	var title_row := HBoxContainer.new()
+	title_row.add_theme_constant_override("separation", 10)
+	detail.add_child(title_row)
 	var name_label := Look.label("", &"SectionTitle")
-	detail.add_child(name_label)
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(name_label)
+	_recommended_badge = Look.label("RECOMMENDED", &"QuietLabel", 13)
+	_recommended_badge.add_theme_color_override("font_color", Look.GOLD)
+	_recommended_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	title_row.add_child(_recommended_badge)
 
 	var preview_panel := PanelContainer.new()
 	preview_panel.add_theme_stylebox_override("panel", Look.panel(Color("181f1a"), Look.EDGE, 0))
@@ -85,30 +112,51 @@ func build_content() -> void:
 			place.text = "Place Blueprint"
 
 	var options: Dictionary = {}
-	var select_building := func(key: String):
+	var select_building := func(key: String, by_user: bool = false):
 		_selected_building = key
+		if by_user and active_step > 0:
+			_user_picked_step = active_step
 		for id in options:
 			(options[id] as Button).set_pressed_no_signal(key == id)
 		var info: Dictionary = GameData.BUILDINGS[key]
 		name_label.text = info["name"]
+		if _recommended_badge != null:
+			_recommended_badge.visible = (not _recommended_building.is_empty() and key == _recommended_building)
 		description.text = info["desc"]
 		var model := _build_preview_model(key)
 		preview.show_model(model, Vector3(4.2, 3.6, 5.5), 0.98)
 		_refresh_requirements.call()
 
+	var rec_style: StyleBoxFlat = null
+	if not rec_key.is_empty():
+		rec_style = Look.panel(Color("2e2a1e"), Look.GOLD, 6, 4)
+		rec_style.set_border_width_all(2)
+		rec_style.content_margin_left = 11
+		rec_style.content_margin_right = 11
+
 	for group in BUILD_GROUPS:
 		list.add_child(Look.label(group, &"SectionTitle", 18))
 		for key in BUILD_GROUPS[group]:
-			var button := Look.button(GameData.BUILDINGS[key]["name"], select_building.bind(key))
+			var is_rec: bool = (not rec_key.is_empty() and key == rec_key)
+			var caption: String = "%s  [RECOMMENDED]" % GameData.BUILDINGS[key]["name"] if is_rec else str(GameData.BUILDINGS[key]["name"])
+			var button := Look.button(caption, select_building.bind(key, true))
 			button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 			button.toggle_mode = true
+			if is_rec and rec_style != null:
+				button.add_theme_stylebox_override("normal", rec_style)
+				button.add_theme_color_override("font_color", Look.GOLD)
 			tag(button, key)
 			options[key] = button
 			list.add_child(button)
-	select_building.call(_selected_building)
+	select_building.call(_selected_building, false)
 
 
 func update_live_values() -> void:
+	var target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	var next_rec: String = str(target.get("highlight_building", "")) if bool(target.get("active", false)) else ""
+	if next_rec != _recommended_building:
+		refresh()
+		return
 	if _refresh_requirements.is_valid():
 		_refresh_requirements.call()
 

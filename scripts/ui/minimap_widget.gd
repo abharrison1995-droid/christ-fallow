@@ -2,6 +2,7 @@ extends Control
 
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
+const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 const FACTION_TAGS := {
 	0: "YOU",
 	1: "GOL",
@@ -134,6 +135,19 @@ func _draw() -> void:
 				draw_circle(mp, 2.4 if u.get("is_leader") else 1.8, col)
 				if u.get("is_raiding") and GameState.is_hostile(0, fid):
 					draw_arc(mp, pulse, 0.0, TAU, 16, Color(1.0, 0.28, 0.22, 0.85), 1.5)
+
+	# Draw Awakening Guide Objective Ring
+	var guide_target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	if bool(guide_target.get("active", false)) and bool(guide_target.get("has_position", false)):
+		var gmp: Vector2 = _to_map(guide_target["position"])
+		var ring_r := 6.5
+		var ring_alpha := 0.90
+		if not bool(Preferences.get_value("reduced_motion")):
+			var wave := 0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.007)
+			ring_r = 5.5 + wave * 3.5
+			ring_alpha = 0.65 + wave * 0.35
+		draw_arc(gmp, ring_r, 0.0, TAU, 20, Color(1.0, 0.86, 0.28, ring_alpha), 1.8, true)
+		draw_arc(gmp, 3.2, 0.0, TAU, 12, Color(1.0, 0.95, 0.65, 0.92), 1.2, true)
 
 	# Compass Direction Labels (N / S / E / W)
 	if font != null:
