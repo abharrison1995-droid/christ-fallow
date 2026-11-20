@@ -92,6 +92,20 @@ func save_campaign() -> void:
 		_pause_status.text = "The campaign could not be saved."
 
 
+func set_pause_status(message: String) -> void:
+	if _pause_status != null:
+		_pause_status.text = message
+
+
+func quick_load_campaign() -> bool:
+	if GameState.load_game():
+		return true
+	if is_pause_visible():
+		var result: Dictionary = GameState.read_campaign_save()
+		set_pause_status(str(result.get("error", "The campaign could not be loaded.")))
+	return false
+
+
 func _open_settings() -> void:
 	_pause_screen.hide()
 	_settings = Settings.new()

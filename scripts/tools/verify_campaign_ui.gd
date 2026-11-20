@@ -151,6 +151,10 @@ func run() -> void:
 	check(hud._tutorial_panel.size.y <= 160.0, "guide keeps its compact height")
 	var place_button := button_in(hud._drawer_content, "Place Campfire")
 	check(place_button.get_global_rect().end.y <= hud._drawer_scroll.get_global_rect().end.y, "campfire action fits without scrolling")
+	var drawer_rect: Rect2 = hud._drawer_panel.get_global_rect()
+	check(not drawer_rect.intersects(hud._minimap_panel.get_global_rect()), "drawer stays clear of Valley Radar")
+	check(not drawer_rect.intersects(hud._squad_bar.get_global_rect()), "drawer stays clear of squad bar")
+	check(hud._raid_panel.get_index() > hud._drawer_panel.get_index(), "raid panel renders above drawer panel")
 	await screenshot("06-build")
 	key(KEY_ESCAPE)
 	for i in range(3):
@@ -196,10 +200,35 @@ func run() -> void:
 	child.growth_progress = 0.9999
 	await frames(26)
 	check(not child.is_child and _has_role_control(roster, role_key), "Roster refreshes role eligibility when the same unit matures")
+	var child_role_opt: OptionButton = _find_role_control(roster, role_key)
+	check(child_role_opt != null, "matured unit role selector is accessible")
+	if child_role_opt != null:
+		child_role_opt.grab_focus()
+		child_role_opt.show_popup()
+		await frames()
+		check(child_role_opt.get_popup().visible, "OptionButton popup opens inside Colony drawer")
+		key(KEY_ESCAPE)
+		await frames()
+		check(not child_role_opt.get_popup().visible and hud._drawer_panel.visible and hud._active_tab == "COLONY", "Escape closes OptionButton popup without closing Colony drawer")
 	await screenshot("07-colony")
 	press(hud._drawer_content, "Crafting")
 	await frames()
 	check(hud._drawer_views["COLONY"]._queue_label != null, "crafting queue renders")
+	check(button_in(hud._drawer_content, "Enlighten Captive") == null, "Enlighten Captive starts disabled with zero captives")
+	_game.factions[0]["captured_cavemen"] = 1
+	await frames(26)
+	check(button_in(hud._drawer_content, "Enlighten Captive") != null and _has_label_containing(hud._drawer_content, "Captured Nomadic Cavemen: 1"), "Crafting tab refreshes captured_cavemen while open")
+	_game.factions[0]["captured_cavemen"] = 0
+	await frames(26)
+	check(button_in(hud._drawer_content, "Enlighten Captive") == null, "Crafting tab updates when captives return to zero")
+	key(KEY_ESCAPE)
+	await frames()
+	hud.inspect_unit(child)
+	await frames()
+	check(hud._inspector_panel.visible, "UnitInspector opens for friendly unit")
+	key(KEY_ESCAPE)
+	await frames()
+	check(not hud._inspector_panel.visible and not _game.is_paused, "Escape closes UnitInspector without pausing")
 	key(KEY_R)
 	await frames()
 	check(hud._active_tab == "RELIGION", "R opens Faith")
@@ -216,6 +245,22 @@ func run() -> void:
 	await frames()
 	check(hud._active_tab == "DIPLOMACY", "V opens Diplomacy")
 	await screenshot("09-diplomacy")
+	var dip: Control = hud._drawer_views["DIPLOMACY"]
+	var earth_root_btn: Button = _find_tagged_button(dip, "faction:4")
+	check(earth_root_btn != null, "Diplomacy lists Earth-Root Tribe")
+	if earth_root_btn != null:
+		earth_root_btn.grab_focus()
+		key(KEY_ENTER)
+		await frames()
+		var op4: int = _game.get_diplomatic_opinion(0, 4)
+		var bd4: Dictionary = _game.get_diplomatic_opinion_breakdown(0, 4)
+		var bd4_sum: int = int(bd4.get("god", 0)) + int(bd4.get("tenets", 0)) + int(bd4.get("peaceful_offering", 0)) + int(bd4.get("actions", 0)) + int(bd4.get("state_bound", 0))
+		check(int(bd4.get("peaceful_offering", 0)) == 15 and int(bd4.get("total", 0)) == op4 and bd4_sum == op4, "Earth-Root opinion breakdown reconciles with GameState")
+		check(_has_label_containing(dip, "Peaceful Offering: +15") and _has_label_containing(dip, "Opinion %+d" % op4), "DiplomacyDrawer displays Peaceful Offering and matching opinion")
+	dip._selected_faction = 6
+	dip.refresh()
+	await frames()
+	check(dip._selected_faction == 1 and _has_label_containing(dip, str(_game.factions[1]["name"])), "DiplomacyDrawer recovers from unfunded faction 6 selection")
 	key(KEY_TAB)
 	await frames()
 	check(hud._active_tab == "MENU", "Tab opens Tribal Command")
@@ -227,7 +272,29 @@ func run() -> void:
 	follow.grab_focus()
 	key(KEY_ENTER)
 	check(_game.combat_command_system.last_issued_order == _data.SquadOrder.FOLLOW, "combat HUD button issues Follow")
+	check(root.gui_get_focus_owner() != follow, "combat HUD button releases focus after activation")
+	click_at(hud._event_toggle.get_global_rect().get_center())
+	await frames()
+	check(hud._event_expanded and root.gui_get_focus_owner() != hud._event_toggle, "Event Log button toggles and releases focus")
+	key(KEY_SPACE)
+	await frames()
+	check(hud._event_expanded, "Space does not re-trigger Event Log button")
+	click_at(hud._event_toggle.get_global_rect().get_center())
+	await frames()
+	check(not hud._event_expanded, "Event Log button collapses again")
+	var fire_before: bool = _game.combat_command_system.global_fire_at_will
+	click_at(hud._fire_btn.get_global_rect().get_center())
+	await frames()
+	check(_game.combat_command_system.global_fire_at_will != fire_before and root.gui_get_focus_owner() != hud._fire_btn, "Fire HUD button toggles and releases focus")
+	key(KEY_SPACE)
+	await frames()
+	check(_game.combat_command_system.global_fire_at_will != fire_before, "Space does not re-trigger Fire HUD button")
+	key(KEY_F5)
+	await frames()
+	check(_game.combat_command_system.global_fire_at_will == fire_before, "F5 restores Fire at Will")
 	_game.raid_alert.emit(5, 0, "Cavemen are approaching the Campfire.")
+	await frames()
+	check(hud._raid_panel.visible and not hud._raid_panel.get_global_rect().intersects(hud._build_banner.get_global_rect()), "raid panel stays clear of build banner")
 	await screenshot("10-raid")
 	key(KEY_P)
 	await frames()
@@ -243,6 +310,7 @@ func run() -> void:
 	var leader: Node = _game.get_faction_leader(0)
 	key(KEY_F10)
 	check(_game.get_faction_leader(0) == leader and _game.is_paused, "invalid F10 preserves live campaign")
+	check(not hud._overlays._pause_status.text.is_empty(), "invalid F10 surfaces error in pause status")
 	var restored := FileAccess.open(save_path, FileAccess.WRITE)
 	restored.store_string(valid_save)
 	restored.close()
@@ -324,8 +392,27 @@ func run() -> void:
 
 
 func _has_role_control(roster: Control, key_name: String) -> bool:
+	return _find_role_control(roster, key_name) != null
+
+
+func _find_role_control(roster: Control, key_name: String) -> OptionButton:
 	for control in roster.find_children("*", "OptionButton", true, false):
 		if control.get_meta("drawer_focus", "") == key_name:
+			return control as OptionButton
+	return null
+
+
+func _find_tagged_button(scope: Node, key_name: String) -> Button:
+	for control in scope.find_children("*", "Button", true, false):
+		if control.get_meta("drawer_focus", "") == key_name and control.is_visible_in_tree():
+			return control as Button
+	return null
+
+
+func _has_label_containing(scope: Node, needle: String) -> bool:
+	for node in scope.find_children("*", "Label", true, false):
+		var lbl := node as Label
+		if lbl != null and lbl.is_visible_in_tree() and lbl.text.contains(needle):
 			return true
 	return false
 

@@ -22,7 +22,7 @@ func build_content() -> void:
 	self.add_child(row)
 
 	var catalogue := ScrollContainer.new()
-	catalogue.custom_minimum_size = Vector2(282, 300)
+	catalogue.custom_minimum_size = Vector2(282, 270)
 	catalogue.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	catalogue.follow_focus = true
 	row.add_child(catalogue)
@@ -31,7 +31,7 @@ func build_content() -> void:
 	list.add_theme_constant_override("separation", 4)
 	catalogue.add_child(list)
 	var detail := VBoxContainer.new()
-	detail.add_theme_constant_override("separation", 7)
+	detail.add_theme_constant_override("separation", 6)
 	_card(row).add_child(detail)
 	var name_label := Look.label("", &"SectionTitle")
 	detail.add_child(name_label)
@@ -40,7 +40,7 @@ func build_content() -> void:
 	preview_panel.add_theme_stylebox_override("panel", Look.panel(Color("181f1a"), Look.EDGE, 0))
 	detail.add_child(preview_panel)
 	var preview := Preview.new()
-	preview.custom_minimum_size.y = 144
+	preview.custom_minimum_size.y = 124
 	preview_panel.add_child(preview)
 
 	var description := Look.label("", &"QuietLabel")
@@ -62,10 +62,17 @@ func build_content() -> void:
 		var founded: bool = GameState.factions[0]["is_founded"]
 		var can_buy := GameState.can_afford(0, info["costs"])
 		var locked := not founded and key != "CAMPFIRE"
+		var discount: float = 0.8 if GameState.has_tenet(0, "ANCESTRAL_STONE") else 1.0
 		var materials := PackedStringArray()
-		for resource in info["costs"]:
-			materials.append("%d %s" % [int(info["costs"][resource]), resource.capitalize()])
-		price.text = "   ·   ".join(materials) + "     /     %d HP" % int(info["max_hp"])
+		var costs: Dictionary = info["costs"]
+		for resource in costs:
+			var amt: float = float(costs[resource])
+			if resource == "wood" or resource == "stone":
+				amt = ceilf(amt * discount)
+			materials.append("%d %s" % [int(amt), str(resource).capitalize()])
+		var hp_mult: float = 1.25 if int(GameState.factions[0].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL else 1.0
+		var effective_hp: int = roundi(float(info["max_hp"]) * hp_mult)
+		price.text = "   ·   ".join(materials) + "     /     %d HP" % effective_hp
 		price.modulate = Look.BONE if can_buy else Look.DANGER
 		place.disabled = locked or not can_buy
 		if locked:
@@ -85,7 +92,7 @@ func build_content() -> void:
 		var info: Dictionary = GameData.BUILDINGS[key]
 		name_label.text = info["name"]
 		description.text = info["desc"]
-		var model := MeshFactory.build_building_mesh(key, Look.GOLD, false)
+		var model := _build_preview_model(key)
 		preview.show_model(model, Vector3(4.2, 3.6, 5.5), 0.98)
 		_refresh_requirements.call()
 
@@ -104,3 +111,18 @@ func build_content() -> void:
 func update_live_values() -> void:
 	if _refresh_requirements.is_valid():
 		_refresh_requirements.call()
+
+
+func _build_preview_model(key: String) -> Node3D:
+	var model: Node3D = MeshFactory.build_building_stages(key, Look.GOLD, false)
+	if model != null:
+		var intact: Node3D = model.get_node_or_null("Stage_Intact") as Node3D
+		if intact != null:
+			intact.visible = true
+			for stage_name in ["Stage_Damaged", "Stage_Critical", "Stage_Rubble"]:
+				var stage: Node3D = model.get_node_or_null(stage_name) as Node3D
+				if stage != null:
+					stage.visible = false
+			return model
+		model.free()
+	return MeshFactory.build_building_mesh(key, Look.GOLD, false)

@@ -5,6 +5,7 @@ const Options = preload("res://scripts/ui/hud_drawers.gd")
 var _section := "Roster"
 var _queue_label: Label
 var _roster_state: Array[Array] = []
+var _craft_state: Array = []
 var _roster_rows: Dictionary = {}
 
 
@@ -17,6 +18,7 @@ func build_content() -> void:
 	_queue_label = null
 	var units := GameState.get_faction_units(0)
 	_roster_state = _roster_signature(units)
+	_craft_state = _craft_signature()
 	var tabs := HBoxContainer.new()
 	self.add_child(tabs)
 	for caption in ["Roster", "Workforce", "Crafting"]:
@@ -66,6 +68,12 @@ func _populate_colony_craft_card(f0: Dictionary) -> void:
 		)
 		tag(upg_btn, "upgrade")
 		tier_row.add_child(upg_btn)
+
+	if not GameState.has_building(0, "CRAFTING_PIT", true):
+		var pit_lbl := Look.label("Build a Flint-Knapping & Crafting Pit ([B]) to craft gear or advance tiers.", &"QuietLabel", 14)
+		pit_lbl.modulate = Look.GOLD
+		pit_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cvb.add_child(pit_lbl)
 
 	var craft_row := GridContainer.new()
 	craft_row.columns = 3
@@ -247,6 +255,9 @@ func update_live_values() -> void:
 	if _roster_signature(GameState.get_faction_units(0)) != _roster_state:
 		refresh()
 		return
+	if _section == "Crafting" and _craft_signature() != _craft_state:
+		refresh()
+		return
 	if _queue_label != null and GameState.factions.has(0):
 		var q_arr: Array = GameState.factions[0].get("craft_queue", [])
 		_queue_label.text = "Crafting Queue: %d item(s) pending" % q_arr.size()
@@ -263,3 +274,14 @@ func _roster_signature(units: Array) -> Array[Array]:
 	for unit in units:
 		signature.append([unit.unit_id, unit.role, unit.warrior_class, GameState.can_assign_player_role(unit)])
 	return signature
+
+
+func _craft_signature() -> Array:
+	if not GameState.factions.has(0):
+		return []
+	var f0: Dictionary = GameState.factions[0]
+	return [
+		int(f0.get("captured_cavemen", 0)),
+		int(f0.get("tech_tier", 1)),
+		GameState.has_building(0, "CRAFTING_PIT", true),
+	]

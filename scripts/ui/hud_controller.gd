@@ -84,6 +84,7 @@ func _ready() -> void:
 	_build_log_panel()
 	_build_squad_bar()
 	_build_drawer_panel()
+	_build_raid_panel()
 	_inspector_panel = Inspector.new()
 	add_child(_inspector_panel)
 	_overlays.cover_requested.connect(func():
@@ -92,7 +93,11 @@ func _ready() -> void:
 	)
 	_overlays.uncover_requested.connect(activate_campaign)
 	add_child(_overlays)
+	resized.connect(_align_upper_hud)
 	_top_bar.resized.connect(_align_upper_hud)
+	_minimap_panel.resized.connect(_align_upper_hud)
+	_squad_bar.resized.connect(_align_upper_hud)
+	_build_banner.resized.connect(_align_upper_hud)
 	_align_upper_hud.call_deferred()
 
 	GameState.resources_changed.connect(_on_resources_changed)
@@ -109,6 +114,7 @@ func _ready() -> void:
 
 
 func _align_upper_hud() -> void:
+	var vp_size: Vector2 = size if (size.x > 0.0 and size.y > 0.0) else get_viewport_rect().size
 	var objective_top := _top_bar.get_rect().end.y + 6.0
 	var objective_height := maxf(38.0, _objective_panel.get_combined_minimum_size().y)
 	var below_objectives := objective_top + objective_height + 10.0
@@ -116,9 +122,56 @@ func _align_upper_hud() -> void:
 	_objective_panel.offset_bottom = objective_top + objective_height
 	_tutorial_panel.offset_top = below_objectives
 	_tutorial_panel.offset_bottom = below_objectives + 126.0
+	var build_banner_height := maxf(47.0, _build_banner.get_combined_minimum_size().y)
 	_build_banner.offset_top = below_objectives
-	_build_banner.offset_bottom = below_objectives + 47.0
+	_build_banner.offset_bottom = below_objectives + build_banner_height
+	var raid_top := below_objectives + build_banner_height + 10.0
+	_raid_panel.offset_top = raid_top
+	_raid_panel.offset_bottom = raid_top
+
+	var minimap_left: float = minf(_minimap_panel.position.x, vp_size.x - 232.0) if _minimap_panel.size.x > 0.0 else (vp_size.x - 232.0)
+	var margin_x := 20.0
+	var right_limit: float = minimap_left - 12.0
+	var max_width: float = maxf(320.0, right_limit - margin_x)
+	var drawer_w: float = minf(1082.0, max_width)
+	var drawer_left: float = clampf((vp_size.x - drawer_w) * 0.5, margin_x, maxf(margin_x, right_limit - drawer_w))
+	var squad_top: float = minf(_squad_bar.position.y, vp_size.y - 158.0) if _squad_bar.size.y > 0.0 else (vp_size.y - 158.0)
+	var drawer_bottom: float = minf(vp_size.y * 0.82, squad_top - 6.0)
+	drawer_bottom = maxf(drawer_bottom, below_objectives + 120.0)
+	_drawer_panel.offset_left = drawer_left
+	_drawer_panel.offset_right = drawer_left + drawer_w
 	_drawer_panel.offset_top = below_objectives
+	_drawer_panel.offset_bottom = drawer_bottom
+
+
+func _dismiss_open_popup() -> bool:
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	if _hide_button_popup(focused):
+		return true
+	for container in [_drawer_panel, _inspector_panel]:
+		if not is_instance_valid(container) or not container.visible:
+			continue
+		for ctrl in container.find_children("*", "OptionButton", true, false):
+			if _hide_button_popup(ctrl):
+				return true
+		for ctrl in container.find_children("*", "MenuButton", true, false):
+			if _hide_button_popup(ctrl):
+				return true
+	return false
+
+
+func _hide_button_popup(control: Node) -> bool:
+	if control is OptionButton:
+		var popup: PopupMenu = (control as OptionButton).get_popup()
+		if popup != null and popup.visible:
+			popup.hide()
+			return true
+	elif control is MenuButton:
+		var popup: PopupMenu = (control as MenuButton).get_popup()
+		if popup != null and popup.visible:
+			popup.hide()
+			return true
+	return false
 
 
 func _input(event: InputEvent) -> void:
@@ -134,6 +187,8 @@ func _input(event: InputEvent) -> void:
 	elif key == KEY_ESCAPE:
 		if _overlays.is_pause_visible():
 			_overlays.toggle_pause()
+		elif _dismiss_open_popup():
+			pass
 		elif _drawer_panel.visible:
 			close_drawer()
 		elif is_instance_valid(GameState.player_controller) and GameState.player_controller.is_build_mode:
@@ -145,7 +200,7 @@ func _input(event: InputEvent) -> void:
 	elif key == KEY_F9:
 		_overlays.save_campaign()
 	elif key == KEY_F10:
-		GameState.load_game()
+		_overlays.quick_load_campaign()
 	elif _overlays.is_pause_visible():
 		return
 	elif key == KEY_M or (key == KEY_TAB and not event.shift_pressed):
@@ -309,7 +364,10 @@ func _build_tutorial_panel() -> void:
 	var skip_btn := Button.new()
 	skip_btn.text = "Skip"
 	skip_btn.tooltip_text = "Hide guide (your early Peace Buffer before bandit attacks remains active)"
-	skip_btn.pressed.connect(_on_skip_tutorial_pressed)
+	skip_btn.pressed.connect(func():
+		skip_btn.release_focus()
+		_on_skip_tutorial_pressed()
+	)
 	hdr.add_child(skip_btn)
 
 	_tutorial_body = Label.new()
@@ -362,10 +420,14 @@ func _sync_build_banner() -> void:
 		var info: Dictionary = GameData.BUILDINGS.get(pc.blueprint_type, {})
 		var b_name: String = str(info.get("name", pc.blueprint_type))
 		var warning: String = pc.blueprint_placement_message()
-		_build_banner_label.text = "%s   ·   LMB Place   T Rotate   Esc / RMB Cancel" % b_name
+		var next_text := "%s   ·   LMB Place   T Rotate   Esc / RMB Cancel" % b_name
 		if not warning.is_empty():
-			_build_banner_label.text += "\n" + warning
+			next_text += "\n" + warning
+		var changed: bool = _build_banner_label.text != next_text
+		_build_banner_label.text = next_text
 		_build_banner_label.modulate = Look.BONE if warning.is_empty() else Look.DANGER
+		if changed:
+			_align_upper_hud()
 
 
 func _build_minimap() -> void:
@@ -384,27 +446,6 @@ func _build_minimap() -> void:
 	minimap.set_script(preload("res://scripts/ui/minimap_widget.gd"))
 	minimap.custom_minimum_size = Vector2(190, 173)
 	stack.add_child(minimap)
-
-	_raid_panel = PanelContainer.new()
-	_raid_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	_raid_panel.offset_left = -255
-	_raid_panel.offset_right = 255
-	_raid_panel.offset_top = 255
-	_raid_panel.add_theme_stylebox_override("panel", Look.panel(Color("432721"), Look.DANGER, 12))
-	_raid_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_raid_panel.hide()
-	add_child(_raid_panel)
-	var alert := VBoxContainer.new()
-	alert.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_raid_panel.add_child(alert)
-	var title := Look.label("Raid incoming", &"SectionTitle", 21)
-	title.modulate = Look.DANGER
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	alert.add_child(title)
-	_raid_banner = Look.label("")
-	_raid_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_raid_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	alert.add_child(_raid_banner)
 
 
 func _build_log_panel() -> void:
@@ -440,6 +481,7 @@ func _toggle_event_log() -> void:
 	_log_box.visible = _event_expanded
 	_latest_event.visible = not _event_expanded
 	_event_toggle.text = "Event Log  −" if _event_expanded else "Event Log  +"
+	_event_toggle.release_focus()
 
 
 func _build_squad_bar() -> void:
@@ -492,6 +534,7 @@ func _build_squad_bar() -> void:
 		btn.pressed.connect(func():
 			if GameState.combat_command_system != null:
 				GameState.combat_command_system.select_squad(sid)
+			btn.release_focus()
 		)
 		sq_r.add_child(btn)
 		_squad_btns[sid] = btn
@@ -510,6 +553,7 @@ func _build_squad_bar() -> void:
 		btn.pressed.connect(func():
 			if GameState.combat_command_system != null:
 				GameState.combat_command_system.issue_player_order(oid)
+			btn.release_focus()
 		)
 		ord_r.add_child(btn)
 		_order_btns[oid] = btn
@@ -520,6 +564,7 @@ func _build_squad_bar() -> void:
 	_fire_btn.pressed.connect(func():
 		if GameState.combat_command_system != null:
 			GameState.combat_command_system.toggle_fire_at_will()
+		_fire_btn.release_focus()
 	)
 	ord_r.add_child(_fire_btn)
 
@@ -529,6 +574,7 @@ func _build_squad_bar() -> void:
 	_warhorn_btn.pressed.connect(func():
 		if GameState.combat_command_system != null:
 			GameState.combat_command_system.toggle_warhorn()
+		_warhorn_btn.release_focus()
 	)
 	ord_r.add_child(_warhorn_btn)
 
@@ -536,13 +582,15 @@ func _build_squad_bar() -> void:
 func _build_drawer_panel() -> void:
 	_drawer_panel = PanelContainer.new()
 	_drawer_panel.hide()
-	_drawer_panel.add_theme_stylebox_override("panel", Look.panel(Look.INK, Look.GOLD, 20))
-	_drawer_panel.anchor_left = 0.5
-	_drawer_panel.anchor_right = 0.5
-	_drawer_panel.anchor_bottom = 0.81
-	_drawer_panel.offset_left = -541
-	_drawer_panel.offset_top = 215
-	_drawer_panel.offset_right = 541
+	_drawer_panel.add_theme_stylebox_override("panel", Look.panel(Look.INK, Look.GOLD, 16))
+	_drawer_panel.anchor_left = 0.0
+	_drawer_panel.anchor_right = 0.0
+	_drawer_panel.anchor_top = 0.0
+	_drawer_panel.anchor_bottom = 0.0
+	_drawer_panel.offset_left = 20.0
+	_drawer_panel.offset_top = 215.0
+	_drawer_panel.offset_right = 1102.0
+	_drawer_panel.offset_bottom = 650.0
 	add_child(_drawer_panel)
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 12)
@@ -567,6 +615,29 @@ func _build_drawer_panel() -> void:
 	_drawer_scroll.add_child(_drawer_content)
 
 
+func _build_raid_panel() -> void:
+	_raid_panel = PanelContainer.new()
+	_raid_panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_raid_panel.offset_left = -255
+	_raid_panel.offset_right = 255
+	_raid_panel.offset_top = 268
+	_raid_panel.add_theme_stylebox_override("panel", Look.panel(Color("432721"), Look.DANGER, 12))
+	_raid_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_raid_panel.hide()
+	add_child(_raid_panel)
+	var alert := VBoxContainer.new()
+	alert.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_raid_panel.add_child(alert)
+	var title := Look.label("Raid incoming", &"SectionTitle", 21)
+	title.modulate = Look.DANGER
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	alert.add_child(title)
+	_raid_banner = Look.label("")
+	_raid_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_raid_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	alert.add_child(_raid_banner)
+
+
 func inspect_unit(unit: Node) -> void:
 	_inspector_panel.inspect_unit(unit)
 
@@ -579,6 +650,8 @@ func activate_campaign() -> void:
 	if is_instance_valid(command):
 		_on_squad_selection_changed(command.selected_warrior_class, command.last_issued_order, command.global_fire_at_will, GameState.warhorn_active)
 	_update_tutorial_and_banners()
+	_align_upper_hud()
+	_align_upper_hud.call_deferred()
 
 
 func _on_campaign_loaded() -> void:
@@ -601,6 +674,7 @@ func toggle_drawer(tab_key: String) -> void:
 	_close_inspector()
 	close_drawer()
 	_active_tab = tab_key
+	_align_upper_hud()
 	_drawer_panel.show()
 	_refresh_open_drawer()
 	_drawer_scroll.set_deferred("scroll_vertical", 0)
@@ -610,6 +684,11 @@ func toggle_drawer(tab_key: String) -> void:
 
 
 func close_drawer() -> void:
+	var vp := get_viewport()
+	if vp != null:
+		var focused := vp.gui_get_focus_owner()
+		if focused != null and (_drawer_panel.is_ancestor_of(focused) or focused in _drawer_links.values()):
+			focused.release_focus()
 	_drawer_panel.hide()
 	var view: Control = _drawer_views.get(_active_tab)
 	if is_instance_valid(view):
@@ -647,7 +726,7 @@ func _close_inspector() -> void:
 
 func _on_resources_changed(_fid: int) -> void:
 	_update_top_bar()
-	if _active_tab == "BUILD":
+	if _active_tab == "BUILD" and _drawer_views.has("BUILD"):
 		_drawer_views["BUILD"].update_live_values()
 
 
@@ -658,6 +737,8 @@ func _on_diplomacy_changed() -> void:
 
 func _on_religion_changed(_fid: int) -> void:
 	_update_top_bar()
+	if _active_tab == "BUILD" and _drawer_views.has("BUILD"):
+		_drawer_views["BUILD"].update_live_values()
 
 
 func _on_time_changed(_t: float, _d: int, _p: int) -> void:
@@ -834,6 +915,7 @@ func _on_notification_pushed(message: String, severity: String) -> void:
 
 func _on_raid_alert(_attacker: int, target: int, message: String) -> void:
 	if target == 0:
+		_align_upper_hud()
 		_raid_banner.text = message
 		_raid_panel.show()
 		_raid_banner_timer = 8.5

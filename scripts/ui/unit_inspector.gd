@@ -80,6 +80,7 @@ func _ready() -> void:
 	_insp_role_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	HUDDrawers.fill_role_options(_insp_role_opt)
 	_insp_role_opt.item_selected.connect(func(idx: int):
+		_insp_role_opt.release_focus()
 		if _insp_syncing or _inspected_unit == null or not is_instance_valid(_inspected_unit):
 			return
 		var rid: int = _insp_role_opt.get_item_id(idx)
@@ -91,6 +92,7 @@ func _ready() -> void:
 	_insp_cls_opt = OptionButton.new()
 	HUDDrawers.fill_class_options(_insp_cls_opt)
 	_insp_cls_opt.item_selected.connect(func(idx: int):
+		_insp_cls_opt.release_focus()
 		if _insp_syncing or _inspected_unit == null or not is_instance_valid(_inspected_unit):
 			return
 		var cid: int = _insp_cls_opt.get_item_id(idx)
@@ -103,6 +105,7 @@ func _ready() -> void:
 	_insp_rescue_btn.text = "Send to Shaman Shack"
 	_insp_rescue_btn.visible = false
 	_insp_rescue_btn.pressed.connect(func():
+		_insp_rescue_btn.release_focus()
 		if _inspected_unit == null or not is_instance_valid(_inspected_unit):
 			return
 		var shacks: Array = GameState.get_faction_buildings(0, "SHAMAN_SHACK", true)
@@ -196,5 +199,10 @@ func update_live_values() -> void:
 
 
 func close() -> void:
+	var vp := get_viewport()
+	if vp != null:
+		var focused := vp.gui_get_focus_owner()
+		if focused != null and (focused == self or is_ancestor_of(focused)):
+			focused.release_focus()
 	hide()
 	_inspected_unit = null

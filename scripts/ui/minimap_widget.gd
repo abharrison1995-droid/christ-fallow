@@ -42,8 +42,8 @@ func _draw() -> void:
 	var font: Font = get_theme_default_font()
 
 	# Draw River strip hint
-	var r1 := _to_map(Vector3(-110.0, 0.0, -155.0))
-	var r2 := _to_map(Vector3(14.0, 0.0, 155.0))
+	var r1 := _to_map(Vector3(21.0, 0.0, -155.0))
+	var r2 := _to_map(Vector3(-117.0, 0.0, 155.0))
 	draw_line(r1, r2, Color("405657"), 5.0, true)
 
 	# Draw Buildings / Campfires
