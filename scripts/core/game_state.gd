@@ -18,6 +18,9 @@ const BANDIT_GRACE_DURATION := 210.0
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 const CampaignStorage = preload("res://scripts/core/campaign_storage.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
+const SpatialIndex = preload("res://scripts/core/spatial_index.gd")
+const ValleyNavigation = preload("res://scripts/core/valley_navigation.gd")
+const Layout = preload("res://scripts/core/world_layout.gd")
 const CAMPAIGN_SAVE_PATH := "user://christ_fallow_save.json"
 
 var game_active: bool = false
@@ -51,6 +54,9 @@ var buildings_container: Node3D = null
 var resources_container: Node3D = null
 var wildlife_container: Node3D = null
 var projectiles_container: Node3D = null
+
+var spatial_index = SpatialIndex.new()
+var valley_nav = ValleyNavigation.new()
 
 var faction_controllers: Dictionary = {}
 var player_controller: Node = null
@@ -440,8 +446,8 @@ func found_rebel_faction(defector: Node) -> void:
 		for i in range(12):
 			var ang := float(i) * TAU / 12.0
 			var cand := p_camp + Vector3(cos(ang) * 60.0, 0.0, sin(ang) * 60.0)
-			cand.x = clampf(cand.x, -140.0, 140.0)
-			cand.z = clampf(cand.z, -140.0, 140.0)
+			cand.x = clampf(cand.x, -Layout.REBEL_CAMP_CLAMP, Layout.REBEL_CAMP_CLAMP)
+			cand.z = clampf(cand.z, -Layout.REBEL_CAMP_CLAMP, Layout.REBEL_CAMP_CLAMP)
 			var min_d := 99999.0
 			for rid in range(1, 5):
 				if factions.has(rid):
@@ -593,6 +599,8 @@ func spend_resources(faction_id: int, costs: Dictionary, is_building: bool = fal
 
 
 func get_faction_buildings(faction_id: int, building_type: String = "", constructed_only: bool = false) -> Array:
+	if spatial_index.is_populated():
+		return spatial_index.get_faction_buildings(faction_id, building_type, constructed_only)
 	var result := []
 	if buildings_container == null:
 		return result
@@ -616,6 +624,8 @@ func has_building(faction_id: int, building_type: String, constructed_only: bool
 
 
 func get_faction_units(faction_id: int, alive_only: bool = true) -> Array:
+	if alive_only and spatial_index.is_populated():
+		return spatial_index.get_faction_units(faction_id)
 	var result := []
 	if units_container == null:
 		return result
@@ -631,10 +641,28 @@ func get_faction_units(faction_id: int, alive_only: bool = true) -> Array:
 
 
 func get_faction_leader(faction_id: int) -> Node:
+	if spatial_index.is_populated():
+		return spatial_index.get_faction_leader(faction_id)
 	for u in get_faction_units(faction_id, true):
 		if u.get("is_leader"):
 			return u
 	return null
+
+
+## Rebuilds the spatial index and navigation grid from the live world containers.
+func rebuild_spatial_systems() -> void:
+	if world_node == null or not is_instance_valid(world_node):
+		spatial_index.clear()
+		valley_nav.clear()
+		return
+	spatial_index.rebuild_from_world(world_node)
+	valley_nav.configure_from_layout(Layout.RIVER_CENTER, Layout.RIVER_LENGTH, Layout.RIVER_WIDTH, Layout.RIVER_ROTATION_Y_DEG, Layout.river_crossings())
+	valley_nav.rebuild_from_world(world_node)
+
+
+func clear_spatial_systems() -> void:
+	spatial_index.clear()
+	valley_nav.clear()
 
 
 func get_housing_capacity(faction_id: int) -> int:
@@ -973,6 +1001,7 @@ func _apply_campaign_snapshot(parsed: Dictionary) -> void:
 
 
 func end_campaign() -> void:
+	clear_spatial_systems()
 	game_active = false
 	is_paused = false
 	campaign_finished = false

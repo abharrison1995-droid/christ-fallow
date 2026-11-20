@@ -12,8 +12,8 @@
 
 ## Planning files
 
-- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks the completed stabilization slices (`Phase 0`), the active simulation performance/navigation phase (`Phase 1`), asset promotion, future feature sequencing, and the agentic continuation protocol.
-- [Codebase refactor](docs/REFACTOR.md) records the completed 20 November 2026 architecture extraction and verification baseline (spatial indexing moved to [Phase 1](docs/ROADMAP.md#phase-1-simulation-performance--navigation-foundation)).
+- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks the completed stabilization slices (`Phase 0`) and simulation performance/navigation foundation (`Phase 1`), the active next phase (`Phase 2`: playable opening tutorial and asset rig promotion), future feature sequencing, and the agentic continuation protocol.
+- [Codebase refactor](docs/REFACTOR.md) records the completed 20 November 2026 architecture extraction and verification baseline (spatial indexing was delivered in [Phase 1](docs/ROADMAP.md#phase-1-simulation-performance--navigation-foundation)).
 - [Future development](docs/FUTURE.md) details the playable opening tutorial, valley expansion, full-screen map, tribal leaders and diplomacy, animal taming, farming, and mounts.
 - [Asset overhaul and combat design](tools/assets/OVERHAUL.md) tracks the active asset rollout and balance proposals. The [asset pipeline plan](tools/assets/PLAN.md) records a completed tooling and leader trial. Use the [asset pipeline guide](tools/assets/README.md) for commands and the [catalog](tools/assets/CATALOG.md) for current coverage.
 - When changing a player entry point or moving a responsibility, update the relevant route below in the same change. Keep proposed work and verified results clearly labelled in plans. Link to source files or stable headings for live rules that are likely to move.
@@ -38,7 +38,7 @@
 - [scenes/ui/game_hud.tscn](scenes/ui/game_hud.tscn) — HUD scene attaching `scripts/ui/hud_controller.gd`.
 - [scenes/asset_showcase.tscn](scenes/asset_showcase.tscn) & [scripts/tools/asset_showcase.gd](scripts/tools/asset_showcase.gd) — Offline visual turntable/stage renderer for inspecting races, classes, combat poses, and deaths.
 - [scripts/tools/verify_glb_assets.gd](scripts/tools/verify_glb_assets.gd), [scripts/tools/verify_crag_born.gd](scripts/tools/verify_crag_born.gd), and [scripts/tools/verify_valley_assets.gd](scripts/tools/verify_valley_assets.gd) — Forward+ verification of imported buildings, character rigs/kits, scenery, and wildlife.
-- [scripts/tools/verify_campaign_save.gd](scripts/tools/verify_campaign_save.gd) and [scripts/tools/verify_campaign_ui.gd](scripts/tools/verify_campaign_ui.gd) — Automated `SceneTree` campaign persistence and UI/input verification suites.
+- [scripts/tools/verify_campaign_save.gd](scripts/tools/verify_campaign_save.gd), [scripts/tools/verify_campaign_ui.gd](scripts/tools/verify_campaign_ui.gd), [scripts/tools/verify_phase1_nav.gd](scripts/tools/verify_phase1_nav.gd), and [scripts/tools/benchmark_simulation.gd](scripts/tools/benchmark_simulation.gd) — Automated `SceneTree` campaign persistence, UI/input, spatial/navigation, and simulation benchmark suites.
 - [tools/assets/README.md](tools/assets/README.md) and [tools/assets/CATALOG.md](tools/assets/CATALOG.md) — Staged Blender generation, asset contracts, lineage and type directories, and sample GLBs.
 - [README.md](README.md) — Player-facing controls and feature summary.
 
@@ -48,7 +48,9 @@
 - [scripts/core/campaign_save.gd](scripts/core/campaign_save.gd) — Validates and normalizes compatible `v1` through `v3` saves. New v3 saves with a live player leader include an optional `player_leader_id` cross-reference. Keep schema validation free of changes to the live campaign.
 - [scripts/core/campaign_storage.gd](scripts/core/campaign_storage.gd) — File access for the validated snapshot and temporary sibling writes. Call through `GameState` for campaign entry points and feedback.
 - [scripts/core/awakening_guide.gd](scripts/core/awakening_guide.gd) — Five guide steps and the once-only reward. `GameState` advances the guide on the campaign tick, and the HUD renders the current step.
-- [scripts/core/world_layout.gd](scripts/core/world_layout.gd) — Ground size and the separate blueprint, wildlife roaming, and radar extents for the current valley.
+- [scripts/core/world_layout.gd](scripts/core/world_layout.gd) — Ground size, blueprint/wildlife/unit/radar extents, river & ford geometry (`RIVER_*`, `RIVER_FORD_*`, `river_crossings()`), camera bounds (`CAMERA_FAR`, `CAMERA_RAY_LENGTH`), scatter/rim bounds, and standard `SCAN_RANGE_*` constants.
+- [scripts/core/spatial_index.gd](scripts/core/spatial_index.gd) — `20 m` XZ spatial hash grid for living units, wildlife, and buildings plus per-faction unit/building/leader caches (loaded via `preload`, no `class_name`).
+- [scripts/core/valley_navigation.gd](scripts/core/valley_navigation.gd) — `AStarGrid2D` (`4 m` cells) valley pathing with river/ford awareness, ref-counted constructed building obstacles, and line-of-sight fast-path (loaded via `preload`, no `class_name`).
 - [scripts/core/mesh_factory.gd](scripts/core/mesh_factory.gd) — `MeshFactory` autoload facade owning PSX procedural textures/materials (`make_mat`, `add_mesh`, `make_pivot`, `get_gritty_texture`), building stages builder (`build_building_stages`), and delegating mesh construction:
   - [scripts/core/human_mesh_builder.gd](scripts/core/human_mesh_builder.gd) — Procedural articulated humanoid rig (`BodyPivot` -> `HipsPivot` -> `SpinePivot` -> `ChestPivot` -> shoulders/elbows/hands/head/legs), race heads/hair/ears, class kits, and tiered weapon/offhand gear updates (`update_human_gear`, `set_hand_mounts_visible`).
   - [scripts/core/world_mesh_builder.gd](scripts/core/world_mesh_builder.gd) — Multi-stage buildings (intact/damaged/critical/rubble stages via `.glb` or procedural fallback), blueprint holograms, prehistoric wildlife, resource nodes, caveman caves, and projectile meshes.
@@ -106,6 +108,11 @@
    - Building `.glb` node contract: Root Node3D -> children `Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble` + `Collider-convcolonly` (plus `CampfireLight`, `ShamanLight`, `FlameMesh` when applicable). `FactionTrim` material slots are tinted at runtime with faction colors.
    - Character `.glb` contract uses a 17-bone `Skeleton3D` with vertex skinning, UVs, faction trim, and looping `Idle` and `Walk` clips (plus `GuardIdle` and `GuardWalk` for Crag-Born). Both opt-in trials use the imported rig for locomotion and swap to the procedural rig for work, combat, hit reactions, and death. Verify updates with `build_assets.ps1 -RequireGameplayRig` and `verify_crag_born.gd`.
    - Fallback: `MeshFactory.build_building_stages()` falls back to procedural geometry if a `.glb` is missing, guaranteeing all 11 building types support all 4 stages. Blueprints (`is_blueprint == true`) and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 geometry otherwise.
+
+7. **Spatial Index & Valley Navigation Invariants**:
+   - `GameState` owns `spatial_index` and `valley_nav`, rebuilding both via `rebuild_spatial_systems()` after `populate_new_world()` and `restore_from_save()`, and clearing both via `clear_spatial_systems()` on teardown/reset.
+   - `HumanUnit`, `WildlifeEntity`, and `BuildingEntity` register in `setup()`, update XZ cells on movement (`update_unit()` / `update_wildlife()`), and unregister on death, Stage 3 rubble collapse, or `_exit_tree()`. `faction_id` and `is_leader` setters on `HumanUnit` (and `faction_id` on `BuildingEntity`) keep per-faction caches synchronized; direct `global_position` teleports in tests must call `GameState.spatial_index.update_unit(unit)` if querying immediately before the next physics tick.
+   - Constructed, non-destroyed buildings register ref-counted obstacles in `valley_nav` and clear them on rubble collapse or `_exit_tree()`. Deep river cells are solid outside `WorldLayout.river_crossings()`, and `HumanUnit._steer_toward()` routes via `valley_nav.find_path()` beyond `6.0 m`.
 
 ---
 

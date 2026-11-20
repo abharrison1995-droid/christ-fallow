@@ -26,6 +26,9 @@ static func cell_of(pos: Vector3) -> Vector2i:
 static func _valid(n: Object) -> bool:
 	return n != null and is_instance_valid(n) and not (n as Node).is_queued_for_deletion()
 
+func is_populated() -> bool:
+	return not _unit_at.is_empty() or not _bld_at.is_empty()
+
 func clear() -> void:
 	_unit_cells.clear()
 	_wild_cells.clear()
@@ -204,7 +207,7 @@ func get_faction_units(faction_id: int) -> Array:
 			arr.remove_at(i)
 		i -= 1
 	for n in arr:
-		if n.get("is_dead") != true:
+		if n.get("is_dead") != true and float(n.get("hp")) > 0.0:
 			out.append(n)
 	return out
 
@@ -252,6 +255,19 @@ func register_building(building: Node3D) -> void:
 		_faction_buildings[fid] = arr
 	arr.append(building)
 
+## Call when a building faction_id changes (old_fid is the previous faction).
+func on_building_faction_changed(building: Node3D, old_fid: int, new_fid: int) -> void:
+	if old_fid == new_fid or not _valid(building):
+		return
+	if not _bld_at.has(building.get_instance_id()):
+		return
+	_remove_from_faction(_faction_buildings, old_fid, building)
+	var arr: Array = _faction_buildings.get(new_fid, [])
+	if arr.is_empty():
+		_faction_buildings[new_fid] = arr
+	if not arr.has(building):
+		arr.append(building)
+
 func unregister_building(building: Node3D) -> void:
 	if building == null or not is_instance_valid(building):
 		_prune_all()
@@ -279,7 +295,7 @@ func get_faction_buildings(faction_id: int, building_type: String = "", construc
 			arr.remove_at(i)
 		i -= 1
 	for b in arr:
-		if b.get("is_destroyed") == true:
+		if b.get("is_destroyed") == true or float(b.get("hp")) <= 0.0:
 			continue
 		if building_type != "" and String(b.get("building_type")) != building_type:
 			continue

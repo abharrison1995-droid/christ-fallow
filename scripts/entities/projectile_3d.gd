@@ -78,9 +78,28 @@ func _physics_process(delta: float) -> void:
 
 	var attacker: Node = shooter if is_instance_valid(shooter) else null
 
+	# Candidates come from the spatial index around the swept segment (container scan while the index is empty).
+	var indexed: bool = GameState.spatial_index.is_populated()
+	var seg_mid: Vector3 = (prev_pos + next_pos) * 0.5
+	var seg_r: float = prev_pos.distance_to(next_pos) * 0.5 + 3.5
+	var unit_candidates: Array = []
+	var wild_candidates: Array = []
+	var bld_candidates: Array = []
+	if indexed:
+		unit_candidates = GameState.spatial_index.query_units_in_radius(seg_mid, seg_r)
+		wild_candidates = GameState.spatial_index.query_wildlife_in_radius(seg_mid, seg_r)
+		bld_candidates = GameState.spatial_index.query_buildings_in_radius(seg_mid, seg_r)
+	else:
+		if GameState.units_container != null:
+			unit_candidates = GameState.units_container.get_children()
+		if GameState.wildlife_container != null:
+			wild_candidates = GameState.wildlife_container.get_children()
+		if GameState.buildings_container != null:
+			bld_candidates = GameState.buildings_container.get_children()
+
 	# Hit detection against units (swept segment from prev_pos to next_pos)
-	if GameState.units_container != null:
-		for u in GameState.units_container.get_children():
+	if true:
+		for u in unit_candidates:
 			if not is_instance_valid(u) or u.get("is_dead") == true:
 				continue
 			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
@@ -92,8 +111,8 @@ func _physics_process(delta: float) -> void:
 				return
 
 	# Hit detection against wildlife
-	if GameState.wildlife_container != null:
-		for w in GameState.wildlife_container.get_children():
+	if true:
+		for w in wild_candidates:
 			if not is_instance_valid(w) or w.get("is_dead") == true:
 				continue
 			var w_radius := 1.8 if w.get("is_boss") == true else 1.05
@@ -104,8 +123,8 @@ func _physics_process(delta: float) -> void:
 				return
 
 	# Hit detection against hostile buildings
-	if GameState.buildings_container != null:
-		for b in GameState.buildings_container.get_children():
+	if true:
+		for b in bld_candidates:
 			if not is_instance_valid(b) or float(b.get("hp")) <= 0.0:
 				continue
 			if not GameState.is_hostile(faction_id, int(b.get("faction_id"))):

@@ -52,7 +52,7 @@ func setup(p_leader: CharacterBody3D) -> void:
 
 		camera = Camera3D.new()
 		camera.name = "MainCamera"
-		camera.far = 450.0
+		camera.far = Layout.CAMERA_FAR
 		camera.fov = 58.0
 		camera_pivot.add_child(camera)
 		camera.current = true
@@ -329,7 +329,7 @@ func _get_ground_mouse_pos() -> Vector3:
 	var ray_dir := camera.project_ray_normal(m_pos)
 	if absf(ray_dir.y) > 0.001:
 		var t := -ray_orig.y / ray_dir.y
-		if t > 0.0 and t < 250.0:
+		if t > 0.0 and t < Layout.CAMERA_RAY_LENGTH:
 			var hit := ray_orig + ray_dir * t
 			hit.y = 0.0
 			return hit

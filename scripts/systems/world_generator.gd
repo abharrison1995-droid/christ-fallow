@@ -159,7 +159,7 @@ func _build_valley_terrain() -> void:
 	var ground := StaticBody3D.new()
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(380.0, 2.0, 380.0)
+	box.size = Vector3(Layout.GROUND_SIZE.x, 2.0, Layout.GROUND_SIZE.y)
 	col.shape = box
 	col.position = Vector3(0.0, -1.0, 0.0)
 	ground.add_child(col)
@@ -188,7 +188,7 @@ func _build_valley_terrain() -> void:
 	# Valley River running North-West to South-East
 	var river := MeshInstance3D.new()
 	var rmesh := PlaneMesh.new()
-	rmesh.size = Vector2(12.0, 340.0)
+	rmesh.size = Vector2(Layout.RIVER_WIDTH, Layout.RIVER_LENGTH)
 	river.mesh = rmesh
 	var rmat := StandardMaterial3D.new()
 	rmat.albedo_color = Color(0.20, 0.44, 0.62, 0.90)
@@ -197,10 +197,11 @@ func _build_valley_terrain() -> void:
 	rmat.uv1_scale = Vector3(4.0, 80.0, 1.0)
 	rmat.roughness = 0.42
 	river.material_override = rmat
-	river.position = Vector3(-48.0, 0.04, 0.0)
-	river.rotation_degrees.y = -24.0
+	river.position = Vector3(Layout.RIVER_CENTER.x, 0.04, Layout.RIVER_CENTER.z)
+	river.rotation_degrees.y = Layout.RIVER_ROTATION_Y_DEG
 	terrain_root.add_child(river)
 	_add_riverbank_reeds(terrain_root, river.transform)
+	_add_river_fords(terrain_root)
 
 	# Jagged PSX Slate Mountain Rim Crags
 	var peak_mat := StandardMaterial3D.new()
@@ -212,7 +213,7 @@ func _build_valley_terrain() -> void:
 	peak_mat.roughness = 0.96
 	for i in range(44):
 		var ang := float(i) * TAU / 44.0
-		var r := 178.0 + randf_range(-4.0, 6.0)
+		var r := Layout.MOUNTAIN_RIM_RADIUS + randf_range(-4.0, 6.0)
 		var peak := MeshInstance3D.new()
 		var cone := CylinderMesh.new()
 		cone.radial_segments = 5
@@ -225,6 +226,57 @@ func _build_valley_terrain() -> void:
 		peak.position = Vector3(cos(ang) * r, cone.height * 0.45, sin(ang) * r)
 		peak.rotation_degrees.y = randf_range(0.0, 360.0)
 		terrain_root.add_child(peak)
+
+
+## Flat stone-and-log crossings on the river axis; they sit at y = 0.07 so units walk over them.
+func _add_river_fords(parent: Node3D) -> void:
+	var fords := Node3D.new()
+	fords.name = "RiverFords"
+	parent.add_child(fords)
+	var stone_mat := StandardMaterial3D.new()
+	stone_mat.albedo_color = Color(0.46, 0.43, 0.38)
+	stone_mat.albedo_texture = MeshFactory.get_gritty_texture("stone")
+	stone_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	stone_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	stone_mat.roughness = 0.95
+	var log_mat := StandardMaterial3D.new()
+	log_mat.albedo_color = Color(0.36, 0.25, 0.15)
+	log_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	log_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
+	log_mat.roughness = 0.95
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7311
+	var yaw: float = deg_to_rad(Layout.RIVER_ROTATION_Y_DEG)
+	for local_z in Layout.RIVER_FORD_LOCAL_Z:
+		var ford := Node3D.new()
+		ford.position = Layout.river_point(local_z) + Vector3(0.0, 0.07, 0.0)
+		ford.rotation.y = yaw
+		fords.add_child(ford)
+		# Shallow gravel bed across the river
+		var bed := MeshInstance3D.new()
+		var bed_mesh := BoxMesh.new()
+		bed_mesh.size = Vector3(Layout.RIVER_WIDTH + 5.0, 0.05, 11.0)
+		bed.mesh = bed_mesh
+		bed.material_override = stone_mat
+		ford.add_child(bed)
+		# Flat stepping slabs and two log rails along the crossing direction
+		for i in range(9):
+			var slab := MeshInstance3D.new()
+			var sm := BoxMesh.new()
+			sm.size = Vector3(rng.randf_range(1.3, 2.1), 0.07, rng.randf_range(1.1, 1.9))
+			slab.mesh = sm
+			slab.material_override = stone_mat
+			slab.position = Vector3(-6.4 + float(i) * 1.6, 0.05, rng.randf_range(-3.6, 3.6))
+			slab.rotation.y = rng.randf_range(-0.5, 0.5)
+			ford.add_child(slab)
+		for side in [-1.0, 1.0]:
+			var rail := MeshInstance3D.new()
+			var rm := BoxMesh.new()
+			rm.size = Vector3(Layout.RIVER_WIDTH + 4.0, 0.12, 0.38)
+			rail.mesh = rm
+			rail.material_override = log_mat
+			rail.position = Vector3(0.0, 0.06, float(side) * 5.2)
+			ford.add_child(rail)
 
 
 func _add_riverbank_reeds(parent: Node3D, river_transform: Transform3D) -> void:
@@ -272,6 +324,7 @@ func populate_new_world() -> void:
 	_spawn_wildlife()
 	_spawn_player_awakening()
 	_spawn_rival_colonies()
+	GameState.rebuild_spatial_systems()
 
 
 func _clear_containers(containers: Array) -> void:
@@ -292,6 +345,7 @@ func _clear_dynamic_world() -> void:
 		get_node_or_null("Factions"),
 	])
 	GameState.faction_controllers.clear()
+	GameState.clear_spatial_systems()
 
 
 func _create_faction_controllers() -> void:
@@ -317,7 +371,7 @@ func _spawn_resources_and_caves() -> void:
 
 	# Scattered wilderness groves & flint crags
 	for i in range(45):
-		var pos := Vector3(randf_range(-148.0, 148.0), 0.0, randf_range(-148.0, 148.0))
+		var pos := Vector3(randf_range(-Layout.SCATTER_HALF_EXTENT, Layout.SCATTER_HALF_EXTENT), 0.0, randf_range(-Layout.SCATTER_HALF_EXTENT, Layout.SCATTER_HALF_EXTENT))
 		var r := randf()
 		var ntype := "TREE"
 		if r < 0.42:
@@ -504,6 +558,7 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 		u.restore_snapshot(ud)
 		if u.faction_id == 0 and u.is_leader:
 			leader = u
+	GameState.rebuild_spatial_systems()
 	if leader == null and not GameState.get_faction_units(0, true).is_empty():
 		var fc0: Node = GameState.faction_controllers.get(0)
 		if is_instance_valid(fc0) and fc0.has_method("handle_player_leader_death"):

@@ -5,7 +5,14 @@ const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 
 var building_type: String = "CAMPFIRE"
-var faction_id: int = 0
+var faction_id: int = 0:
+	set(value):
+		if value == faction_id:
+			return
+		var old_fid: int = faction_id
+		faction_id = value
+		if _index_registered:
+			GameState.spatial_index.on_building_faction_changed(self, old_fid, value)
 var is_constructed: bool = false
 var build_progress: float = 0.0
 var build_time: float = 5.0
@@ -26,6 +33,9 @@ var _combat_timer: float = 0.0
 var _bar_alpha: float = 0.0
 var _flash_timer: float = 0.0
 var _sink_timer: float = 0.0
+var _index_registered: bool = false
+var _obstacle_registered: bool = false
+var _scan_cd: float = 0.0
 
 static var _bar_shader: Shader = null
 
@@ -118,6 +128,38 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 
 	_rebuild_visual()
 	_create_status_bar()
+	_scan_cd = 0.0
+	if is_inside_tree() and not _index_registered:
+		_index_registered = true
+		GameState.spatial_index.register_building(self)
+	_sync_nav_obstacle()
+
+
+## Constructed, intact buildings block pathing; blueprints and rubble do not.
+func _sync_nav_obstacle() -> void:
+	var should_block: bool = is_constructed and not is_destroyed and is_inside_tree()
+	if should_block and not _obstacle_registered:
+		_obstacle_registered = true
+		GameState.valley_nav.register_building_obstacle(self, building_type, _nav_footprint_radius())
+	elif not should_block and _obstacle_registered:
+		_obstacle_registered = false
+		GameState.valley_nav.unregister_building_obstacle(self)
+
+
+func _nav_footprint_radius() -> float:
+	var info: Dictionary = GameData.BUILDINGS.get(building_type, GameData.BUILDINGS["CAMPFIRE"])
+	if building_type == "PALISADE_WALL":
+		return 2.0
+	return float(info["radius"]) + 0.4
+
+
+func _exit_tree() -> void:
+	if _obstacle_registered:
+		_obstacle_registered = false
+		GameState.valley_nav.unregister_building_obstacle(self)
+	if _index_registered:
+		_index_registered = false
+		GameState.spatial_index.unregister_building(self)
 
 
 func _rebuild_visual() -> void:
@@ -380,6 +422,7 @@ func advance_construction(amount: float) -> void:
 		hp = max_hp
 		damage_stage = 0
 		_rebuild_visual()
+		_sync_nav_obstacle()
 		if building_type == "CAMPFIRE" and GameState.factions.has(faction_id):
 			if not bool(GameState.factions[faction_id].get("is_founded", false)) or not had_constructed_campfire:
 				GameState.factions[faction_id]["camp_position"] = global_position
@@ -433,6 +476,10 @@ func _destroy(attacker_faction: int) -> void:
 	is_destroyed = true
 	hp = 0.0
 	damage_stage = 3
+	_sync_nav_obstacle()
+	if _index_registered:
+		_index_registered = false
+		GameState.spatial_index.unregister_building(self)
 	_apply_damage_stage()
 
 	if _col_shape != null:
@@ -530,7 +577,9 @@ func _physics_process(delta: float) -> void:
 	# Watchtower defensive arrow fire
 	if building_type == "WATCHTOWER" and damage_stage < 3:
 		_watchtower_cd = maxf(0.0, _watchtower_cd - delta)
-		if _watchtower_cd <= 0.0:
+		_scan_cd -= delta
+		if _watchtower_cd <= 0.0 and _scan_cd <= 0.0:
+			_scan_cd = randf_range(0.18, 0.28)
 			var target := _find_nearest_hostile(22.0)
 			if target != null:
 				_fire_watchtower_arrow(target)
@@ -587,21 +636,30 @@ func _try_reproduce() -> void:
 func _find_nearest_hostile(max_range: float) -> Node3D:
 	var best: Node3D = null
 	var best_d := max_range
-	if GameState.units_container != null:
-		for u in GameState.units_container.get_children():
-			if not is_instance_valid(u) or u.get("is_dead") == true:
-				continue
-			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
-				continue
-			var u3d := u as Node3D
-			if u3d == null:
-				continue
-			var d := global_position.distance_to(u3d.global_position)
-			if d < best_d:
-				best_d = d
-				best = u3d
-	if GameState.wildlife_container != null:
-		for w in GameState.wildlife_container.get_children():
+	var unit_candidates: Array = []
+	if GameState.spatial_index.is_populated():
+		unit_candidates = GameState.spatial_index.query_units_in_radius(global_position, max_range)
+	elif GameState.units_container != null:
+		unit_candidates = GameState.units_container.get_children()
+	for u in unit_candidates:
+		if not is_instance_valid(u) or u.get("is_dead") == true:
+			continue
+		if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
+			continue
+		var u3d := u as Node3D
+		if u3d == null:
+			continue
+		var d := global_position.distance_to(u3d.global_position)
+		if d < best_d:
+			best_d = d
+			best = u3d
+	var wild_candidates: Array = []
+	if GameState.spatial_index.is_populated():
+		wild_candidates = GameState.spatial_index.query_wildlife_in_radius(global_position, max_range)
+	elif GameState.wildlife_container != null:
+		wild_candidates = GameState.wildlife_container.get_children()
+	if true:
+		for w in wild_candidates:
 			if not UnitAIRoutines.is_wildlife_hostile_to_faction(w, faction_id):
 				continue
 			var w3d := w as Node3D
@@ -654,6 +712,10 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 	if hp <= 0.0:
 		is_destroyed = true
 		damage_stage = 3
+		_sync_nav_obstacle()
+		if _index_registered:
+			_index_registered = false
+			GameState.spatial_index.unregister_building(self)
 		if _col_shape != null:
 			_col_shape.set_deferred("disabled", true)
 		if _status_bar_mesh != null:

@@ -55,7 +55,8 @@ func _scan_buildings(n: Node) -> void:
 	for c in n.get_children():
 		if c is Node3D and "building_type" in c and "is_constructed" in c:
 			if c.get("is_constructed") == true and c.get("is_destroyed") != true:
-				register_building_obstacle(c, String(c.get("building_type")), _default_radius(String(c.get("building_type"))))
+				var r: float = float(c.call("_nav_footprint_radius")) if c.has_method("_nav_footprint_radius") else _default_radius(String(c.get("building_type")))
+				register_building_obstacle(c, String(c.get("building_type")), r)
 			continue
 		_scan_buildings(c)
 

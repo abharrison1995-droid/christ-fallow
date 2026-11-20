@@ -106,6 +106,7 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 		return
 
 	leader.global_position = animal.global_position + Vector3(-1.60, 0, 0)
+	_state.spatial_index.update_unit(leader)
 	if kind == "SABERTOOTH":
 		_check(animal._scan_for_prey(14.0) == leader, "Sabertooth finds quarry through the existing scan")
 	leader.hp = leader.max_hp
@@ -144,6 +145,7 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 		"%s closes its jaw and finishes the one-shot" % kind)
 	animal._attack_cd = 0.0
 	leader.global_position = animal.global_position - Vector3(1.6, 0, 0)
+	_state.spatial_index.update_unit(leader)
 	animal._physics_process(1.0 / 60.0)
 	animal._physics_process(0.09)
 	_check(player.is_playing() and closed_jaw.angle_to(rig.get_bone_pose_rotation(jaw)) > 0.35,

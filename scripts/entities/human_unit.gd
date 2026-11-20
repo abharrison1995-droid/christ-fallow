@@ -8,14 +8,27 @@ const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 
 var unit_id: int = 0
 var unit_name: String = "Tribesman"
-var faction_id: int = 0
+var faction_id: int = 0:
+	set(value):
+		if value == faction_id:
+			return
+		var old_fid: int = faction_id
+		faction_id = value
+		if _index_registered:
+			GameState.spatial_index.on_unit_faction_changed(self, old_fid, value)
 var original_faction_id: int = 0
 var gender: int = GameData.Gender.MALE
 var lineage: int = GameData.Lineage.CRAG_BORN
 var role: int = GameData.Role.FORAGER
 var warrior_class: int = GameData.WarriorClass.SPEARMAN
 
-var is_leader: bool = false
+var is_leader: bool = false:
+	set(value):
+		if value == is_leader:
+			return
+		is_leader = value
+		if _index_registered:
+			GameState.spatial_index.on_unit_leader_changed(self)
 var is_player_controlled: bool = false
 var is_caveman: bool = false
 var is_child: bool = false
@@ -79,6 +92,22 @@ var _state_label: Label3D = null
 
 var _attack_cd: float = 0.0
 var _ai_think_cd: float = 0.0
+var _index_registered: bool = false
+var _scan_enemy_cd: float = 0.0
+var _scan_enemy_radius: float = -1.0
+var _scan_enemy: Node = null
+var _scan_wild_cd: float = 0.0
+var _scan_wild_radius: float = -1.0
+var _scan_wild: Node = null
+var _scan_bld_cd: float = 0.0
+var _scan_bld_radius: float = -1.0
+var _scan_bld: Node = null
+var _nav_path: PackedVector3Array = PackedVector3Array()
+var _nav_idx: int = 0
+var _nav_target: Vector3 = Vector3(INF, 0.0, INF)
+var _nav_repath_cd: float = 0.0
+var _last_label_text: String = ""
+var _last_move_idle: bool = false
 var _work_timer: float = 0.0
 var _swing_timer: float = 0.0
 var _swing_duration: float = 0.34
@@ -172,6 +201,25 @@ func setup(p_params: Dictionary) -> void:
 	_rebuild_visual()
 	_create_hp_bar()
 	recalculate_stats(true)
+	_register_in_index()
+
+
+func _register_in_index() -> void:
+	if _index_registered or not is_inside_tree():
+		return
+	_index_registered = true
+	GameState.spatial_index.register_unit(self)
+
+
+func _unregister_from_index() -> void:
+	if not _index_registered:
+		return
+	_index_registered = false
+	GameState.spatial_index.unregister_unit(self)
+
+
+func _exit_tree() -> void:
+	_unregister_from_index()
 
 
 func _pick_random_name() -> String:
@@ -610,6 +658,7 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 		return
 	is_dead = true
 	hp = 0.0
+	_unregister_from_index()
 
 	if GameState.factions.has(killer_faction) and GameState.has_tenet(killer_faction, "BLOOD_SACRIFICE"):
 		GameState.add_resource(killer_faction, "faith", 8.0)
@@ -692,15 +741,20 @@ func _update_wounded_animation(delta: float) -> void:
 	if _state_label != null:
 		_state_label.visible = true
 		_state_label.position = Vector3(0.0, 1.35, 0.0)
+		var wl_text: String = ""
+		var wl_col := Color(1.0, 0.72, 0.22)
 		if is_healing_in_shack:
-			_state_label.text = "Healing at the Shack"
-			_state_label.modulate = Color(0.45, 0.95, 0.60)
+			wl_text = "Healing at the Shack"
+			wl_col = Color(0.45, 0.95, 0.60)
 		elif being_rescued:
-			_state_label.text = "Rescue in progress"
-			_state_label.modulate = Color(0.55, 0.85, 1.0)
+			wl_text = "Rescue in progress"
+			wl_col = Color(0.55, 0.85, 1.0)
 		else:
-			_state_label.text = "Wounded  ·  E Aid  ·  %ds" % ceili(maxf(wounded_timer, 0.0))
-			_state_label.modulate = Color(1.0, 0.72, 0.22)
+			wl_text = "Wounded  ·  E Aid  ·  %ds" % ceili(maxf(wounded_timer, 0.0))
+		if wl_text != _last_label_text:
+			_last_label_text = wl_text
+			_state_label.text = wl_text
+			_state_label.modulate = wl_col
 
 
 func _update_procedural_animation(delta: float) -> void:
@@ -841,6 +895,11 @@ func _physics_process(delta: float) -> void:
 		_process_dead_corpse(delta)
 		return
 
+	GameState.spatial_index.update_unit(self)
+	_nav_repath_cd = maxf(0.0, _nav_repath_cd - delta)
+	_scan_enemy_cd -= delta
+	_scan_wild_cd -= delta
+	_scan_bld_cd -= delta
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_leader_blessing_cd = maxf(0.0, _leader_blessing_cd - delta)
 	_campfire_heal_cd = maxf(0.0, _campfire_heal_cd - delta)
@@ -958,8 +1017,10 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 
-	move_and_slide()
-	_clamp_to_world_bounds()
+	if not (is_on_floor() and velocity.x == 0.0 and velocity.z == 0.0 and _knockback_vel == Vector3.ZERO and _last_move_idle):
+		move_and_slide()
+		_clamp_to_world_bounds()
+	_last_move_idle = is_on_floor() and velocity.x == 0.0 and velocity.z == 0.0
 	if not _kiting_this_frame and Vector2(velocity.x, velocity.z).length() > 0.25:
 		var look_p := global_position + Vector3(velocity.x, 0.0, velocity.z)
 		look_at(look_p, Vector3.UP)
@@ -1028,7 +1089,7 @@ func _process_rebel_ai(delta: float) -> void:
 	if target != null:
 		_engage_target(target)
 		return
-	var b_target := _find_nearest_enemy_building(35.0)
+	var b_target := _find_nearest_enemy_building(Layout.SCAN_RANGE_CAMP)
 	if b_target != null:
 		_engage_building(b_target)
 		return
@@ -1040,7 +1101,7 @@ func _process_tribal_ai(delta: float) -> void:
 	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or _is_warhorn_militia()
 
 	# Enemy detection
-	var scan_radius := 24.0 if is_warrior_mode else 9.0
+	var scan_radius := Layout.SCAN_RANGE_COMBAT if is_warrior_mode else 9.0
 	var enemy := _find_nearest_enemy_unit(scan_radius)
 	if enemy == null and is_warrior_mode:
 		enemy = _find_nearest_hostile_wildlife(scan_radius)
@@ -1311,8 +1372,45 @@ func _find_wounded_ally() -> Node:
 	return UnitAIRoutines.find_wounded_ally(self)
 
 
+## Beyond this range units head straight for the target (building centres are solid nav cells).
+const NAV_DIRECT_RANGE := 6.0
+const NAV_WAYPOINT_REACH := 2.2
+
+
+func _nav_waypoint(target_pos: Vector3) -> Vector3:
+	var nav = GameState.valley_nav
+	if not nav.is_ready():
+		return target_pos
+	var flat_target := Vector3(target_pos.x, 0.0, target_pos.z)
+	var moved: bool = _nav_target.distance_squared_to(flat_target) > 16.0
+	if moved or (_nav_repath_cd <= 0.0 and _nav_idx >= _nav_path.size()):
+		_nav_path = nav.find_path(global_position, target_pos)
+		_nav_idx = 0
+		_nav_target = flat_target
+		_nav_repath_cd = randf_range(0.45, 0.65)
+	elif _nav_repath_cd <= 0.0:
+		_nav_repath_cd = randf_range(0.45, 0.65)
+		_nav_path = nav.find_path(global_position, target_pos)
+		_nav_idx = 0
+	while _nav_idx < _nav_path.size() - 1:
+		var wp: Vector3 = _nav_path[_nav_idx]
+		var dx: float = wp.x - global_position.x
+		var dz: float = wp.z - global_position.z
+		if dx * dx + dz * dz > NAV_WAYPOINT_REACH * NAV_WAYPOINT_REACH:
+			break
+		_nav_idx += 1
+	if _nav_idx < _nav_path.size():
+		return _nav_path[_nav_idx]
+	return target_pos
+
+
 func _steer_toward(target_pos: Vector3, spd: float) -> void:
-	var diff := target_pos - global_position
+	var goal := target_pos
+	var raw := target_pos - global_position
+	raw.y = 0.0
+	if raw.length_squared() > NAV_DIRECT_RANGE * NAV_DIRECT_RANGE:
+		goal = _nav_waypoint(target_pos)
+	var diff := goal - global_position
 	diff.y = 0.0
 	if diff.length() > 0.2:
 		var dir := diff.normalized()
@@ -1389,12 +1487,37 @@ func _engage_unarmed_self_defense(target: Node) -> void:
 			target.take_damage(unarmed_attack_damage, self, faction_id)
 
 
+## Re-acquisition of scan targets is staggered (0.18-0.28 s jitter per unit); cached targets are revalidated every call.
+func _scan_jitter() -> float:
+	return randf_range(0.18, 0.28)
+
+
+static func _cache_alive(n: Node) -> bool:
+	return n != null and is_instance_valid(n) and not n.is_queued_for_deletion() and n.get("is_dead") != true
+
+
 func _find_nearest_hostile_wildlife(radius: float) -> Node:
-	return UnitAIRoutines.find_nearest_hostile_wildlife(self, radius)
+	if _scan_wild_cd > 0.0 and is_equal_approx(_scan_wild_radius, radius):
+		if _scan_wild == null or _cache_alive(_scan_wild):
+			return _scan_wild
+	_scan_wild_cd = _scan_jitter()
+	_scan_wild_radius = radius
+	_scan_wild = UnitAIRoutines.find_nearest_hostile_wildlife(self, radius)
+	return _scan_wild
 
 
 func _find_nearest_enemy_unit(radius: float) -> Node:
-	return _find_enemy_near_point(global_position, radius)
+	if _scan_enemy_cd > 0.0 and is_equal_approx(_scan_enemy_radius, radius):
+		if _scan_enemy == null or (_cache_alive(_scan_enemy) and n_wounded_ok(_scan_enemy)):
+			return _scan_enemy
+	_scan_enemy_cd = _scan_jitter()
+	_scan_enemy_radius = radius
+	_scan_enemy = _find_enemy_near_point(global_position, radius)
+	return _scan_enemy
+
+
+static func n_wounded_ok(n: Node) -> bool:
+	return n.get("is_wounded") != true
 
 
 func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
@@ -1402,7 +1525,13 @@ func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
 
 
 func _find_nearest_enemy_building(radius: float) -> Node:
-	return UnitAIRoutines.find_nearest_enemy_building(self, radius)
+	if _scan_bld_cd > 0.0 and is_equal_approx(_scan_bld_radius, radius):
+		if _scan_bld == null or (is_instance_valid(_scan_bld) and not _scan_bld.is_queued_for_deletion() and _scan_bld.get("is_destroyed") != true):
+			return _scan_bld
+	_scan_bld_cd = _scan_jitter()
+	_scan_bld_radius = radius
+	_scan_bld = UnitAIRoutines.find_nearest_enemy_building(self, radius)
+	return _scan_bld
 
 
 func restore_snapshot(snapshot: Dictionary) -> void:

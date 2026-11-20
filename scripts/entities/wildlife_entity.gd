@@ -36,6 +36,20 @@ var _target_unit: Node = null
 var _attack_cd: float = 0.0
 var _flee_timer: float = 0.0
 var _flee_dir: Vector3 = Vector3.ZERO
+var _index_registered: bool = false
+var _prey_scan_cd: float = 0.0
+var _last_move_idle: bool = false
+
+
+func _exit_tree() -> void:
+	_unregister_from_index()
+
+
+func _unregister_from_index() -> void:
+	if not _index_registered:
+		return
+	_index_registered = false
+	GameState.spatial_index.unregister_wildlife(self)
 
 
 func setup(p_type: String, p_pos: Vector3) -> void:
@@ -53,6 +67,10 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	is_aggro = bool(data["aggro"])
 	flees_when_hit = bool(data["flee"])
 	is_boss = bool(data["is_boss"])
+	_prey_scan_cd = 0.0
+	if is_inside_tree() and not _index_registered:
+		_index_registered = true
+		GameState.spatial_index.register_wildlife(self)
 
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
@@ -190,6 +208,7 @@ func _die(killer: Node, killer_faction: int) -> void:
 			var msg := "Slain %s! Gained +%d Food, +%d Hide, +%d Bone." % [animal_name, int(yields.get("food", 0) * mult), int(yields.get("hide", 0) * mult), int(yields.get("bone", 0) * mult)]
 			GameState.push_log(msg, "success" if is_boss else "info")
 
+	_unregister_from_index()
 	collision_layer = 0
 	collision_mask = 0
 	if _hp_bg != null:
@@ -279,9 +298,11 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		_process_dead_wildlife(delta)
 		return
+	GameState.spatial_index.update_wildlife(self)
 	_update_wildlife_animation(delta)
 
 	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_prey_scan_cd -= delta
 	if _hp_bg != null and _hp_bg.visible:
 		var cam := get_viewport().get_camera_3d()
 		if cam != null:
@@ -297,7 +318,8 @@ func _physics_process(delta: float) -> void:
 		if _target_unit != null and (not is_instance_valid(_target_unit) or _target_unit.get("is_dead") or global_position.distance_to(_target_unit.global_position) > 28.0):
 			_target_unit = null
 
-		if _target_unit == null and is_aggro:
+		if _target_unit == null and is_aggro and _prey_scan_cd <= 0.0:
+			_prey_scan_cd = randf_range(0.18, 0.28)
 			_target_unit = _scan_for_prey(16.0 if is_boss else 14.0)
 
 		if _target_unit != null:
@@ -332,8 +354,11 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = 0.0
 
-	move_and_slide()
-	_clamp_to_world_bounds()
+	var idle_now: bool = velocity.x == 0.0 and velocity.z == 0.0 and is_on_floor()
+	if not (idle_now and _last_move_idle and _knockback_vel == Vector3.ZERO):
+		move_and_slide()
+		_clamp_to_world_bounds()
+	_last_move_idle = idle_now
 	if Vector2(velocity.x, velocity.z).length() > 0.25:
 		var look_t := global_position + Vector3(velocity.x, 0.0, velocity.z)
 		look_at(look_t, Vector3.UP)
@@ -345,11 +370,14 @@ func _clamp_to_world_bounds() -> void:
 
 
 func _scan_for_prey(radius: float) -> Node:
-	if GameState.units_container == null:
-		return null
 	var best: Node = null
 	var best_d := radius
-	for u in GameState.units_container.get_children():
+	var candidates: Array = []
+	if GameState.spatial_index.is_populated():
+		candidates = GameState.spatial_index.query_units_in_radius(global_position, radius)
+	elif GameState.units_container != null:
+		candidates = GameState.units_container.get_children()
+	for u in candidates:
 		if not is_instance_valid(u) or u.get("is_dead") or u.get("is_wounded"):
 			continue
 		var u_fid: int = int(u.get("faction_id"))
@@ -378,8 +406,13 @@ func _perform_attack(target: Node) -> void:
 		_attack_anim_timer = 0.36
 	if is_boss:
 		# Megafauna AoE stomp/swipe
-		if GameState.units_container != null:
-			for u in GameState.units_container.get_children():
+		var stomp_targets: Array = []
+		if GameState.spatial_index.is_populated():
+			stomp_targets = GameState.spatial_index.query_units_in_radius(global_position, 4.0)
+		elif GameState.units_container != null:
+			stomp_targets = GameState.units_container.get_children()
+		if true:
+			for u in stomp_targets:
 				if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded"):
 					if global_position.distance_to(u.global_position) <= 4.0:
 						u.take_damage(damage, self, -1)

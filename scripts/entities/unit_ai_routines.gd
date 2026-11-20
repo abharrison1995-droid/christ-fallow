@@ -1,5 +1,32 @@
 extends RefCounted
 ## Civilian work routines, Barracks training, and spatial target queries for tribesfolk.
+## Target queries read GameState.spatial_index and fall back to container scans while it is empty.
+
+const Layout = preload("res://scripts/core/world_layout.gd")
+
+
+static func _units_near(point: Vector3, radius: float) -> Array:
+	if GameState.spatial_index.is_populated():
+		return GameState.spatial_index.query_units_in_radius(point, radius)
+	if GameState.units_container == null:
+		return []
+	return GameState.units_container.get_children()
+
+
+static func _wildlife_near(point: Vector3, radius: float) -> Array:
+	if GameState.spatial_index.is_populated():
+		return GameState.spatial_index.query_wildlife_in_radius(point, radius)
+	if GameState.wildlife_container == null:
+		return []
+	return GameState.wildlife_container.get_children()
+
+
+static func _buildings_near(point: Vector3, radius: float) -> Array:
+	if GameState.spatial_index.is_populated():
+		return GameState.spatial_index.query_buildings_in_radius(point, radius)
+	if GameState.buildings_container == null:
+		return []
+	return GameState.buildings_container.get_children()
 
 
 static func run_dusk_routine(u, _delta: float) -> void:
@@ -214,11 +241,11 @@ static func _run_gatherer_work(u, camp: Vector3, delta: float) -> void:
 					prefer_flint = flint_amt < stone_amt
 			var primary_type: String = "FLINT" if prefer_flint else "STONE"
 			var fallback_type: String = "STONE" if prefer_flint else "FLINT"
-			u._target_node = find_nearest_resource_node([primary_type], camp, 70.0)
+			u._target_node = find_nearest_resource_node([primary_type], camp, Layout.SCAN_RANGE_GATHER)
 			if u._target_node == null:
-				u._target_node = find_nearest_resource_node([fallback_type], camp, 70.0)
+				u._target_node = find_nearest_resource_node([fallback_type], camp, Layout.SCAN_RANGE_GATHER)
 		else:
-			u._target_node = find_nearest_resource_node(desired_node_types, camp, 70.0)
+			u._target_node = find_nearest_resource_node(desired_node_types, camp, Layout.SCAN_RANGE_GATHER)
 
 	if u._target_node == null:
 		u._patrol_around(camp, 7.5, delta)
@@ -296,11 +323,9 @@ static func gain_training_xp(u, xp_gain: float) -> void:
 
 
 static func find_wounded_ally(u) -> Node:
-	if GameState.units_container == null:
-		return null
 	var best: Node = null
 	var best_d := 85.0
-	for other in GameState.units_container.get_children():
+	for other in _units_near((u as Node3D).global_position, 85.0):
 		if is_instance_valid(other) and not other.get("is_dead") and other.get("is_wounded") and not other.get("is_healing_in_shack"):
 			if int(other.get("original_faction_id")) == u.faction_id:
 				var claimer: Variant = other.get("_rescue_shaman")
@@ -357,11 +382,9 @@ static func find_nearest_resource_node(types: Array, around: Vector3, max_dist: 
 
 
 static func find_nearest_prey(u, max_dist: float) -> Node:
-	if GameState.wildlife_container == null:
-		return null
 	var best: Node = null
 	var best_d := max_dist
-	for w in GameState.wildlife_container.get_children():
+	for w in _wildlife_near((u as Node3D).global_position, max_dist):
 		if not is_instance_valid(w) or w.get("is_dead"):
 			continue
 		var at: String = str(w.get("animal_type"))
@@ -389,12 +412,10 @@ static func is_wildlife_hostile_to_faction(w: Node, faction_id: int, unit_ref: N
 
 
 static func find_hostile_wildlife_near_point(u, point: Vector3, radius: float) -> Node:
-	if GameState.wildlife_container == null:
-		return null
 	var best: Node = null
 	var best_d := radius
 	var u_fid: int = int(u.faction_id)
-	for w in GameState.wildlife_container.get_children():
+	for w in _wildlife_near(point, radius):
 		if not is_wildlife_hostile_to_faction(w, u_fid, u):
 			continue
 		var d: float = point.distance_to((w as Node3D).global_position)
@@ -409,11 +430,9 @@ static func find_nearest_hostile_wildlife(u, radius: float) -> Node:
 
 
 static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
-	if GameState.units_container == null:
-		return null
 	var best: Node = null
 	var best_score := 999999.0
-	for other in GameState.units_container.get_children():
+	for other in _units_near(point, radius):
 		if not is_instance_valid(other) or other.get("is_dead") or other.get("is_wounded"):
 			continue
 		var u_fid: int = int(other.get("faction_id"))
@@ -445,11 +464,9 @@ static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
 
 
 static func find_nearest_enemy_building(u, radius: float) -> Node:
-	if GameState.buildings_container == null:
-		return null
 	var best: Node = null
 	var best_d := radius
-	for b in GameState.buildings_container.get_children():
+	for b in _buildings_near((u as Node3D).global_position, radius):
 		if not is_instance_valid(b) or float(b.get("hp")) <= 0.0:
 			continue
 		if not GameState.is_hostile(u.faction_id, int(b.get("faction_id"))):

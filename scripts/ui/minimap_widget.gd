@@ -42,9 +42,13 @@ func _draw() -> void:
 	var font: Font = get_theme_default_font()
 
 	# Draw River strip hint
-	var r1 := _to_map(Vector3(21.0, 0.0, -155.0))
-	var r2 := _to_map(Vector3(-117.0, 0.0, 155.0))
+	var r1 := _to_map(Layout.river_start())
+	var r2 := _to_map(Layout.river_end())
 	draw_line(r1, r2, Color("405657"), 5.0, true)
+	for ford in Layout.river_crossings():
+		var fp := _to_map(ford["pos"])
+		draw_rect(Rect2(fp - Vector2(3.5, 3.5), Vector2(7.0, 7.0)), Color("a39a82"), true)
+		draw_rect(Rect2(fp - Vector2(3.5, 3.5), Vector2(7.0, 7.0)), Color("4b4638"), false, 1.0)
 
 	# Draw Buildings / Campfires
 	if GameState.buildings_container != null:
