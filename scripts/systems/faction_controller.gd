@@ -12,8 +12,25 @@ func setup(p_faction_id: int) -> void:
 	_ai_timer = randf_range(1.5, 4.0)
 	_raid_cooldown = randf_range(50.0, 85.0)
 	_diplomacy_event_cd = randf_range(35.0, 65.0)
-	if faction_id == 5:
-		_caveman_spawn_timer = 32.0
+	_caveman_spawn_timer = 32.0 if faction_id == 5 else 28.0
+
+
+func serialize() -> Dictionary:
+	return {
+		"raid_cooldown": maxf(0.0, _raid_cooldown),
+		"caveman_spawn_timer": maxf(0.0, _caveman_spawn_timer),
+		"diplomacy_event_cd": maxf(0.0, _diplomacy_event_cd),
+	}
+
+
+func restore_from_save(data: Dictionary) -> void:
+	setup(faction_id)
+	if data.has("raid_cooldown"):
+		_raid_cooldown = maxf(0.0, float(data["raid_cooldown"]))
+	if data.has("caveman_spawn_timer"):
+		_caveman_spawn_timer = maxf(0.0, float(data["caveman_spawn_timer"]))
+	if data.has("diplomacy_event_cd"):
+		_diplomacy_event_cd = maxf(0.0, float(data["diplomacy_event_cd"]))
 
 
 func spawn_colonist(pos: Vector3, lineage: int, gender: int, role: int, is_leader: bool = false, is_child: bool = false, is_caveman: bool = false, custom_name: String = "") -> Node:

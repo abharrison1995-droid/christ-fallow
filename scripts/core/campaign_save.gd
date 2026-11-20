@@ -25,9 +25,11 @@ const UNIT_FIELDS := {
 	"base_ranged_stat": TYPE_FLOAT, "melee_rank": TYPE_INT, "ranged_rank": TYPE_INT,
 	"training_xp": TYPE_FLOAT, "morale": TYPE_FLOAT, "is_revolting": TYPE_BOOL,
 	"is_wounded": TYPE_BOOL, "is_healing_in_shack": TYPE_BOOL, "being_rescued": TYPE_BOOL,
-	"wounded_timer": TYPE_FLOAT, "has_equipped_weapon": TYPE_BOOL, "weapon_tier": TYPE_INT,
-	"has_armor": TYPE_BOOL, "squad_order": TYPE_INT, "fire_at_will": TYPE_BOOL,
-	"is_raiding": TYPE_BOOL,
+	"wounded_timer": TYPE_FLOAT, "field_aid_applied": TYPE_BOOL, "has_equipped_weapon": TYPE_BOOL,
+	"weapon_tier": TYPE_INT, "has_armor": TYPE_BOOL, "squad_order": TYPE_INT, "fire_at_will": TYPE_BOOL,
+	"is_raiding": TYPE_BOOL, "dusk_eaten_today": TYPE_INT, "night_morale_today": TYPE_INT,
+	"leader_blessing_cd": TYPE_FLOAT, "buff_timer": TYPE_FLOAT, "buff_speed_mult": TYPE_FLOAT,
+	"buff_armor_bonus": TYPE_FLOAT, "carry_type": TYPE_STRING, "carry_amount": TYPE_FLOAT,
 }
 const BUILDING_FIELDS := {
 	"building_type": TYPE_STRING, "faction_id": TYPE_INT, "rot_y": TYPE_FLOAT,
@@ -48,8 +50,10 @@ static func unpack(parsed: Variant) -> Dictionary:
 		"tutorial_completed": TYPE_BOOL, "tutorial_skipped": TYPE_BOOL, "tutorial_harvested": TYPE_BOOL,
 		"tutorial_assigned_role": TYPE_BOOL, "tutorial_cleaved": TYPE_BOOL, "tutorial_thrown": TYPE_BOOL,
 		"builder_tip_shown": TYPE_BOOL, "wildlife": TYPE_ARRAY, "combat_commands": TYPE_DICTIONARY,
-		"pending_conquests": TYPE_ARRAY, "player_leader_id": TYPE_INT,
+		"pending_conquests": TYPE_ARRAY, "player_leader_id": TYPE_INT, "player_controller": TYPE_DICTIONARY,
 	}, false):
+		return {}
+	if save.has("player_controller") and not _matches(save["player_controller"], {"blessing_cooldown": TYPE_FLOAT}, false):
 		return {}
 	var version := int(save.get("version", 1))
 	if version < 1 or version > VERSION:
@@ -118,7 +122,13 @@ static func unpack(parsed: Variant) -> Dictionary:
 
 
 static func _normalize_faction(faction: Dictionary, id: int) -> bool:
-	if not _matches(faction, {"captured_cavemen": TYPE_INT, "blessing_cooldown": TYPE_FLOAT}, false):
+	if not _matches(faction, {
+		"captured_cavemen": TYPE_INT,
+		"blessing_cooldown": TYPE_FLOAT,
+		"raid_cooldown": TYPE_FLOAT,
+		"caveman_spawn_timer": TYPE_FLOAT,
+		"diplomacy_event_cd": TYPE_FLOAT,
+	}, false):
 		return false
 	faction["camp_position"] = _position(faction.get("camp_position"))
 	if faction["camp_position"] == null:

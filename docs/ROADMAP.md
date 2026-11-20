@@ -7,28 +7,31 @@
 ### Shipped & verified
 - **Core Stone Age campaign loop**: Title screen, Awakening tribe setup (`6` playable lineages), `210 s` Peace Buffer, 5-step Awakening Guide (`+10 Food, +10 Wood, +5 Flint`), gathering/hunting/crafting, 3 tech tiers, 5 Patron Gods & 6 tenets, day/dusk/night schedules, Barracks training, Tribal Warhorn (`H`), diplomacy/conquest/succession, and `v1..v3` atomic JSON persistence.
 - **Refactored runtime boundaries**: `CampaignSession` lifecycle ownership, `GameState` campaign rules, `CampaignSave`/`CampaignStorage`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, `WorldLayout`, `FeatureDrawer` views, `UnitInspector`, `CampaignOverlays`, and `Preferences`.
+- **Phase 0 stabilization (`Slices 0A`–`0E`, Completed 20 Nov 2026)**: Fixed conquest/wounded/pause lifecycle leaks (`0A`), wildlife defense/economy/Warhorn/tech-tier/bounds/combat parity (`0B`), save/load state isolation, cooldown/buff/timer persistence, live `KRAG_UL` HP scaling, and synchronous leader succession (`0C`), HUD focus/layout/diplomacy/radar/control polish (`0D`), and `DUAL_SHEATH`/GLB blueprint hologram/PSX material/trial rig alignment (`0E`). **Active next phase: [Phase 1: Simulation Performance & Navigation Foundation](#phase-1-simulation-performance--navigation-foundation).**
 - **Automated baselines passing (20 Nov 2026)**:
   - `scripts/tools/verify_campaign_save.gd`: `CAMPAIGN SAVE VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
-  - `scripts/tools/verify_campaign_ui.gd` (`1600×900`): `CAMPAIGN UI VERIFICATION PASSED` + `PASS action Quit` (exit `0`, `0` script errors/warnings).
-  - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd`, `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
+  - `scripts/tools/verify_campaign_ui.gd` (`1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`): `CAMPAIGN UI VERIFICATION PASSED` + `PASS action Quit` (exit `0`, `0` script errors/warnings).
+  - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (`--crag-born-trial` and `--check-default-roster`), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
 
 ### Partially delivered (3D assets)
-- **Buildings**: `2/11` GLBs (`sleeping_hut_stages.glb`, `palisade_wall_stages.glb`); remaining `9` types use procedural 4-stage meshes. Blueprints and placement ghosts still use procedural Stage 0.
+- **Buildings**: `2/11` GLBs (`sleeping_hut_stages.glb`, `palisade_wall_stages.glb`); remaining `9` types use procedural 4-stage meshes. Blueprints and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 otherwise.
 - **Characters & gear**: `tribesman_base.glb` (opt-in leader via `--skinned-tribesman-trial`), `crag_born/{broad,braided,child}.glb` (`1/7` lineages, opt-in via `--crag-born-trial`), and `2/14` gear kits (`spearman/`, `forager/`). Default campaigns render procedural `HumanMeshBuilder` characters.
 - **Environment & wildlife**: `4` scenery GLBs (`windbent_pine`, `moss_limestone`, `berry_thicket`, `riverbank_reeds`), `2/6` wildlife GLBs (`tusked_boar`, `sabertooth`), plus `6` reviewed concept GLBs in `tools/assets/examples/`.
 
 ### Key architectural & hygiene bottlenecks
 - **Simulation scan cost**: `REFACTOR.md` measured `69.126 ms` physics median at `107` units / `51` buildings (`23.013 ms` per 100 `find_enemy_near_point()` calls) due to per-frame `O(N^2)` container scans and array allocations.
 - **Navigation & fixed bounds**: `_steer_toward()` uses straight-line steering with no obstacle avoidance, and several scripts hardcode `380×380 m` valley bounds outside [WorldLayout](../scripts/core/world_layout.gd).
-- **Repo hygiene**: No `.git` repository exists in the project root yet; `ChristFallow.exe` (dated `2026-11-18`) and `Christ Fallow.lnk` lag the `2026-11-20` source.
+- **Repo hygiene**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/` and temp outputs. `ChristFallow.exe` (dated `2026-11-18`) and `Christ Fallow.lnk` lag the `2026-11-20` source.
 
 ---
 
 ## Phase 0: Mechanics, UI & Asset Stabilization (Bug-Fix Plan)
 
-Execute Slices `0A`–`0E` before scaling the map or adding major features. Each slice owns disjoint responsibilities and has an explicit verification gate.
+> **Status: Completed (20 Nov 2026)** — Slices `0A`–`0E` are implemented and verified. Proceed to **Phase 1: Simulation Performance & Navigation Foundation** next.
 
 ### Slice 0A — Campaign Lifecycle, Conquest, Wounded Softlocks & Pause Guards
+
+> **Completed (20 Nov 2026)**
 
 1. **RAZE conquest spares living enemy leader (`High`)** — [game_state.gd](../scripts/core/game_state.gd#L699-L713) (`resolve_conquest`).
    - *Root cause*: `if not u.is_leader: u.queue_free()` spares the enemy leader after `RAZE`, leaving an undefeated-acting leader on a defeated faction.
@@ -52,6 +55,8 @@ Execute Slices `0A`–`0E` before scaling the map or adding major features. Each
 **Verification criteria (0A)**: Extend `verify_campaign_save.gd` / a `SceneTree` probe to verify: (a) `RAZE` frees the enemy leader; (b) third-party rival wipe marks `is_defeated` and allows victory; (c) field-aided wounded units still defect and trigger defeat if no healthy units remain; (d) entity AI, rubble sinking, and `PlayerController` cooldowns freeze when paused or `campaign_finished`.
 
 ### Slice 0B — Combat, AI Schedules, Economy & World Bounds
+
+> **Completed (20 Nov 2026)**
 
 1. **Warriors & Watchtowers ignore hostile Wildlife (`High`)** — [human_unit.gd](../scripts/entities/human_unit.gd#L903-L910), [unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd#L338-L371), [building_entity.gd](../scripts/entities/building_entity.gd#L570-L587).
    - *Fix*: Fall back to `find_nearest_hostile_wildlife` in warrior target acquisition and scan hostile wildlife in Watchtower `_find_nearest_hostile()`.
@@ -79,6 +84,8 @@ Execute Slices `0A`–`0E` before scaling the map or adding major features. Each
 
 ### Slice 0C — Save/Load Fidelity & State Isolation
 
+> **Completed (20 Nov 2026)**
+
 1. **Unserialized / un-reset cooldowns, buffs, carry & AI timers (`Medium`)** — [player_controller.gd](../scripts/entities/player_controller.gd#L24-L29,L47-L77), [human_unit.gd](../scripts/entities/human_unit.gd#L1261-L1298), [faction_controller.gd](../scripts/systems/faction_controller.gd#L4-L16).
    - *Fix*: Reset `PlayerController` cooldowns on `setup()`/`attach_leader()`, serialize remaining unit/faction/player cooldowns and daily flags (`_dusk_eaten_today`, `_night_morale_today`, `_buff_*`, `_carry_*`), and validate in [campaign_save.gd](../scripts/core/campaign_save.gd).
 2. **Legacy `v1`/`v2` in-session reload wildlife leak (`Medium`)** — [world_generator.gd](../scripts/systems/world_generator.gd#L471-L473).
@@ -93,6 +100,8 @@ Execute Slices `0A`–`0E` before scaling the map or adding major features. Each
 **Verification criteria (0C)**: `verify_campaign_save.gd` passes with all new assertions and `0` script errors across `v1`/`v2`/`v3` fixtures and in-session reloads.
 
 ### Slice 0D — UI Focus, Layout, Controls & Visual Accuracy
+
+> **Completed (20 Nov 2026)**
 
 1. **Persistent HUD & Inspector controls steal `Space` (Dodge) & `Arrows` (`High`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L255,L309,L421,L486-L533), [unit_inspector.gd](../scripts/ui/unit_inspector.gd#L79-L115).
    - *Fix*: Call `release_focus()` on HUD/inspector click handlers while preserving `FOCUS_ALL` for keyboard navigation.
@@ -118,6 +127,8 @@ Execute Slices `0A`–`0E` before scaling the map or adding major features. Each
 
 ### Slice 0E — 3D Asset Pipeline & Trial Rig Parity
 
+> **Completed (20 Nov 2026)**
+
 1. **Missing `DUAL_SHEATH` back gear (`Medium`)** — [game_data.gd](../scripts/core/game_data.gd#L366), [human_mesh_builder.gd](../scripts/core/human_mesh_builder.gd#L480-L536).
    - *Fix*: Add `"DUAL_SHEATH"` mesh geometry to `_build_class_kit()` for `KNIFE_RAIDER`.
 2. **Blueprint / ghost GLB parity (`Medium`)** — [world_mesh_builder.gd](../scripts/core/world_mesh_builder.gd#L20-L32), [player_controller.gd](../scripts/entities/player_controller.gd#L101).
@@ -135,7 +146,7 @@ Execute Slices `0A`–`0E` before scaling the map or adding major features. Each
 
 ## Phase 1: Simulation Performance & Navigation Foundation
 
-Prerequisite for [Larger valley and accessible world map](FUTURE.md#larger-valley-and-accessible-world-map) (`760×760 m`):
+> **Active next phase** — Prerequisite for [Larger valley and accessible world map](FUTURE.md#larger-valley-and-accessible-world-map) (`760×760 m`):
 
 1. **Cached faction lists & spatial hash grid**: Eliminate per-frame `60 Hz` container scans and fresh array allocations in `GameState.get_faction_units()`, `get_faction_buildings()`, `HumanUnit`, `WildlifeEntity`, `BuildingEntity`, and `Projectile3D`. Wire staggered AI target scans (`_ai_think_cd`).
 2. **Parameterize `WorldLayout`**: Move all hardcoded `380 m` / `±172 m` / `±140 m` / `±148 m` bounds and fixed scan distances (`65–85 m`) from `player_controller.gd`, `game_state.gd`, `world_generator.gd`, `human_unit.gd`, and `unit_ai_routines.gd` into [WorldLayout](../scripts/core/world_layout.gd).
@@ -174,7 +185,7 @@ Deliver [Taming, farming, and mounts](FUTURE.md#taming-farming-and-mounts) with 
 ## Agentic Continuation Protocol
 
 ### Repo hygiene pre-flight
-- **Initialize Git**: There is currently no `.git` repository. Initialize local Git with a `.gitignore` excluding `.godot/`, `*.tmp`, and local capture/save directories before starting Phase 0 code changes so every slice has clean diffs and rollback safety.
+- **Local Git**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.tmp`, and local capture/save directories; checkpoint cleanly between slices for diff clarity and rollback safety.
 - **Ignore stale launcher binaries**: Run `project.godot` directly via Godot 4.3 console; `ChristFallow.exe` and `Christ Fallow.lnk` are stale (`2026-11-18`) and should be rebuilt or removed when packaging.
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 

@@ -527,9 +527,14 @@ func assign_player_role(unit: Node, role: int, warrior_class: int = -1) -> bool:
 func select_player_patron(patron: int) -> void:
 	if not factions.has(0) or not GameData.GOD_DATA.has(patron) or patron == GameData.PatronGod.NONE:
 		return
+	var prev_patron: int = int(factions[0].get("patron_god", GameData.PatronGod.NONE))
 	factions[0]["patron_god"] = patron
 	for unit in get_faction_units(0):
 		unit.recalculate_stats(false)
+	if prev_patron == GameData.PatronGod.KRAG_UL or patron == GameData.PatronGod.KRAG_UL:
+		for b in get_faction_buildings(0):
+			if b.has_method("recalculate_max_hp"):
+				b.recalculate_max_hp(true)
 	religion_changed.emit(0)
 	push_log("Your tribe now worships %s." % GameData.GOD_DATA[patron]["name"], "success")
 
@@ -718,6 +723,8 @@ func resolve_conquest(target_faction_id: int, choice: String) -> void:
 			u.convert_to_faction(0, true)
 		for b in get_faction_buildings(target_faction_id, "", false):
 			b.faction_id = 0
+			if b.has_method("recalculate_max_hp"):
+				b.recalculate_max_hp(true)
 			b.refresh_faction_color()
 		add_resource(0, "food", float(target["resources"]["food"]) * 0.5)
 		add_resource(0, "wood", float(target["resources"]["wood"]) * 0.5)
@@ -840,8 +847,20 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 				wildlife_data.append(animal.serialize())
 
 	var saved_factions := factions.duplicate(true)
-	for faction in saved_factions.values():
+	for fid in saved_factions.keys():
+		var faction: Dictionary = saved_factions[fid]
 		faction["camp_position"] = CampaignSave.pack_position(faction["camp_position"])
+		var fc: Node = faction_controllers.get(int(fid))
+		if is_instance_valid(fc) and fc.has_method("serialize"):
+			var fc_state: Dictionary = fc.serialize()
+			for k in fc_state.keys():
+				faction[k] = fc_state[k]
+
+	var player_ctrl_data: Dictionary = {}
+	if is_instance_valid(player_controller) and player_controller.has_method("serialize"):
+		player_ctrl_data = player_controller.serialize()
+		if saved_factions.has(0):
+			saved_factions[0]["blessing_cooldown"] = float(player_ctrl_data.get("blessing_cooldown", 0.0))
 
 	var save_payload := {
 		"version": CampaignSave.VERSION,
@@ -861,6 +880,7 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 		"combat_commands": combat_command_system.serialize() if is_instance_valid(combat_command_system) else {
 			"selected_warrior_class": -1, "last_issued_order": GameData.SquadOrder.FOLLOW, "global_fire_at_will": true,
 		},
+		"player_controller": player_ctrl_data,
 		"factions": saved_factions,
 		"diplomacy": diplomacy,
 		"units": units_data,

@@ -468,15 +468,24 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 		_create_faction_controllers()
 		_spawn_resources_and_caves()
 	else:
-		_clear_containers([GameState.units_container, GameState.buildings_container, GameState.projectiles_container])
-		if save.has("wildlife"):
-			_clear_containers([GameState.wildlife_container])
+		_clear_containers([
+			GameState.units_container,
+			GameState.buildings_container,
+			GameState.wildlife_container,
+			GameState.projectiles_container,
+		])
+
+	for fid in GameState.faction_controllers.keys():
+		var fc: Node = GameState.faction_controllers[fid]
+		if is_instance_valid(fc) and fc.has_method("restore_from_save"):
+			var fdata: Dictionary = GameState.factions.get(int(fid), {})
+			fc.restore_from_save(fdata)
 
 	if save.has("wildlife"):
 		for entry in save["wildlife"]:
 			var animal := _spawn_animal(entry["animal_type"], entry["pos"])
 			animal.restore_snapshot(entry)
-	elif starting_campaign:
+	else:
 		_spawn_wildlife()
 
 	var b_script := load("res://scripts/entities/building_entity.gd")
@@ -495,5 +504,15 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 		u.restore_snapshot(ud)
 		if u.faction_id == 0 and u.is_leader:
 			leader = u
+	if leader == null and not GameState.get_faction_units(0, true).is_empty():
+		var fc0: Node = GameState.faction_controllers.get(0)
+		if is_instance_valid(fc0) and fc0.has_method("handle_player_leader_death"):
+			fc0.handle_player_leader_death(null)
+			leader = GameState.get_faction_leader(0) as CharacterBody3D
 	if GameState.player_controller != null:
 		GameState.player_controller.setup(leader)
+		var pc_data: Dictionary = save.get("player_controller", {})
+		if not pc_data.has("blessing_cooldown") and GameState.factions.has(0):
+			pc_data = {"blessing_cooldown": float(GameState.factions[0].get("blessing_cooldown", 0.0))}
+		if GameState.player_controller.has_method("restore_from_save"):
+			GameState.player_controller.restore_from_save(pc_data)

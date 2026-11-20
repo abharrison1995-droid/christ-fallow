@@ -92,7 +92,7 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 	var b_info: Dictionary = GameData.BUILDINGS.get(building_type, GameData.BUILDINGS["CAMPFIRE"])
 	build_time = float(b_info["build_time"])
 	var hp_mult := 1.0
-	if GameState.factions.has(faction_id) and GameState.factions[faction_id].get("patron_god") == GameData.PatronGod.KRAG_UL:
+	if GameState.factions.has(faction_id) and int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
 		hp_mult = 1.25
 	max_hp = float(b_info["max_hp"]) * hp_mult
 	hp = max_hp if is_constructed else max_hp * 0.25
@@ -628,10 +628,37 @@ func _fire_watchtower_arrow(target: Node3D) -> void:
 	Projectile3D.spawn(self, faction_id, origin, aim, dmg, 30.0, "ARROW", tier, false)
 
 
+func recalculate_max_hp(preserve_ratio: bool = true) -> void:
+	if is_destroyed:
+		return
+	var b_info: Dictionary = GameData.BUILDINGS.get(building_type, GameData.BUILDINGS["CAMPFIRE"])
+	var hp_mult := 1.0
+	if GameState.factions.has(faction_id) and int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
+		hp_mult = 1.25
+	var new_max: float = float(b_info["max_hp"]) * hp_mult
+	if is_equal_approx(new_max, max_hp):
+		return
+	var ratio: float = clampf(hp / maxf(max_hp, 1.0), 0.0, 1.0)
+	max_hp = new_max
+	if preserve_ratio:
+		hp = clampf(max_hp * ratio, 0.0, max_hp)
+	else:
+		hp = clampf(hp, 0.0, max_hp)
+	sync_visual_from_state()
+
+
 func restore_snapshot(snapshot: Dictionary) -> void:
 	setup(snapshot["building_type"], int(snapshot["faction_id"]), snapshot["pos"], float(snapshot["rot_y"]), snapshot["is_constructed"])
-	build_progress = float(snapshot["build_progress"])
-	hp = float(snapshot["hp"])
+	build_progress = clampf(float(snapshot["build_progress"]), 0.0, build_time)
+	hp = clampf(float(snapshot["hp"]), 0.0, max_hp)
+	if hp <= 0.0:
+		is_destroyed = true
+		damage_stage = 3
+		if _col_shape != null:
+			_col_shape.set_deferred("disabled", true)
+		if _status_bar_mesh != null:
+			_status_bar_mesh.visible = false
+		_sink_timer = 8.0
 	sync_visual_from_state()
 
 

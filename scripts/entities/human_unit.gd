@@ -623,11 +623,12 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 		GameState.add_resource(0, "bone", 2.0)
 		GameState.push_log("Captured Nomadic Caveman %s! Enlighten them in [C] Colony." % unit_name, "success")
 
-	# Tribal Succession if Player Leader falls
+	# Tribal Succession if Player Leader falls (synchronous so there is no leaderless save window)
 	if faction_id == 0 and is_leader:
+		is_player_controlled = false
 		var fc = GameState.faction_controllers.get(0)
 		if fc != null and fc.has_method("handle_player_leader_death"):
-			fc.call_deferred("handle_player_leader_death", self)
+			fc.handle_player_leader_death(self)
 	elif ((faction_id >= 1 and faction_id <= 4) or faction_id == 6) and is_leader:
 		GameState.trigger_conquest_if_eligible(faction_id, killer_faction)
 	elif faction_id == 0:
@@ -1406,7 +1407,22 @@ func _find_nearest_enemy_building(radius: float) -> Node:
 
 func restore_snapshot(snapshot: Dictionary) -> void:
 	setup(snapshot)
-	hp = float(snapshot["hp"])
+	_dusk_eaten_today = int(snapshot.get("dusk_eaten_today", -1))
+	_night_morale_today = int(snapshot.get("night_morale_today", -1))
+	_leader_blessing_cd = maxf(0.0, float(snapshot.get("leader_blessing_cd", 0.0)))
+	_buff_timer = maxf(0.0, float(snapshot.get("buff_timer", 0.0)))
+	if _buff_timer > 0.0:
+		_buff_speed_mult = maxf(0.1, float(snapshot.get("buff_speed_mult", 1.0)))
+		_buff_armor_bonus = float(snapshot.get("buff_armor_bonus", 0.0))
+	else:
+		_buff_speed_mult = 1.0
+		_buff_armor_bonus = 0.0
+	_carry_type = str(snapshot.get("carry_type", ""))
+	_carry_amount = maxf(0.0, float(snapshot.get("carry_amount", 0.0)))
+	if _carry_type.is_empty():
+		_carry_amount = 0.0
+	_field_aid_applied = bool(snapshot.get("field_aid_applied", false))
+	hp = clampf(float(snapshot["hp"]), 0.0, max_hp)
 	_update_hp_bar()
 
 
@@ -1437,6 +1453,7 @@ func serialize() -> Dictionary:
 		"is_healing_in_shack": is_healing_in_shack,
 		"being_rescued": being_rescued,
 		"wounded_timer": wounded_timer,
+		"field_aid_applied": _field_aid_applied,
 		"has_equipped_weapon": has_equipped_weapon,
 		"weapon_tier": weapon_tier,
 		"has_armor": has_armor,
@@ -1446,5 +1463,13 @@ func serialize() -> Dictionary:
 		"fire_at_will": fire_at_will,
 		"is_raiding": is_raiding,
 		"raid_target_pos": CampaignSave.pack_position(raid_target_pos),
+		"dusk_eaten_today": _dusk_eaten_today,
+		"night_morale_today": _night_morale_today,
+		"leader_blessing_cd": _leader_blessing_cd,
+		"buff_timer": _buff_timer,
+		"buff_speed_mult": _buff_speed_mult,
+		"buff_armor_bonus": _buff_armor_bonus,
+		"carry_type": _carry_type,
+		"carry_amount": _carry_amount,
 		"pos": CampaignSave.pack_position(global_position),
 	}

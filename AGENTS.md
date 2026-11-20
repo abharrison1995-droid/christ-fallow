@@ -6,13 +6,13 @@
 ## Working in this project
 
 - Run the source project from `project.godot` with the Godot 4.3 console executable. `ChristFallow.exe` and `Christ Fallow.lnk` are separate launch artifacts (`2026-11-18`) and lag the source.
-- There is currently no `.git` repository in the workspace root; initialize local Git (ignoring `.godot/` and temp outputs) before multi-file refactors.
+- Local Git is initialized on `main` with `.gitignore` excluding `.godot/` and temp outputs; checkpoint cleanly before multi-file refactors.
 - Follow the affected feature from its player-facing entry point through the state change and the HUD update. Several features have both a button and a hotkey. Check both when editing their shared behavior.
 - Use the smallest check that exercises the changed behavior. Record the command, gameplay path, and result so the next agent can reproduce it. Keep temporary probes, test saves, and showcase images outside the project unless they belong in a lasting test or asset.
 
 ## Planning files
 
-- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks the active stabilization slices (`Phase 0`), simulation performance/navigation prerequisites (`Phase 1`), asset promotion, future feature sequencing, and the agentic continuation protocol.
+- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks the completed stabilization slices (`Phase 0`), the active simulation performance/navigation phase (`Phase 1`), asset promotion, future feature sequencing, and the agentic continuation protocol.
 - [Codebase refactor](docs/REFACTOR.md) records the completed 20 November 2026 architecture extraction and verification baseline (spatial indexing moved to [Phase 1](docs/ROADMAP.md#phase-1-simulation-performance--navigation-foundation)).
 - [Future development](docs/FUTURE.md) details the playable opening tutorial, valley expansion, full-screen map, tribal leaders and diplomacy, animal taming, farming, and mounts.
 - [Asset overhaul and combat design](tools/assets/OVERHAUL.md) tracks the active asset rollout and balance proposals. The [asset pipeline plan](tools/assets/PLAN.md) records a completed tooling and leader trial. Use the [asset pipeline guide](tools/assets/README.md) for commands and the [catalog](tools/assets/CATALOG.md) for current coverage.
@@ -105,7 +105,7 @@
    - Current GLB coverage: `2/11` buildings (`SLEEPING_HUT`, `PALISADE_WALL`), `1/7` lineages (`crag_born/` opt-in via `--crag-born-trial`) plus `tribesman_base.glb` (opt-in leader via `--skinned-tribesman-trial`), `2/14` gear kits (`spearman/`, `forager/`), `4` scenery props (`windbent_pine`, `moss_limestone`, `berry_thicket`, `riverbank_reeds`), and `2/6` wildlife (`BOAR`, `SABERTOOTH`). Default rosters still render procedural `HumanMeshBuilder` meshes.
    - Building `.glb` node contract: Root Node3D -> children `Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble` + `Collider-convcolonly` (plus `CampfireLight`, `ShamanLight`, `FlameMesh` when applicable). `FactionTrim` material slots are tinted at runtime with faction colors.
    - Character `.glb` contract uses a 17-bone `Skeleton3D` with vertex skinning, UVs, faction trim, and looping `Idle` and `Walk` clips (plus `GuardIdle` and `GuardWalk` for Crag-Born). Both opt-in trials use the imported rig for locomotion and swap to the procedural rig for work, combat, hit reactions, and death. Verify updates with `build_assets.ps1 -RequireGameplayRig` and `verify_crag_born.gd`.
-   - Fallback: `MeshFactory.build_building_stages()` falls back to procedural geometry if a `.glb` is missing, guaranteeing all 11 building types support all 4 stages. Blueprints (`is_blueprint == true`) and placement ghosts currently always use procedural Stage 0 geometry.
+   - Fallback: `MeshFactory.build_building_stages()` falls back to procedural geometry if a `.glb` is missing, guaranteeing all 11 building types support all 4 stages. Blueprints (`is_blueprint == true`) and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 geometry otherwise.
 
 ---
 

@@ -69,11 +69,34 @@ func setup(p_leader: CharacterBody3D) -> void:
 
 
 func attach_leader(p_leader: CharacterBody3D) -> void:
+	reset_cooldowns()
 	leader_unit = p_leader
 	if leader_unit != null:
 		leader_unit.is_player_controlled = true
 		if camera_pivot != null:
 			camera_pivot.global_position = leader_unit.global_position + Vector3(0.0, 1.4, 0.0)
+
+
+func reset_cooldowns() -> void:
+	_dash_timer = 0.0
+	_dash_cd = 0.0
+	_dash_dir = Vector3.ZERO
+	_attack_cd = 0.0
+	_javelin_cd = 0.0
+	_blessing_cd = 0.0
+	_harvest_cd = 0.0
+	_rmb_dragging = false
+	_rmb_drag_dist = 0.0
+
+
+func serialize() -> Dictionary:
+	return {
+		"blessing_cooldown": maxf(0.0, _blessing_cd),
+	}
+
+
+func restore_from_save(snapshot: Dictionary) -> void:
+	_blessing_cd = maxf(0.0, float(snapshot.get("blessing_cooldown", 0.0)))
 
 
 func enter_build_mode(b_type: String) -> void:

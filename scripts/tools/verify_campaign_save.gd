@@ -99,11 +99,26 @@ func _run() -> void:
 	legacy.erase("combat_commands")
 	legacy.erase("pending_conquests")
 	legacy.erase("player_leader_id")
+	legacy.erase("player_controller")
+	for fkey in legacy["factions"].keys():
+		legacy["factions"][fkey].erase("raid_cooldown")
+		legacy["factions"][fkey].erase("caveman_spawn_timer")
+		legacy["factions"][fkey].erase("diplomacy_event_cd")
 	legacy["version"] = 2
 	var old_wildlife: Node = _state.wildlife_container.get_child(0)
+	old_wildlife.is_dead = true
+	_state.player_controller._blessing_cd = 9.0
 	_write(path, JSON.stringify(legacy))
 	_check(_state.load_game(path), "In-session reload accepts v2")
-	_check(_state.wildlife_container.get_child(0) == old_wildlife, "Missing wildlife preserves existing wildlife during reload")
+	_check(old_wildlife.is_queued_for_deletion() and old_wildlife.get_parent() == null, "Legacy in-session reload clears previous-session wildlife without leaking")
+	_check(_state.wildlife_container.get_child_count() == 25, "Legacy in-session reload respawns clean baseline wildlife")
+	var all_wildlife_alive := true
+	for animal in _state.wildlife_container.get_children():
+		if animal.get("is_dead") == true:
+			all_wildlife_alive = false
+			break
+	_check(all_wildlife_alive, "Respawned baseline wildlife on legacy in-session reload are all alive")
+	_check(is_equal_approx(float(_state.player_controller._blessing_cd), 0.0), "Legacy v2 reload resets PlayerController blessing cooldown cleanly")
 	legacy.erase("version")
 	for unit in legacy["units"]:
 		unit.erase("unit_id")
@@ -121,6 +136,7 @@ func _run() -> void:
 	_check_combat()
 	_check_slice_0a()
 	_check_slice_0b()
+	await _check_slice_0c(path)
 	_unmount()
 	DirAccess.remove_absolute(path)
 	await process_frame
@@ -511,3 +527,240 @@ func _check_slice_0b() -> void:
 	camp1._physics_process(0.1)
 	camp2._physics_process(0.1)
 	_check(is_equal_approx(float(hurt_u.hp), hp_day_before + 5.0), "Campfire heals at Dusk and does not stack linearly across overlapping Campfires")
+
+
+func _find_unit_by_id(uid: int) -> Node:
+	if _state.units_container == null:
+		return null
+	for u in _state.units_container.get_children():
+		if is_instance_valid(u) and int(u.get("unit_id")) == uid:
+			return u
+	return null
+
+
+func _check_slice_0c(path: String) -> void:
+	_state.start_new_campaign("Enoch", "Slice0C Probe", GameData.Lineage.CRAG_BORN)
+	var colony: Node = _state.faction_controllers[0]
+	var pc: Node = _state.player_controller
+
+	# A. Destroyed/rubble buildings (damage_stage == 3) excluded from get_faction_buildings() & save/load, and hp clamp on load
+	var rubble_hut: Node = colony.spawn_building("SLEEPING_HUT", Vector3(20.0, 0.0, 52.0), 0.0, true)
+	colony.spawn_building("PALISADE_WALL", Vector3(26.0, 0.0, 52.0), 0.2, true)
+	rubble_hut.take_damage(rubble_hut.max_hp + 100.0, 5)
+	_check(rubble_hut.is_destroyed and int(rubble_hut.damage_stage) == 3, "Destroyed building enters rubble stage 3")
+	_check(_state.get_faction_buildings(0, "SLEEPING_HUT", false).is_empty(), "Rubble building excluded from get_faction_buildings()")
+	_check(_state.save_game(path), "Save succeeds with rubble building present")
+	var snap_a: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var saved_player_huts := 0
+	for bd in snap_a["buildings"]:
+		if int(bd["faction_id"]) == 0 and str(bd["building_type"]) == "SLEEPING_HUT":
+			saved_player_huts += 1
+		if int(bd["faction_id"]) == 0 and str(bd["building_type"]) == "PALISADE_WALL":
+			bd["hp"] = 9999.0
+	_check(saved_player_huts == 0, "Rubble building is not written to save payload")
+	_write(path, JSON.stringify(snap_a))
+	_check(_state.load_game(path), "Reload succeeds with over-max building HP fixture")
+	var reloaded_walls: Array = _state.get_faction_buildings(0, "PALISADE_WALL", true)
+	_check(reloaded_walls.size() == 1 and is_equal_approx(float(reloaded_walls[0].hp), float(reloaded_walls[0].max_hp)), "Building restore_snapshot clamps hp to max_hp")
+	_check(_state.get_faction_buildings(0, "SLEEPING_HUT", false).is_empty(), "No rubble building remains after load")
+
+	# B. Live KRAG_UL building max_hp scaling & clamp + PatronGod / Tenet persistence
+	var base_wall_hp: float = float(GameData.BUILDINGS["PALISADE_WALL"]["max_hp"])
+	var wall_full: Node = reloaded_walls[0]
+	colony = _state.faction_controllers[0]
+	var wall_half: Node = colony.spawn_building("PALISADE_WALL", Vector3(32.0, 0.0, 52.0), 0.0, true)
+	wall_half.hp = wall_half.max_hp * 0.5
+	wall_half.sync_visual_from_state()
+	_state.select_player_patron(GameData.PatronGod.KRAG_UL)
+	_check(is_equal_approx(float(wall_full.max_hp), base_wall_hp * 1.25) and is_equal_approx(float(wall_full.hp), base_wall_hp * 1.25), "KRAG_UL scales existing full-HP building max_hp and hp by 1.25x")
+	_check(is_equal_approx(float(wall_half.max_hp), base_wall_hp * 1.25) and is_equal_approx(float(wall_half.hp), base_wall_hp * 1.25 * 0.5), "KRAG_UL preserves damaged building HP ratio")
+	_state.select_player_patron(GameData.PatronGod.VALK_TOR)
+	_check(is_equal_approx(float(wall_full.max_hp), base_wall_hp) and float(wall_full.hp) <= float(wall_full.max_hp) + 0.001, "Switching away from KRAG_UL reverts building max_hp and clamps hp")
+	_check(is_equal_approx(float(wall_half.max_hp), base_wall_hp) and is_equal_approx(float(wall_half.hp), base_wall_hp * 0.5), "Switching away from KRAG_UL preserves damaged building ratio")
+	_state.select_player_patron(GameData.PatronGod.KRAG_UL)
+	_state.set_player_tenet("ANCESTRAL_STONE", true)
+	_state.set_player_tenet("KINSHIP", true)
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load PatronGod and Tenets")
+	_check(int(_state.factions[0]["patron_god"]) == GameData.PatronGod.KRAG_UL, "KRAG_UL patron persists across save/load")
+	var loaded_tenets: Array = _state.factions[0]["tenets"]
+	_check(loaded_tenets.has("ANCESTRAL_STONE") and loaded_tenets.has("KINSHIP") and loaded_tenets.size() == 2, "Adopted tenets persist across save/load")
+	for wb in _state.get_faction_buildings(0, "PALISADE_WALL", true):
+		_check(is_equal_approx(float(wb.max_hp), base_wall_hp * 1.25) and float(wb.hp) <= float(wb.max_hp) + 0.001, "KRAG_UL building max_hp and hp clamp hold after reload")
+
+	# C. captured_cavemen, craft_queue, blessing_cooldown, transient cooldown resets, unit buffs/carry/daily flags, and faction AI timers
+	colony = _state.faction_controllers[0]
+	pc = _state.player_controller
+	_state.factions[0]["captured_cavemen"] = 3
+	_state.factions[0]["craft_queue"] = ["spears", "armor"]
+	pc._blessing_cd = 11.5
+	pc._dash_cd = 1.6
+	pc._dash_timer = 0.15
+	pc._attack_cd = 0.35
+	pc._javelin_cd = 0.85
+	pc._harvest_cd = 0.30
+	var worker: Node = colony.spawn_colonist(Vector3(14.0, 0.0, 52.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.STONEKNAPPER)
+	var worker_id: int = int(worker.unit_id)
+	worker._dusk_eaten_today = 2
+	worker._night_morale_today = 2
+	worker._buff_timer = 7.5
+	worker._buff_speed_mult = 1.35
+	worker._buff_armor_bonus = 6.0
+	worker._carry_type = "flint"
+	worker._carry_amount = 4.0
+	var rival1_leader: Node = _state.get_faction_leader(1)
+	var rival1_leader_id: int = int(rival1_leader.unit_id)
+	rival1_leader._leader_blessing_cd = 12.25
+	var fc1: Node = _state.faction_controllers[1]
+	var fc5: Node = _state.faction_controllers[5]
+	fc1._raid_cooldown = 33.5
+	fc1._diplomacy_event_cd = 19.0
+	fc5._caveman_spawn_timer = 17.5
+	_check(_state.save_game(path), "Save succeeds with full Slice 0C runtime state")
+	var snap_c: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+
+	# Mutate live values to prove load restores from snapshot rather than leaking live state
+	pc._blessing_cd = 1.0
+	pc._dash_cd = 1.9
+	pc._attack_cd = 0.4
+	pc._javelin_cd = 0.9
+	pc._harvest_cd = 0.4
+	fc1._raid_cooldown = 1.0
+	fc5._caveman_spawn_timer = 1.0
+	_check(_state.load_game(path), "Reload restores Slice 0C runtime state")
+	_check(int(_state.factions[0]["captured_cavemen"]) == 3, "captured_cavemen persists across save/load")
+	_check(_state.factions[0]["craft_queue"] == ["spears", "armor"], "craft_queue persists across save/load")
+	_check(is_equal_approx(float(pc._blessing_cd), 11.5), "PlayerController _blessing_cd persists across save/load")
+	_check(
+		is_equal_approx(float(pc._dash_cd), 0.0) and is_equal_approx(float(pc._dash_timer), 0.0)
+		and is_equal_approx(float(pc._attack_cd), 0.0) and is_equal_approx(float(pc._javelin_cd), 0.0)
+		and is_equal_approx(float(pc._harvest_cd), 0.0),
+		"Transient PlayerController cooldowns reset cleanly on load"
+	)
+	var r_worker: Node = _find_unit_by_id(worker_id)
+	_check(r_worker != null, "Saved worker restored by unit_id")
+	if r_worker != null:
+		_check(int(r_worker._dusk_eaten_today) == 2 and int(r_worker._night_morale_today) == 2, "Unit daily eat & morale flags persist")
+		_check(
+			is_equal_approx(float(r_worker._buff_timer), 7.5)
+			and is_equal_approx(float(r_worker._buff_speed_mult), 1.35)
+			and is_equal_approx(float(r_worker._buff_armor_bonus), 6.0),
+			"Unit buff timer, speed multiplier, and armor bonus persist"
+		)
+		_check(str(r_worker._carry_type) == "flint" and is_equal_approx(float(r_worker._carry_amount), 4.0), "Unit carried resource persists")
+	var r_rival1_leader: Node = _find_unit_by_id(rival1_leader_id)
+	_check(r_rival1_leader != null and is_equal_approx(float(r_rival1_leader._leader_blessing_cd), 12.25), "Rival leader _leader_blessing_cd persists")
+	_check(
+		is_equal_approx(float(_state.faction_controllers[1]._raid_cooldown), 33.5)
+		and is_equal_approx(float(_state.faction_controllers[1]._diplomacy_event_cd), 19.0)
+		and is_equal_approx(float(_state.faction_controllers[5]._caveman_spawn_timer), 17.5),
+		"FactionController AI raid/diplomacy/caveman timers persist"
+	)
+
+	# D. Mismatched non-zero player_leader_id rejected without mutating live campaign
+	var bad_leader_snap: Dictionary = snap_c.duplicate(true)
+	bad_leader_snap["player_leader_id"] = 999999
+	var live_leader_before: Node = _state.get_faction_leader(0)
+	var live_captured_before: int = int(_state.factions[0]["captured_cavemen"])
+	_write(path, JSON.stringify(bad_leader_snap))
+	_check(not _state.load_game(path), "Mismatched non-zero player_leader_id is rejected")
+	_check(
+		_state.get_faction_leader(0) == live_leader_before and int(_state.factions[0]["captured_cavemen"]) == live_captured_before,
+		"Rejected mismatched player_leader_id leaves live campaign untouched"
+	)
+
+	# E. Wounded / healing / revolting unit states persist across save/load
+	colony = _state.faction_controllers[0]
+	var u_wounded: Node = colony.spawn_colonist(Vector3(10.0, 0.0, 56.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	var u_wounded_id: int = int(u_wounded.unit_id)
+	u_wounded.enter_wounded_state()
+	u_wounded.apply_field_aid()
+	var wounded_t_saved: float = float(u_wounded.wounded_timer)
+	var u_healing: Node = colony.spawn_colonist(Vector3(12.0, 0.0, 56.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.FORAGER)
+	var u_healing_id: int = int(u_healing.unit_id)
+	u_healing.enter_wounded_state()
+	u_healing.send_to_shaman_shack(Vector3(12.0, 0.0, 58.0))
+	var u_revolt: Node = colony.spawn_colonist(Vector3(14.0, 0.0, 56.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	var u_revolt_id: int = int(u_revolt.unit_id)
+	u_revolt.is_revolting = true
+	u_revolt.faction_id = -2
+	u_revolt.original_faction_id = 0
+	u_revolt.morale = 12.0
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load succeeds with wounded, healing, and revolting units")
+	var rw: Node = _find_unit_by_id(u_wounded_id)
+	var rh: Node = _find_unit_by_id(u_healing_id)
+	var rr: Node = _find_unit_by_id(u_revolt_id)
+	_check(
+		rw != null and rw.is_wounded and not rw.is_healing_in_shack and int(rw.faction_id) == -3
+		and int(rw.original_faction_id) == 0 and rw._field_aid_applied and is_equal_approx(float(rw.wounded_timer), wounded_t_saved),
+		"Wounded unit state, timer, and field-aid flag persist"
+	)
+	_check(
+		rh != null and rh.is_wounded and rh.is_healing_in_shack and rh.being_rescued
+		and int(rh.faction_id) == -3 and int(rh.original_faction_id) == 0,
+		"Healing-in-shack unit state persists"
+	)
+	_check(
+		rr != null and rr.is_revolting and int(rr.faction_id) == -2
+		and int(rr.original_faction_id) == 0 and is_equal_approx(float(rr.morale), 12.0),
+		"Revolting unit state persists"
+	)
+
+	# F. Multi-tribe + faction-6 pending_conquests persistence across cold load
+	var defector: Node = _state.faction_controllers[0].spawn_colonist(Vector3(8.0, 0.0, 56.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
+	_state.found_rebel_faction(defector)
+	_check(bool(_state.factions[6]["is_founded"]), "Outcast Rebels (faction 6) founded for conquest persistence test")
+	for cid in [1, 2, 6]:
+		var cl: Node = _state.get_faction_leader(cid)
+		_check(cl != null, "Faction %d has a leader before triggering conquest" % cid)
+		if cl != null:
+			cl.is_dead = true
+		_state.trigger_conquest_if_eligible(cid, 0)
+	_check(
+		_state._conquest_pending_factions.has(1) and _state._conquest_pending_factions.has(2) and _state._conquest_pending_factions.has(6),
+		"Multi-tribe + faction-6 conquests queued"
+	)
+	_check(_state.save_game(path), "Save succeeds with multi-tribe + faction-6 pending_conquests")
+	_unmount()
+	await process_frame
+	_mount()
+	_check(_state.load_game(path), "Cold load restores multi-tribe + faction-6 pending_conquests")
+	_check(
+		_state._conquest_pending_factions.has(1) and _state._conquest_pending_factions.has(2) and _state._conquest_pending_factions.has(6)
+		and _state.is_paused,
+		"All three pending conquests (1, 2, 6) and conquest pause restore on cold load"
+	)
+	_state.resolve_conquest(1, "RAZE")
+	_state.resolve_conquest(2, "TRIBUTARY")
+	_state.resolve_conquest(6, "RAZE")
+	_check(_state._conquest_pending_factions.is_empty() and not _state.is_paused, "Resolving all restored conquests clears queue and pause")
+
+	# G. AwakeningGuide steps 1, 2, 4, and skip persist across save/load
+	_state.start_new_campaign("Enoch", "Guide Persistence", GameData.Lineage.CRAG_BORN)
+	_check(is_equal_approx(float(_state.player_controller._blessing_cd), 0.0), "start_new_campaign resets PlayerController _blessing_cd")
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide step 1")
+	_check(_state.tutorial_step == 1 and not _state.tutorial_skipped and not _state.tutorial_completed, "AwakeningGuide step 1 persists")
+	_state.tutorial_step = 2
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide step 2")
+	_check(_state.tutorial_step == 2 and not _state.tutorial_skipped, "AwakeningGuide step 2 persists")
+	_state.tutorial_step = 4
+	_state.tutorial_harvested = true
+	_state.tutorial_assigned_role = true
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide step 4")
+	_check(_state.tutorial_step == 4 and _state.tutorial_harvested and _state.tutorial_assigned_role, "AwakeningGuide step 4 persists")
+	_state.skip_awakening_guide()
+	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide skip")
+	_check(_state.tutorial_skipped and not _state.tutorial_completed and _state.bandit_grace_remaining > 0.0, "AwakeningGuide skip and Peace Buffer persist")
+
+	# H. Synchronous player leader succession prevents 1-frame leaderless save window
+	_state.start_new_campaign("Enoch", "Succession Sync", GameData.Lineage.CRAG_BORN)
+	var old_leader: Node = _state.get_faction_leader(0)
+	var heir: Node = _state.faction_controllers[0].spawn_colonist(Vector3(6.0, 0.0, 52.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.WARRIOR)
+	var heir_id: int = int(heir.unit_id)
+	old_leader.take_damage(9999.0, null, 5)
+	_check(old_leader.is_dead, "Old player leader dies on lethal hit")
+	_check(_state.get_faction_leader(0) == heir and heir.is_leader and heir.is_player_controlled, "Successor is promoted synchronously with zero leaderless frame")
+	_check(_state.player_controller.leader_unit == heir, "PlayerController attaches promoted successor synchronously")
+	_check(_state.save_game(path), "Immediate same-frame save after leader death succeeds")
+	var succ_snap: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	_check(int(succ_snap.get("player_leader_id", 0)) == heir_id, "Same-frame save records successor as player_leader_id")
+	_check(_state.load_game(path) and int(_state.get_faction_leader(0).unit_id) == heir_id, "Reloading same-frame succession save restores promoted leader")
