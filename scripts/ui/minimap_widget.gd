@@ -135,6 +135,9 @@ func _draw() -> void:
 				draw_circle(mp, 2.4 if u.get("is_leader") else 1.8, col)
 				if u.get("is_raiding") and GameState.is_hostile(0, fid):
 					draw_arc(mp, pulse, 0.0, TAU, 16, Color(1.0, 0.28, 0.22, 0.85), 1.5)
+	var waypoint: Variant = GameState.hud_controller.get_world_waypoint() if is_instance_valid(GameState.hud_controller) else null
+	if waypoint is Vector3:
+		_draw_diamond(_to_map(waypoint), 4.8, Look.ICE)
 
 	# Draw Awakening Guide Objective Ring
 	var guide_target: Dictionary = AwakeningGuide.get_objective_target(GameState)

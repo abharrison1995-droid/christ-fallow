@@ -82,6 +82,7 @@
 - [scripts/ui/drawers/](scripts/ui/drawers/) — [FeatureDrawer](scripts/ui/drawers/feature_drawer.gd) base class plus Tribal Command, Build, Colony, Faith, and Diplomacy. [Shared options](scripts/ui/hud_drawers.gd) provide squad/order definitions and role/class option builders.
 - [scripts/ui/unit_inspector.gd](scripts/ui/unit_inspector.gd) and [scripts/ui/campaign_overlays.gd](scripts/ui/campaign_overlays.gd) — Unit detail and campaign dialogs. Use `GameState` actions for role, faith, and pause transitions.
 - [scripts/ui/minimap_widget.gd](scripts/ui/minimap_widget.gd) — Valley Radar draws camps, structures, caves, units, boss wildlife, and raid markers. The active layout’s `radar_half_extent` sets the projection.
+- [scripts/ui/world_map_overlay.gd](scripts/ui/world_map_overlay.gd) — Full-screen World Map toggles with `M` or a Valley Radar click. It uses active layout geography for pan, zoom, landmarks and waypoint projection. `Tab` remains Tribal Command. The HUD blocks world input while the map is open and clears the waypoint on campaign start or load.
 
 ---
 

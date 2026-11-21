@@ -203,10 +203,10 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 ## Phase 3: Larger 760×760 m Valley & Full-Screen World Map
 
-> **3A delivered. 3B is next.** [Future work](FUTURE.md#larger-valley-and-accessible-world-map) · [Handoff](HANDOFF.md#track-b--phase-3-larger-760760-m-valley--full-screen-world-map)
+> **Completed 21 Nov 2026.** [Future work](FUTURE.md#larger-valley-and-accessible-world-map) · [Handoff](HANDOFF.md#track-b--phase-3-larger-760760-m-valley--full-screen-world-map)
 
 - **Slice 3A (Expanded layout & `v4` saves), completed 21 Nov 2026.** New Game uses `valley_expanded_760`, with five fords, at least 170 m between settled starting camps, a 62 m growth radius, and a 190×190 navigation grid. Layout-specific rivers, cave sites, camps, wildlife territories, and bounds are shared across terrain, movement, camera, and radar. `v4` stores the layout ID, and prior versions restore `valley_classic_380` with their saved coordinates. [Layout data](../scripts/core/world_layout.gd) · [Expanded valley verifier](../scripts/tools/verify_expanded_valley.gd)
-- **Slice 3B (Full-screen World Map & `M` key reassignment):** Add `scripts/ui/world_map_overlay.gd` (pan/zoom, camps/landmarks/fords/objectives, click-to-mark waypoint), move `M` to World Map (keep `Tab` for Tribal Command) across `hud_controller.gd`, `settings_screen.gd`, `README.md`, `AGENTS.md`, and `verify_campaign_ui.gd`, and add `scripts/tools/verify_expanded_valley.gd`.
+- **Slice 3B (Full-screen World Map), completed 21 Nov 2026.** Open with `M` or a Valley Radar click, pan with right mouse, zoom with the wheel, and left-click for a waypoint. `Tab` still opens Tribal Command. Verified all three UI sizes, input capture, layout projection, and waypoint placement. [World Map overlay](../scripts/ui/world_map_overlay.gd) · [UI verifier](../scripts/tools/verify_campaign_ui.gd)
 
 ### Slice 3A benchmark
 
@@ -246,7 +246,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** Continue with 3B, then Phase 4 and Phase 5. [Handoff](HANDOFF.md)
+1. **Pick one slice.** Continue with Phase 4, then Phase 5. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.

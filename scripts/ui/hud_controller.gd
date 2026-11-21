@@ -5,6 +5,7 @@ const HUDDrawers = preload("res://scripts/ui/hud_drawers.gd")
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const CampaignOverlays = preload("res://scripts/ui/campaign_overlays.gd")
 const Inspector = preload("res://scripts/ui/unit_inspector.gd")
+const WorldMap = preload("res://scripts/ui/world_map_overlay.gd")
 const DRAWERS := {
 	"BUILD": preload("res://scripts/ui/drawers/build_drawer.gd"),
 	"COLONY": preload("res://scripts/ui/drawers/colony_drawer.gd"),
@@ -19,6 +20,7 @@ const DRAWER_LINKS := [
 ]
 
 var _overlays: Control
+var _world_map: WorldMap
 var _event_panel: PanelContainer
 var _latest_event: Label
 var _event_toggle: Button
@@ -89,6 +91,9 @@ func _ready() -> void:
 	_build_raid_panel()
 	_inspector_panel = Inspector.new()
 	add_child(_inspector_panel)
+	_world_map = WorldMap.new()
+	add_child(_world_map)
+	_world_map.close_requested.connect(_world_map.close)
 	_overlays.cover_requested.connect(func():
 		close_drawer()
 		_set_hud_visible(false)
@@ -109,6 +114,7 @@ func _ready() -> void:
 	GameState.diplomacy_changed.connect(_on_diplomacy_changed)
 	GameState.religion_changed.connect(_on_religion_changed)
 	GameState.campaign_loaded.connect(_on_campaign_loaded)
+	GameState.game_started.connect(_world_map.clear_campaign)
 	if GameState.combat_command_system != null:
 		GameState.combat_command_system.selection_changed.connect(_on_squad_selection_changed)
 
@@ -184,6 +190,26 @@ func _input(event: InputEvent) -> void:
 		if key == KEY_ESCAPE and _overlays.dismiss_confirmation():
 			get_viewport().set_input_as_handled()
 		return
+	if _world_map.visible:
+		match key:
+			KEY_M, KEY_ESCAPE:
+				_world_map.close()
+			KEY_P:
+				_world_map.close()
+				_overlays.toggle_pause()
+			KEY_F9:
+				_overlays.save_campaign()
+			KEY_F10:
+				_overlays.quick_load_campaign()
+			KEY_TAB:
+				if event.shift_pressed:
+					return
+				_world_map.close()
+				toggle_drawer("MENU")
+			_:
+				return
+		get_viewport().set_input_as_handled()
+		return
 	if key == KEY_P:
 		_overlays.toggle_pause()
 	elif key == KEY_ESCAPE:
@@ -205,7 +231,9 @@ func _input(event: InputEvent) -> void:
 		_overlays.quick_load_campaign()
 	elif _overlays.is_pause_visible():
 		return
-	elif key == KEY_M or (key == KEY_TAB and not event.shift_pressed):
+	elif key == KEY_M:
+		toggle_world_map()
+	elif key == KEY_TAB and not event.shift_pressed:
 		toggle_drawer("MENU")
 	elif key == KEY_B:
 		toggle_drawer("BUILD")
@@ -223,7 +251,23 @@ func _input(event: InputEvent) -> void:
 
 
 func blocks_world_input() -> bool:
-	return _drawer_panel.visible or _overlays.blocks_world_input()
+	return _world_map.visible or _drawer_panel.visible or _overlays.blocks_world_input()
+
+
+func toggle_world_map() -> void:
+	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished or _overlays.blocks_world_input():
+		return
+	if _world_map.visible:
+		_world_map.close()
+		return
+	_dismiss_open_popup()
+	close_drawer()
+	_close_inspector()
+	_world_map.open()
+
+
+func get_world_waypoint() -> Variant:
+	return _world_map.waypoint if is_instance_valid(_world_map) else null
 
 
 func _process(delta: float) -> void:
@@ -261,6 +305,7 @@ func _set_hud_visible(vis: bool) -> void:
 	_event_panel.visible = vis
 	_squad_bar.visible = vis
 	if not vis:
+		_world_map.close()
 		_build_banner.hide()
 		_inspector_panel.close()
 		_raid_panel.hide()
@@ -443,16 +488,28 @@ func _build_minimap() -> void:
 	_minimap_panel.offset_left = -232
 	_minimap_panel.offset_right = -20
 	_minimap_panel.offset_top = 18
+	_minimap_panel.mouse_filter = MOUSE_FILTER_STOP
+	_minimap_panel.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+	_minimap_panel.tooltip_text = "Open World Map [M]"
+	_minimap_panel.gui_input.connect(_on_radar_input)
 	_minimap_panel.add_theme_stylebox_override("panel", Look.panel(Look.INK, Look.EDGE, 10))
 	add_child(_minimap_panel)
 	var stack := VBoxContainer.new()
 	stack.add_theme_constant_override("separation", 7)
+	stack.mouse_filter = MOUSE_FILTER_IGNORE
 	_minimap_panel.add_child(stack)
-	stack.add_child(Look.label("Valley Radar", &"SectionTitle", 19))
+	stack.add_child(Look.label("Valley Radar  [M]", &"SectionTitle", 19))
 	var minimap := Control.new()
 	minimap.set_script(preload("res://scripts/ui/minimap_widget.gd"))
 	minimap.custom_minimum_size = Vector2(190, 173)
+	minimap.mouse_filter = MOUSE_FILTER_IGNORE
 	stack.add_child(minimap)
+
+
+func _on_radar_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		toggle_world_map()
+		_minimap_panel.accept_event()
 
 
 func _build_log_panel() -> void:
@@ -663,6 +720,7 @@ func activate_campaign() -> void:
 
 func _on_campaign_loaded() -> void:
 	_overlays.reset()
+	_world_map.clear_campaign()
 	_raid_panel.hide()
 	_raid_banner_timer = 0.0
 	_close_inspector()

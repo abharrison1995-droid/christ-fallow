@@ -28,7 +28,8 @@ func _ready() -> void:
 		["Inspect friendly or wounded unit", "Left-Click on unit"],
 		["Build / Colony / Faith / Diplomacy", "B / C / R (outside build) / V"],
 		["Place / Continuous / Rotate / Cancel", "LMB / Shift + LMB / T / RMB or Esc"],
-		["Command / Pause", "Tab or M / P or Esc"],
+		["Tribal Command / Pause", "Tab / P or Esc"],
+		["World Map", "M or click Valley Radar"],
 		["Select squad / Orders / Warhorn", "1–6 / F1–F6 / H"],
 		["Quick Save / Quick Load", "F9 / F10"],
 	]:

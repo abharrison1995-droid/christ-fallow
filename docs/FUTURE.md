@@ -30,12 +30,12 @@ Both valleys include the Slateback Boar and Reedjaw in layout-specific territori
 - [x] **Give tribes more room.** The 760 m layout gives the settled starting sites at least 170 m of separation and a 62 m growth radius. The nearest rival is about 197 m away.
 - [x] **Extend the shared world layout.** Each layout defines its own camps, caves, wildlife territories, fords, and movement, building, camera, and radar bounds. Starting camps keep nearby trees, stone, flint, and berries.
 - [ ] **Keep distant tribes active.** Check camp construction, civilian hauling, raid arrival and return, enemy scan cost, and routes around rivers or walls. Preserve the 210-second opening Peace Buffer in the first prototype so spacing can be measured independently. Adjust timing after testing.
-- [ ] **Add a full-screen World Map.** Open it from the HUD or Valley Radar. Provide pan, zoom, a player marker, known camps, and landmarks. Today `Tab` and `M` both open Tribal Command. If `M` moves to the map, keep `Tab` for Tribal Command and update the HUD, Settings controls reference, and README together. Evaluate fog of war and click-to-mark waypoints with the larger valley prototype.
+- [x] **Add a full-screen World Map.** `M` or a Valley Radar click opens a pannable map with zoom, camps, caves, fords, the player, and the current objective. Left-click places a waypoint on the map and radar. `Tab` opens Tribal Command. Fog of war remains a potential future addition.
 - [x] **Version the layout in saves.** `v4` records the layout ID. `v1` through `v3` load in `valley_classic_380` with their saved coordinates. Switching layouts regenerates the appropriate terrain and caves.
 
 **Ready to ship when** all starting tribes can grow a useful colony, resources and crossings are reachable, raids still travel and resolve, and map markers agree with in-world positions across pan, zoom, and save/load.
 
-**Verification probe:** Run a Forward+ `SceneTree` layout probe asserting camp spacings (`>= 170 m`), river-crossing reachability, World Map coordinate projection + `M` hotkey routing, `v4` layout-ID save/load round-trip, and `REFACTOR.md` physics median parity.
+The expanded valley verifier covers camp spacing, cross-bank routes, distant colony construction, world-to-map projection through pan and zoom, waypoint placement, and layout save/load. The UI verifier covers both map entry points and `Tab` routing at all three supported review sizes. [Expanded valley verifier](../scripts/tools/verify_expanded_valley.gd) · [Campaign UI verifier](../scripts/tools/verify_campaign_ui.gd)
 
 [Terrain and spawning](../scripts/systems/world_generator.gd) · [Camp presets](../scripts/core/game_data.gd) · [Radar](../scripts/ui/minimap_widget.gd) · [HUD keyboard routing](../scripts/ui/hud_controller.gd) · [Save handling](../scripts/core/campaign_save.gd)
 

@@ -1,5 +1,5 @@
 extends SceneTree
-## Verifies both terrain layouts, long-distance routes, and layout-versioned saves.
+## Verifies both terrain layouts, long-distance routes, layout-versioned saves and World Map input.
 
 const Layout = preload("res://scripts/core/world_layout.gd")
 
@@ -26,6 +26,8 @@ func _run() -> void:
 	_check(_state.start_new_campaign("Enoch", "Expanded Valley", GameData.Lineage.CRAG_BORN), "New Game starts")
 	_verify_geography()
 	_verify_routes()
+	_verify_distant_colony()
+	await _verify_map()
 	_verify_layout_saves("user://expanded-valley-%d.json" % Time.get_ticks_usec())
 	_state.end_campaign()
 	root.remove_child(_main)
@@ -117,6 +119,69 @@ func _crosses_open_water(start: Vector3, path: PackedVector3Array) -> bool:
 	return crossed
 
 
+func _verify_distant_colony() -> void:
+	var faction: Node = _state.faction_controllers[3]
+	var count: int = _state.get_faction_buildings(3, "SLEEPING_HUT").size()
+	faction._run_rival_leader_ai()
+	var huts: Array = _state.get_faction_buildings(3, "SLEEPING_HUT")
+	_check(huts.size() > count, "The distant western colony queues a new hut during the Peace Buffer")
+	for hut in huts:
+		if not hut.is_constructed:
+			var camp: Vector3 = _state.factions[3]["camp_position"]
+			_check(camp.distance_to(hut.global_position) < _state.valley_layout.settlement_radius,
+				"Distant construction stays within the settlement")
+			hut.advance_construction(hut.build_time + 0.1)
+			_check(hut.is_constructed, "The distant colony's hut can finish construction")
+
+
+func _verify_map() -> void:
+	var hud: Node = _state.hud_controller
+	var event := InputEventKey.new()
+	event.keycode = KEY_M
+	event.pressed = true
+	root.push_input(event, true)
+	await process_frame
+	await process_frame
+	var map: Control = hud._world_map
+	if not _check(map.visible and hud.blocks_world_input(), "M opens the full-screen map and blocks world input"):
+		return
+	var location := Vector3(64, 0, -54)
+	var rect: Rect2 = map._map_area.get_global_rect()
+	var initial: Vector2 = map.world_to_map(location)
+	_check(map.map_to_world(initial).is_equal_approx(location), "Default map projection round-trips world coordinates")
+	var zoom := InputEventMouseButton.new()
+	zoom.button_index = MOUSE_BUTTON_WHEEL_UP
+	zoom.pressed = true
+	zoom.position = rect.position + initial
+	root.push_input(zoom, true)
+	_check(map._zoom > 1.0 and map.world_to_map(location).is_equal_approx(initial), "Wheel zoom keeps the world point under the cursor")
+	var grab := InputEventMouseButton.new()
+	grab.button_index = MOUSE_BUTTON_RIGHT
+	grab.position = rect.position + initial
+	grab.pressed = true
+	root.push_input(grab, true)
+	var drag := InputEventMouseMotion.new()
+	drag.position = grab.position + Vector2(24, 18)
+	drag.relative = Vector2(24, 18)
+	drag.button_mask = MOUSE_BUTTON_MASK_RIGHT
+	root.push_input(drag, true)
+	grab = grab.duplicate()
+	grab.pressed = false
+	grab.position = drag.position
+	root.push_input(grab, true)
+	var projected: Vector2 = map.world_to_map(location)
+	_check(not projected.is_equal_approx(initial) and map.map_to_world(projected).is_equal_approx(location),
+		"Dragging changes projection and preserves world coordinate parity")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	click.position = rect.position + projected
+	root.push_input(click, true)
+	var marker: Variant = hud.get_world_waypoint()
+	_check(marker is Vector3 and marker.is_equal_approx(location), "Click places a waypoint at the projected world point")
+
+
+
 func _verify_layout_saves(path: String) -> void:
 	var layout: Layout = _state.valley_layout
 	var expanded_camp := layout.camp_position(3)
@@ -145,6 +210,7 @@ func _verify_layout_saves(path: String) -> void:
 		"A v3 save restores the classic terrain without moving its camps")
 	_check(is_equal_approx(_state.player_controller.camera.far, _state.valley_layout.camera_far), "The camera adopts the loaded layout bounds")
 	_verify_caves()
+	_check(_state.hud_controller.get_world_waypoint() == null, "Loading clears the previous campaign's waypoint")
 	DirAccess.remove_absolute(path)
 
 
