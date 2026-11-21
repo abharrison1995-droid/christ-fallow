@@ -26,10 +26,12 @@ Awaken enlightened in a primeval Stone Age valley. Choose your tribal bloodline,
 | Emergency Civilian Warhorn | `H` |
 | Tribal Command / Pause / Quick Save / Quick Load | `Tab` / `P` or `Esc` / `F9` / `F10` |
 | World Map | `M` or click Valley Radar. Right-drag to pan, scroll to zoom, and left-click to set a waypoint. |
+| Negotiate with a rival leader | Approach their nameplate and press `E`. |
 
 ## Core Systems Implemented
 - **6 Playable Races + Feral Cave-Kin**: Tall Folk (*Goliath*), Small Folk (*Swift-Kin*), Lean Folk (*Stalker*), Hardy Folk (*Crag-Born*), Ash-Born (*Ember-Kin*), Fen-Tidal (*Mire-Folk*), and *Feral Cave-Kin* with distinct anatomical models, racial features, combat/gathering stats, and articulated damage, attack & death animations.
 - **760×760 m Valley**. New campaigns start in a larger valley with five river fords, four distant rival camps, and resources near every starting camp. Older saves open in the classic 380 m valley. The full-screen World Map shows camps, caves, fords, and the active Awakening objective. Waypoints also appear on Valley Radar.
+- **Tribal Diplomacy**. Visit a named leader to offer gifts, negotiate peace, or propose an alliance. Peace protects both tribes through two day changes. Tributaries send food and flint from their own stockpiles each day.
 - **Early-Game Peace Buffer, Awakening Guide & Villager Self-Defense**: 3m30s raid-free Peace Buffer before bandits/raiders attack, interactive 5-step Awakening tutorial (3D objective beacon, `[E]` proximity prompts, HUD checklists/highlights, `Build` recommendations, and Valley Radar pulse), `[E]` manual construction assist & floating yield popups, and weak bare-hand punches (`UNARMED_PUNCH`) when unarmed villagers are cornered or defending camp.
 - **Strictly Stone Age Economy & Crafting**: Gather Food, Wood, Stone, Flint, Hide, Bone, and Faith. Craft Spears, Flint Knives, Bows, Bone War-Clubs, Barbed Javelins, and Hide/Bone Armor across 3 Stone Age quality tiers (*Crude Wood/Stone → Knapped Flint → Obsidian & Carved Bone*).
 - **Day / Dusk / Night Schedule**: Colonists physically gather/build/craft by day, eat and heal around the Campfire at dusk, and sleep/reproduce inside Sleeping Huts at night while Watchtowers guard against raiders.

@@ -95,6 +95,7 @@ static func unpack(parsed: Variant) -> Dictionary:
 		if not GameData.DiplomaticState.values().has(relation["state"]):
 			return {}
 		relation["opinion_mod"] = int(relation["opinion_mod"])
+		relation["truce_timer"] = maxf(0.0, float(relation["truce_timer"]))
 
 	var expected_leader := int(save.get("player_leader_id", 0))
 	if save.has("player_leader_id") and expected_leader <= 0:

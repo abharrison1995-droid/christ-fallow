@@ -565,6 +565,10 @@ func _try_inspect_clicked_unit() -> bool:
 func _try_interact_or_harvest() -> void:
 	if leader_unit == null:
 		return
+	var representative := GameState.nearby_rival_leader(leader_unit.global_position)
+	if representative != null and is_instance_valid(GameState.hud_controller):
+		GameState.hud_controller.open_leader_negotiation(representative.faction_id)
+		return
 	# 0. Rescue nearby wounded rebel tribe member to Shaman Shack
 	if GameState.units_container != null:
 		var shacks: Array = GameState.get_faction_buildings(0, "SHAMAN_SHACK", true)

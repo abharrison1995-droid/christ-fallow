@@ -913,6 +913,15 @@ const RIVAL_PRESETS := {
 	},
 }
 
+const LEADER_IDENTITIES := {
+	0: ["◆", "Chieftain"],
+	1: ["▲", "Mountain Warlord"],
+	2: ["☀", "Dawn Seer"],
+	3: ["✦", "Fang Chief"],
+	4: ["⬟", "Earth Warden"],
+	6: ["◇", "Outcast Chief"],
+}
+
 const FIRST_NAMES_MALE := [
 	"Abel", "Kael", "Toren", "Milo", "Jorah", "Bram", "Oren", "Dagan",
 	"Soren", "Ronan", "Caleb", "Garr", "Varn", "Lukas", "Halen", "Tarn",

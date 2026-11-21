@@ -184,7 +184,7 @@ func _build_conquest_modal() -> void:
 	_conquest_panel.content.add_child(_conquest_label)
 	var choices := [
 		["Assimilate Survivors", "Bring their people and buildings into your tribe.", "ASSIMILATE"],
-		["Make a Tributary", "Keep the tribe as an ally and receive tribute.", "TRIBUTARY"],
+		["Make a Tributary", "Keep the tribe allied and receive supplies from its stockpile each day.", "TRIBUTARY"],
 		["Raze and Loot", "Destroy the settlement and seize its stockpiles.", "RAZE"],
 	]
 	for choice in choices:

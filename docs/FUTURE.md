@@ -43,13 +43,13 @@ The expanded valley verifier covers camp spacing, cross-bank routes, distant col
 
 Build on the leaders already present in the player tribe and rival colonies. Give every settled tribe and independent village a named leader who is both its strongest individual fighter and its diplomatic representative.
 
-- [ ] **Make leaders easy to recognise.** Give each leader a distinctive appearance and a clear name and title at gameplay distance. Set their combat strength above the rest of their tribe while preserving differences between lineages.
-- [ ] **Negotiate with the leader.** Let the player meet a village's leader to offer gifts, negotiate peace, or propose an alliance. Show the current representative in the Diplomacy panel so players know whom to approach.
-- [ ] **Handle succession and conquest together.** Decide when a surviving tribe appoints a successor and when the leader's defeat instead triggers a conquest decision. Update the village and Diplomacy panel to point to the successor, and preserve leadership and diplomatic agreements across save and load.
+- [x] **Make leaders easy to recognise.** Settled leaders have faction-specific crests and titles alongside their names and lineage silhouettes.
+- [x] **Negotiate with the leader.** Press `E` nearby for gifts, peace, and alliance actions. Diplomacy lists the live representative’s name and location.
+- [x] **Handle succession and conquest together.** A living settlement facing a third-party leader kill can promote an adult successor. Player and qualifying allied victories preserve their conquest decisions across save and load. Tributaries appoint a representative and deliver available stock on day changes. Peace blocks new hostilities through two day changes.
 
 **Ready to ship when** a player can identify a village's strongest fighter as its leader, negotiate an alliance with that leader, and find the correct representative after succession or reload.
 
-**Verification probe:** Run a `SceneTree` campaign probe verifying leader distinctiveness, in-person gift/peace/alliance negotiation, post-succession Diplomacy representative updates, and save/load preservation of agreements and `TRIBUTARY`/`truce_timer` state.
+The Forward+ probe covers `E` negotiation, gifts, alliance, truce expiry, stock-backed tribute, succession, and conquest reload. [Diplomacy verifier](../scripts/tools/verify_diplomacy_leaders.gd)
 
 [Leader spawning](../scripts/systems/world_generator.gd) · [Succession](../scripts/systems/faction_controller.gd) · [Diplomacy actions](../scripts/systems/combat_command_system.gd) · [Conquest and faction state](../scripts/core/game_state.gd)
 

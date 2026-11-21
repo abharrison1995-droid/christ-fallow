@@ -570,6 +570,7 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 		if u.faction_id == 0 and u.is_leader:
 			leader = u
 	GameState.rebuild_spatial_systems()
+	GameState.restore_rival_leadership()
 	if leader == null and not GameState.get_faction_units(0, true).is_empty():
 		var fc0: Node = GameState.faction_controllers.get(0)
 		if is_instance_valid(fc0) and fc0.has_method("handle_player_leader_death"):

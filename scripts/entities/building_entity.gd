@@ -447,7 +447,7 @@ func repair(amount: float) -> void:
 
 
 func take_damage(amount: float, attacker_faction: int) -> void:
-	if is_destroyed:
+	if is_destroyed or GameState.has_truce(faction_id, attacker_faction):
 		return
 
 	hp -= amount

@@ -154,7 +154,11 @@ func propose_alliance(target_fid: int) -> void:
 
 
 func declare_war(target_fid: int) -> void:
-	GameState.set_diplomatic_state(0, target_fid, GameData.DiplomaticState.AT_WAR)
+	if GameState.has_truce(0, target_fid):
+		GameState.push_log("The truce still bars a declaration of war.", "warning")
+		return
+	if not GameState.set_diplomatic_state(0, target_fid, GameData.DiplomaticState.AT_WAR):
+		return
 	GameState.modify_opinion(0, target_fid, -40)
 	GameState.push_log("Declared War on %s!" % GameState.factions[target_fid]["name"], "danger")
 
@@ -167,11 +171,9 @@ func offer_peace_tribute(target_fid: int) -> void:
 		return
 	GameState.add_resource(target_fid, "food", 25.0)
 	GameState.add_resource(target_fid, "flint", 15.0)
-	GameState.set_diplomatic_state(0, target_fid, GameData.DiplomaticState.NEUTRAL)
+	GameState.begin_truce(0, target_fid)
 	GameState.modify_opinion(0, target_fid, 20)
-	for u in GameState.get_faction_units(target_fid, true):
-		u.is_raiding = false
-	GameState.push_log("%s accepted your Peace Tribute! War has ended (+20 Opinion)." % GameState.factions[target_fid]["name"], "success")
+	GameState.push_log("%s accepted a two-day truce (+20 Opinion)." % GameState.factions[target_fid]["name"], "success")
 
 
 func adjust_role_count(role_id: int, warrior_class_id: int, delta: int) -> bool:
@@ -215,9 +217,11 @@ func adjust_role_count(role_id: int, warrior_class_id: int, delta: int) -> bool:
 
 
 func call_ally_to_war(ally_fid: int, enemy_fid: int) -> void:
-	if GameState.get_diplomatic_state(0, ally_fid) != GameData.DiplomaticState.ALLIED:
+	if not GameState.is_treaty_ally(0, ally_fid):
 		return
-	GameState.set_diplomatic_state(ally_fid, enemy_fid, GameData.DiplomaticState.AT_WAR)
+	if not GameState.set_diplomatic_state(ally_fid, enemy_fid, GameData.DiplomaticState.AT_WAR):
+		GameState.push_log("Your ally has a truce with that tribe.", "warning")
+		return
 	var fc = GameState.faction_controllers.get(ally_fid)
 	if fc != null and fc.has_method("launch_raid_against"):
 		fc.launch_raid_against(enemy_fid)

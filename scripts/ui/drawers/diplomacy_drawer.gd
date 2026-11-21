@@ -10,6 +10,13 @@ func _init() -> void:
 	title = "Valley Diplomacy"
 
 
+func select_faction(faction_id: int) -> void:
+	if _selected_faction != faction_id:
+		_selected_faction = faction_id
+		_raid_feedback_fid = -1
+		_raid_feedback_text = ""
+
+
 func build_content() -> void:
 	var player_pow: float = GameState.get_faction_military_power(0)
 	var columns := HBoxContainer.new()
@@ -38,10 +45,7 @@ func build_content() -> void:
 		var col: Color = GameData.FACTION_COLORS.get(fid, Color.WHITE)
 		var target: int = fid
 		var button := Look.button(fdata["name"], func():
-			if _selected_faction != target:
-				_selected_faction = target
-				_raid_feedback_fid = -1
-				_raid_feedback_text = ""
+			select_faction(target)
 			refresh()
 		)
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -61,7 +65,7 @@ func build_content() -> void:
 		var lin_name: String = GameData.LINEAGE_DATA.get(lin_key, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN])["short_name"]
 		var god_name: String = GameData.GOD_DATA.get(god_key, GameData.GOD_DATA[GameData.PatronGod.NONE])["name"]
 		var state_val := GameState.get_diplomatic_state(0, fid)
-		var state_str := "Defeated" if fdata["is_defeated"] else ("ALLIED" if state_val == GameData.DiplomaticState.ALLIED else ("AT WAR" if state_val == GameData.DiplomaticState.AT_WAR else "Neutral"))
+		var state_str := _relation_name(fid, state_val, fdata["is_defeated"])
 		var opinion := GameState.get_diplomatic_opinion(0, fid)
 
 		var title_lbl := Label.new()
@@ -71,9 +75,10 @@ func build_content() -> void:
 		vb.add_child(title_lbl)
 		var relation := Look.label("%s   ·   Opinion %+d" % [state_str, opinion])
 		vb.add_child(relation)
-		var leadership := Look.label("%s   ·   %s   ·   %s" % [fdata["leader_name"], lin_name, god_name], &"QuietLabel")
+		var leadership := Look.label(_describe_leader(fid), &"QuietLabel")
 		leadership.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vb.add_child(leadership)
+		vb.add_child(Look.label("%s   ·   %s" % [lin_name, god_name], &"QuietLabel"))
 
 		var spec_lbl := Label.new()
 		var preset: Dictionary = GameData.RIVAL_PRESETS.get(fid, {})
@@ -107,15 +112,44 @@ func build_content() -> void:
 		spec_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 		vb.add_child(spec_lbl)
 
-		if fid != 5 and not fdata["is_defeated"]:
+		if GameState.is_settled_rival(fid) and GameState.get_faction_leader(fid) != null:
 			_add_diplomacy_actions(vb, fid, fdata, state_val)
+
+
+func _relation_name(faction_id: int, state: int, defeated: bool) -> String:
+	if defeated:
+		return "Defeated"
+	if GameState.has_truce(0, faction_id):
+		return "Truce · %d d left" % ceili(GameState.get_truce_days(0, faction_id))
+	match state:
+		GameData.DiplomaticState.TRIBUTARY: return "Tributary"
+		GameData.DiplomaticState.ALLIED: return "Allied"
+		GameData.DiplomaticState.AT_WAR: return "At war"
+	return "Neutral"
+
+
+func _describe_leader(faction_id: int) -> String:
+	if faction_id == 5:
+		return "Nomadic raiders"
+	var representative := GameState.get_faction_leader(faction_id) as Node3D
+	if representative == null:
+		return "No living representative"
+	var identity: Array = GameData.LEADER_IDENTITIES[faction_id]
+	var title := "%s %s · %s" % [identity[0], representative.unit_name, identity[1]]
+	var player := GameState.get_faction_leader(0) as Node3D
+	if player == null:
+		return title
+	var offset := representative.global_position - player.global_position
+	var directions := ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+	var sector := posmod(roundi(atan2(offset.x, -offset.z) / (TAU / 8.0)), directions.size())
+	return "%s · %d m %s" % [title, roundi(Vector2(offset.x, offset.z).length()), directions[sector]]
 
 
 func _find_war_enemy(ally_id: int) -> int:
 	for enemy_id in range(1, 5):
 		if enemy_id == ally_id or not GameState.factions.has(enemy_id):
 			continue
-		if not bool(GameState.factions[enemy_id].get("is_defeated", false)) and GameState.get_diplomatic_state(0, enemy_id) == GameData.DiplomaticState.AT_WAR:
+		if GameState.is_settled_rival(enemy_id) and GameState.is_hostile(0, enemy_id) and not GameState.has_truce(ally_id, enemy_id):
 			return enemy_id
 	return -1
 
@@ -144,7 +178,7 @@ func _add_diplomacy_actions(vb: VBoxContainer, target_id: int, fdata: Dictionary
 	act_row.add_child(preach_b)
 
 	var raid_feedback_lbl: Label = null
-	if state_val == GameData.DiplomaticState.ALLIED:
+	if GameState.is_treaty_ally(0, target_id):
 		raid_feedback_lbl = Look.label("", &"QuietLabel", 14)
 		raid_feedback_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		var ready_enemy_id: int = _find_war_enemy(target_id)
@@ -205,6 +239,7 @@ func _add_diplomacy_actions(vb: VBoxContainer, target_id: int, fdata: Dictionary
 	else:
 		var war_b := Button.new()
 		war_b.text = "Declare War"
+		war_b.disabled = GameState.has_truce(0, target_id)
 		war_b.pressed.connect(func():
 			if GameState.combat_command_system:
 				GameState.combat_command_system.declare_war(target_id)

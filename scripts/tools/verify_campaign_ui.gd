@@ -355,13 +355,13 @@ func run() -> void:
 	check(_game.is_paused and loaded_hud._overlays._conquest_panel.visible, "Pause and Escape cannot resume a pending conquest")
 	await screenshot("13-conquest")
 	press(loaded_hud._overlays._conquest_panel, "Make a Tributary")
-	check(not _game.is_paused and _game.get_diplomatic_state(0, victor) == _data.DiplomaticState.ALLIED, "conquest action resolves through GameState")
+	check(not _game.is_paused and _game.get_diplomatic_state(0, victor) == _data.DiplomaticState.TRIBUTARY, "conquest action creates a tributary through GameState")
 	_game.time_of_day = 23.0
 	preferences.set_value("psx", true)
 	await frames(12)
 	check(_game.world_node.is_psx_filter_enabled(), "PSX toggle updates the live world")
 	await screenshot("14-night")
-	for tribe_id in range(1, 5):
+	for tribe_id in range(2, 5):
 		_game.set_diplomatic_state(0, tribe_id, _data.DiplomaticState.ALLIED)
 	_game.check_victory_conditions()
 	await frames()

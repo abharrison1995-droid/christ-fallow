@@ -374,6 +374,12 @@ func _check_slice_0a() -> void:
 	var victory_events: Array[String] = []
 	var on_victory := func(reason: String): victory_events.append(reason)
 	_state.victory_achieved.connect(on_victory)
+	# These tribes have lost their settlement anchors, so a fallen leader ends the tribe.
+	for fid in [2, 3, 4]:
+		for kind in ["CAMPFIRE", "SACRED_TOTEM"]:
+			for building in _state.get_faction_buildings(fid, kind, true):
+				_state.buildings_container.remove_child(building)
+				building.queue_free()
 	var rival2_leader: Node = _state.get_faction_leader(2)
 	rival2_leader.is_dead = true
 	_state.trigger_conquest_if_eligible(2, 5)
@@ -788,6 +794,8 @@ func _check_slice_0c(path: String) -> void:
 	)
 	_state.resolve_conquest(1, "RAZE")
 	_state.resolve_conquest(2, "TRIBUTARY")
+	_check(_state.get_diplomatic_state(0, 2) == GameData.DiplomaticState.TRIBUTARY
+		and _state.get_faction_leader(2) != null, "Tributary conquest appoints a surviving leader")
 	_state.resolve_conquest(6, "RAZE")
 	_check(_state._conquest_pending_factions.is_empty() and not _state.is_paused, "Resolving all restored conquests clears queue and pause")
 

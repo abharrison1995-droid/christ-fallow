@@ -307,10 +307,29 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 
 
 func _on_new_day() -> void:
+	var treaty_changed := false
 	for key in diplomacy.keys():
 		var rel: Dictionary = diplomacy[key]
 		if rel["truce_timer"] > 0.0:
 			rel["truce_timer"] = maxf(0.0, rel["truce_timer"] - 1.0)
+			treaty_changed = true
+	for faction_id in [1, 2, 3, 4, 6]:
+		if get_diplomatic_state(0, faction_id) == GameData.DiplomaticState.TRIBUTARY and is_settled_rival(faction_id):
+			_deliver_tribute(faction_id)
+	if treaty_changed:
+		diplomacy_changed.emit()
+
+
+func _deliver_tribute(faction_id: int) -> void:
+	var stock: Dictionary = factions[faction_id]["resources"]
+	var food := clampf(float(stock["food"]), 0.0, 8.0)
+	var flint := clampf(float(stock["flint"]), 0.0, 3.0)
+	if food <= 0.0 and flint <= 0.0:
+		return
+	spend_resources(faction_id, {"food": food, "flint": flint})
+	add_resource(0, "food", food)
+	add_resource(0, "flint", flint)
+	push_log("%s delivered %.0f Food and %.0f Flint in tribute." % [factions[faction_id]["name"], food, flint], "success")
 
 
 func get_diplomatic_key(a: int, b: int) -> String:
@@ -330,15 +349,63 @@ func get_diplomatic_state(a: int, b: int) -> int:
 	return GameData.DiplomaticState.NEUTRAL
 
 
-func set_diplomatic_state(a: int, b: int, state: int) -> void:
-	if a == b or a == 5 or b == 5:
+func get_truce_days(a: int, b: int) -> float:
+	var relation: Dictionary = diplomacy.get(get_diplomatic_key(a, b), {})
+	return float(relation.get("truce_timer", 0.0))
+
+
+func has_truce(a: int, b: int) -> bool:
+	return get_truce_days(a, b) > 0.0
+
+
+func begin_truce(a: int, b: int) -> void:
+	if not set_diplomatic_state(a, b, GameData.DiplomaticState.NEUTRAL):
 		return
+	diplomacy[get_diplomatic_key(a, b)]["truce_timer"] = 2.0
+	for pair in [[a, b], [b, a]]:
+		var camp: Vector3 = factions[pair[1]]["camp_position"]
+		for unit in get_faction_units(pair[0], true):
+			if unit.is_raiding and unit.raid_target_pos.is_equal_approx(camp):
+				unit.is_raiding = false
+	diplomacy_changed.emit()
+
+
+func is_treaty_ally(a: int, b: int) -> bool:
+	return get_diplomatic_state(a, b) in [GameData.DiplomaticState.ALLIED, GameData.DiplomaticState.TRIBUTARY]
+
+
+func is_settled_rival(faction_id: int) -> bool:
+	var faction: Dictionary = factions.get(faction_id, {})
+	return faction_id in [1, 2, 3, 4, 6] and faction.get("is_founded") == true and faction.get("is_defeated") != true
+
+
+func nearby_rival_leader(origin: Vector3) -> Node:
+	var nearest: Node = null
+	var best_d := Layout.SCAN_RANGE_NEGOTIATE * Layout.SCAN_RANGE_NEGOTIATE
+	for fid in [1, 2, 3, 4, 6]:
+		if not is_settled_rival(fid):
+			continue
+		var representative := get_faction_leader(fid)
+		if representative != null:
+			var distance_sq := origin.distance_squared_to((representative as Node3D).global_position)
+			if distance_sq < best_d:
+				best_d = distance_sq
+				nearest = representative
+	return nearest
+
+
+func set_diplomatic_state(a: int, b: int, state: int) -> bool:
+	if a == b or a == 5 or b == 5 or not factions.has(a) or not factions.has(b):
+		return false
+	if state == GameData.DiplomaticState.AT_WAR and has_truce(a, b):
+		return false
 	var key := get_diplomatic_key(a, b)
 	if not diplomacy.has(key):
 		diplomacy[key] = {"state": state, "opinion_mod": 0, "truce_timer": 0.0}
 	else:
 		diplomacy[key]["state"] = state
 	diplomacy_changed.emit()
+	return true
 
 
 func modify_opinion(a: int, b: int, delta: int) -> void:
@@ -389,7 +456,7 @@ func get_diplomatic_opinion_breakdown(fid_a: int, fid_b: int) -> Dictionary:
 	var state := get_diplomatic_state(fid_a, fid_b)
 	if state == GameData.DiplomaticState.AT_WAR:
 		bounded = mini(bounded, -35)
-	elif state == GameData.DiplomaticState.ALLIED:
+	elif state in [GameData.DiplomaticState.ALLIED, GameData.DiplomaticState.TRIBUTARY]:
 		bounded = maxi(bounded, 50)
 
 	var total: int = clampi(bounded, -100, 100)
@@ -419,7 +486,7 @@ func is_hostile(a: int, b: int) -> bool:
 		return false
 	if a == 5 or b == 5:
 		return true
-	return get_diplomatic_state(a, b) == GameData.DiplomaticState.AT_WAR
+	return get_diplomatic_state(a, b) == GameData.DiplomaticState.AT_WAR and not has_truce(a, b)
 
 
 func can_trigger_revolt() -> bool:
@@ -482,11 +549,9 @@ func found_rebel_faction(defector: Node) -> void:
 					rw.set_role_and_class(GameData.Role.WARRIOR, GameData.WarriorClass.SPEARMAN if k == 0 else GameData.WarriorClass.ARCHER)
 
 		defector.convert_to_faction(6, false)
-		defector.is_leader = true
-		defector.role = GameData.Role.WARRIOR
 		(defector as Node3D).global_position = best_site + Vector3(0.0, 0.0, 2.0)
-		defector._rebuild_visual()
-		defector.recalculate_stats(true)
+		spatial_index.update_unit(defector)
+		defector.promote_to_rival_leader()
 		var alert_msg := "REBEL FACTION FORMED! %s founded The Outcast Rebels nearby and targets your colony!" % str(f6["leader_name"])
 		raid_alert.emit(6, 0, alert_msg)
 		push_log(alert_msg, "danger")
@@ -690,13 +755,7 @@ func get_faction_military_power(faction_id: int) -> float:
 func trigger_conquest_if_eligible(target_faction_id: int, attacker_faction_id: int) -> void:
 	if not game_active or campaign_finished:
 		return
-	if target_faction_id <= 0 or target_faction_id == 5:
-		return
-	if not factions.has(target_faction_id):
-		return
-	if target_faction_id == 6 and not bool(factions[6].get("is_founded", false)):
-		return
-	if factions[target_faction_id]["is_defeated"]:
+	if not is_settled_rival(target_faction_id):
 		return
 	if _conquest_pending_factions.has(target_faction_id):
 		return
@@ -712,9 +771,9 @@ func trigger_conquest_if_eligible(target_faction_id: int, attacker_faction_id: i
 	if attacker_faction_id == 0:
 		player_or_ally_conquest = true
 	elif attacker_faction_id > 0 and attacker_faction_id != target_faction_id:
-		var is_player_ally := get_diplomatic_state(0, attacker_faction_id) == GameData.DiplomaticState.ALLIED
-		var player_at_war := get_diplomatic_state(0, target_faction_id) == GameData.DiplomaticState.AT_WAR
-		var ally_at_war := get_diplomatic_state(attacker_faction_id, target_faction_id) == GameData.DiplomaticState.AT_WAR
+		var is_player_ally := is_treaty_ally(0, attacker_faction_id)
+		var player_at_war := is_hostile(0, target_faction_id)
+		var ally_at_war := is_hostile(attacker_faction_id, target_faction_id)
 		if is_player_ally and player_at_war and ally_at_war:
 			player_or_ally_conquest = true
 
@@ -725,8 +784,35 @@ func trigger_conquest_if_eligible(target_faction_id: int, attacker_faction_id: i
 			_paused_before_conquest = is_paused
 			is_paused = true
 			conquest_triggered.emit(target_faction_id)
+	elif leader == null and (has_camp or has_totem) and ensure_rival_leader(target_faction_id) != null:
+		diplomacy_changed.emit()
 	else:
 		_mark_faction_eliminated_by_third_party(target_faction_id, attacker_faction_id)
+
+
+func ensure_rival_leader(faction_id: int) -> Node:
+	var current := get_faction_leader(faction_id)
+	if current != null or not is_settled_rival(faction_id):
+		return current
+	var candidate: Node = null
+	var best := -INF
+	for unit in get_faction_units(faction_id, true):
+		if unit.is_child:
+			continue
+		var score: float = unit.max_hp * 0.4 + unit.attack_damage * 3.0
+		if score > best:
+			best = score
+			candidate = unit
+	if candidate != null:
+		candidate.promote_to_rival_leader()
+		push_log("%s now leads %s." % [candidate.unit_name, factions[faction_id]["name"]], "info")
+	return candidate
+
+
+func restore_rival_leadership() -> void:
+	for fid in [1, 2, 3, 4, 6]:
+		if not _conquest_pending_factions.has(fid):
+			ensure_rival_leader(fid)
 
 
 func _mark_faction_eliminated_by_third_party(target_faction_id: int, attacker_faction_id: int) -> void:
@@ -764,12 +850,13 @@ func resolve_conquest(target_faction_id: int, choice: String) -> void:
 		add_resource(0, "flint", float(target["resources"]["flint"]) * 0.5)
 		push_log("Assimilated %s! %d survivors and their bloodline joined your tribe." % [target_name, survivor_units.size()], "success")
 	elif choice == "TRIBUTARY":
-		target["is_defeated"] = false
-		set_diplomatic_state(0, target_faction_id, GameData.DiplomaticState.ALLIED)
-		modify_opinion(0, target_faction_id, 60)
-		add_resource(0, "food", 30.0)
-		add_resource(0, "flint", 20.0)
-		push_log("%s bent the knee as a Tributary Ally!" % target_name, "success")
+		if ensure_rival_leader(target_faction_id) != null:
+			set_diplomatic_state(0, target_faction_id, GameData.DiplomaticState.TRIBUTARY)
+			modify_opinion(0, target_faction_id, 60)
+			push_log("%s became a tributary and will deliver supplies each day." % target_name, "success")
+		else:
+			target["is_defeated"] = true
+			push_log("%s has no surviving adult to represent the tribe." % target_name, "info")
 	else: # RAZE
 		target["is_defeated"] = true
 		add_resource(0, "food", float(target["resources"]["food"]) + 30.0)
@@ -835,13 +922,13 @@ func check_victory_conditions() -> void:
 	for fid in range(1, 5):
 		if factions[fid]["is_defeated"]:
 			defeated_count += 1
-		elif get_diplomatic_state(0, fid) == GameData.DiplomaticState.ALLIED:
+		elif is_treaty_ally(0, fid):
 			allied_count += 1
 		else:
 			all_united = false
 			break
 	if all_united and factions.has(6) and bool(factions[6].get("is_founded", false)) and not bool(factions[6].get("is_defeated", false)):
-		if get_diplomatic_state(0, 6) != GameData.DiplomaticState.ALLIED:
+		if not is_treaty_ally(0, 6):
 			all_united = false
 
 	if all_united:

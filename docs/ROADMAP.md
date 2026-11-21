@@ -224,9 +224,9 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 
 ## Phase 4: Tribal Leaders, Diplomacy & Conquest Integration
 
-> **Queued** — ([FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy) · [HANDOFF.md](HANDOFF.md#track-c--phase-4-tribal-leaders-diplomacy--conquest-integration))
+> **Completed 21 Nov 2026.** [Diplomacy plan](FUTURE.md#tribal-leaders-and-diplomacy) · [Handoff](HANDOFF.md#track-c--phase-4-tribal-leaders-diplomacy--conquest-integration)
 
-- Make every settled village's named leader visually distinct and traceable in `DiplomacyDrawer`, enable in-world leader approach/negotiation, complete `DiplomaticState.TRIBUTARY` and `diplomacy[key]["truce_timer"]`, unify succession and conquest across save/load, and add `scripts/tools/verify_diplomacy_leaders.gd`. [Campaign diplomacy rules](../scripts/core/game_state.gd)
+- Settled leaders have distinct nameplates. Approach with `E` to open the live representative’s Diplomacy card. Peace blocks strikes, raids and declarations through two day changes. Tributaries send up to eight Food and three Flint from their stock each day. Third-party kills can trigger succession, and unresolved player conquest choices persist through reload. [Campaign rules](../scripts/core/game_state.gd) · [Diplomacy verifier](../scripts/tools/verify_diplomacy_leaders.gd)
 
 ---
 
@@ -246,7 +246,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** Continue with Phase 4, then Phase 5. [Handoff](HANDOFF.md)
+1. **Pick one slice.** Continue with Phase 5. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
@@ -278,6 +278,7 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/benchmark_simulation.gd
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/benchmark_simulation.gd -- --expanded-valley
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_expanded_valley.gd
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_diplomacy_leaders.gd
 
 # 4. Asset & skinned rig gates (Forward+ display required)
 & $godot --path $project --quit-after 600 -s res://scripts/tools/verify_glb_assets.gd -- "--out-dir=$qa/glb" --require-gameplay-rig

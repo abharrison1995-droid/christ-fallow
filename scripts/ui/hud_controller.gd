@@ -270,6 +270,13 @@ func get_world_waypoint() -> Variant:
 	return _world_map.waypoint if is_instance_valid(_world_map) else null
 
 
+func open_leader_negotiation(faction_id: int) -> void:
+	if GameState.is_settled_rival(faction_id) and not blocks_world_input():
+		var drawer := _get_or_create_drawer("DIPLOMACY")
+		drawer.select_faction(faction_id)
+		toggle_drawer("DIPLOMACY")
+
+
 func _process(delta: float) -> void:
 	if _raid_banner_timer > 0.0:
 		_raid_banner_timer -= delta
@@ -769,9 +776,16 @@ func close_drawer() -> void:
 func _refresh_open_drawer() -> void:
 	if not _drawer_panel.visible:
 		return
-	var view: Control = _drawer_views.get(_active_tab)
+	var view := _get_or_create_drawer(_active_tab)
+	_drawer_title.text = view.title
+	view.show()
+	view.refresh()
+
+
+func _get_or_create_drawer(tab: String) -> Control:
+	var view: Control = _drawer_views.get(tab)
 	if view == null:
-		view = DRAWERS[_active_tab].new()
+		view = DRAWERS[tab].new()
 		view.scroll_host = _drawer_scroll
 		view.focus_lost.connect(_drawer_close.grab_focus)
 		view.close_requested.connect(close_drawer)
@@ -782,10 +796,8 @@ func _refresh_open_drawer() -> void:
 			inspect_unit(unit)
 		)
 		_drawer_content.add_child(view)
-		_drawer_views[_active_tab] = view
-	_drawer_title.text = view.title
-	view.show()
-	view.refresh()
+		_drawer_views[tab] = view
+	return view
 
 
 func _close_inspector() -> void:
@@ -873,7 +885,7 @@ func _update_objective_banner(f0: Dictionary) -> void:
 		var united := 0
 		for fid in range(1, 5):
 			if GameState.factions.has(fid):
-				if GameState.factions[fid]["is_defeated"] or GameState.get_diplomatic_state(0, fid) == GameData.DiplomaticState.ALLIED:
+				if GameState.factions[fid]["is_defeated"] or GameState.is_treaty_ally(0, fid):
 					united += 1
 		_objective_label.text = "Objective: Unite the Valley (%d/4 Rival Tribes Allied or Conquered) — [V] Diplomacy." % united
 

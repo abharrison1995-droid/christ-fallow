@@ -82,6 +82,7 @@ var is_dead: bool = false
 
 var _visual_root: Node3D = null
 var _skinned_trial: SkinnedTribesmanTrial = null
+var _leader_nameplate: Label3D
 var _body_pivot: Node3D = null
 var _animator: TribesmanAnimator = TribesmanAnimator.new()
 var _active_class_key: String = ""
@@ -315,6 +316,48 @@ func _rebuild_visual() -> void:
 				_set_trial_visible(true)
 			else:
 				pilot.free()
+	_sync_leader_nameplate()
+
+
+func _sync_leader_nameplate() -> void:
+	var identity: Array = GameData.LEADER_IDENTITIES.get(faction_id, [])
+	if not is_leader or is_dead or is_wounded or identity.is_empty():
+		if _leader_nameplate != null:
+			_leader_nameplate.hide()
+		return
+	if _leader_nameplate == null:
+		_leader_nameplate = Label3D.new()
+		_leader_nameplate.name = "LeaderNameplate"
+		_leader_nameplate.font = Look.body_font()
+		_leader_nameplate.font_size = 24
+		_leader_nameplate.pixel_size = 0.014
+		_leader_nameplate.outline_size = 6
+		_leader_nameplate.outline_modulate = Look.INK
+		_leader_nameplate.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		_leader_nameplate.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_leader_nameplate.visibility_range_end = 44.0
+		add_child(_leader_nameplate)
+	var lin: int = GameData.resolve_effective_lineage(lineage, is_caveman)
+	var height := float(GameData.LINEAGE_DATA[lin]["height_scale"])
+	_leader_nameplate.position.y = 2.35 * height + 0.6
+	var tint: Color = GameData.FACTION_COLORS.get(faction_id, Look.GOLD)
+	_leader_nameplate.modulate = tint.lightened(0.5)
+	_leader_nameplate.text = "%s %s\n%s" % [identity[0], unit_name, identity[1]]
+	_leader_nameplate.show()
+
+
+func _refresh_negotiation_prompt() -> void:
+	if not is_leader or _leader_nameplate == null or faction_id == 0:
+		return
+	var player: Node = GameState.get_faction_leader(0)
+	var facing_player := false
+	if player != null and global_position.distance_to((player as Node3D).global_position) < Layout.SCAN_RANGE_NEGOTIATE:
+		facing_player = GameState.nearby_rival_leader((player as Node3D).global_position) == self
+	var identity: Array = GameData.LEADER_IDENTITIES[faction_id]
+	var suffix: String = "[E] Negotiate" if facing_player else identity[1]
+	var caption := "%s %s\n%s" % [identity[0], unit_name, suffix]
+	if _leader_nameplate.text != caption:
+		_leader_nameplate.text = caption
 
 
 func _is_psx_jitter_enabled() -> bool:
@@ -609,7 +652,7 @@ func send_to_shaman_shack(shack_pos: Vector3) -> void:
 
 
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
-	if is_dead or is_wounded:
+	if is_dead or is_wounded or GameState.has_truce(faction_id, attacker_faction):
 		return
 	var total_armor := armor + _buff_armor_bonus
 	var mitigated := UnitStats.mitigated_damage(amount, total_armor)
@@ -717,6 +760,8 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 		_selection_ring.visible = false
 	if _state_label != null:
 		_state_label.visible = false
+	if _leader_nameplate != null:
+		_leader_nameplate.hide()
 	velocity = Vector3.ZERO
 	_knockback_vel = Vector3.ZERO
 	_death_timer = 8.0
@@ -871,17 +916,26 @@ func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> v
 
 
 func promote_to_player_leader() -> void:
+	_promote_to_leader(true)
+
+
+func promote_to_rival_leader() -> void:
+	warrior_class = GameData.WarriorClass.SPEARMAN
+	_promote_to_leader(false)
+
+
+func _promote_to_leader(player_controlled: bool) -> void:
 	is_leader = true
-	is_player_controlled = true
+	is_player_controlled = player_controlled
 	is_child = false
 	is_raiding = false
 	_retreating_to_heal = false
 	role = GameData.Role.WARRIOR
 	has_equipped_weapon = true
 	has_armor = true
-	if GameState.factions.has(0):
-		GameState.factions[0]["leader_name"] = unit_name
-		weapon_tier = maxi(weapon_tier, int(GameState.factions[0].get("tech_tier", 1)))
+	if GameState.factions.has(faction_id):
+		GameState.factions[faction_id]["leader_name"] = unit_name
+		weapon_tier = maxi(weapon_tier, int(GameState.factions[faction_id].get("tech_tier", 1)))
 	_ensure_selection_ring()
 	_rebuild_visual()
 	recalculate_stats(false)
@@ -947,6 +1001,7 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		_process_dead_corpse(delta)
 		return
+	_refresh_negotiation_prompt()
 
 	GameState.spatial_index.update_unit(self)
 	_nav_repath_cd = maxf(0.0, _nav_repath_cd - delta)

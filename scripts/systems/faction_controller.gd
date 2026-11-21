@@ -352,8 +352,9 @@ func _run_rival_leader_ai() -> void:
 	var personality: int = int(fdata["ai_personality"])
 	var target_fid := _pick_ai_target(personality)
 	if target_fid >= 0:
-		if GameState.get_diplomatic_state(faction_id, target_fid) != GameData.DiplomaticState.AT_WAR:
-			GameState.set_diplomatic_state(faction_id, target_fid, GameData.DiplomaticState.AT_WAR)
+		if GameState.get_diplomatic_state(faction_id, target_fid) != GameData.DiplomaticState.AT_WAR \
+				and not GameState.set_diplomatic_state(faction_id, target_fid, GameData.DiplomaticState.AT_WAR):
+			return
 		launch_raid_against(target_fid)
 		_raid_cooldown = 75.0 if personality != GameData.AIPersonality.OPPORTUNIST else 55.0
 
@@ -370,7 +371,7 @@ func _pick_ai_target(personality: int) -> int:
 		var other: Dictionary = GameState.factions[other_id]
 		if other["is_defeated"] or not other["is_founded"]:
 			continue
-		if GameState.get_diplomatic_state(faction_id, other_id) == GameData.DiplomaticState.ALLIED:
+		if GameState.is_treaty_ally(faction_id, other_id) or GameState.has_truce(faction_id, other_id):
 			continue
 
 		var op := GameState.get_diplomatic_opinion(faction_id, other_id)
@@ -408,7 +409,7 @@ func _pick_ai_target(personality: int) -> int:
 
 
 func launch_raid_against(target_fid: int) -> void:
-	if not GameState.factions.has(target_fid):
+	if not GameState.factions.has(target_fid) or GameState.has_truce(faction_id, target_fid):
 		return
 	var target_camp: Vector3 = GameState.factions[target_fid]["camp_position"]
 	var raiders_sent := 0

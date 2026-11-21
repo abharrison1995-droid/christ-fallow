@@ -30,6 +30,7 @@ func _ready() -> void:
 		["Place / Continuous / Rotate / Cancel", "LMB / Shift + LMB / T / RMB or Esc"],
 		["Tribal Command / Pause", "Tab / P or Esc"],
 		["World Map", "M or click Valley Radar"],
+		["Negotiate with a rival leader", "E when nearby"],
 		["Select squad / Orders / Warhorn", "1–6 / F1–F6 / H"],
 		["Quick Save / Quick Load", "F9 / F10"],
 	]:

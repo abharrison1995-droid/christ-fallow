@@ -41,6 +41,7 @@
 - [scripts/tools/verify_glb_assets.gd](scripts/tools/verify_glb_assets.gd), [scripts/tools/verify_crag_born.gd](scripts/tools/verify_crag_born.gd), [scripts/tools/verify_skinned_lineages.gd](scripts/tools/verify_skinned_lineages.gd), and [scripts/tools/verify_valley_assets.gd](scripts/tools/verify_valley_assets.gd) — Forward+ verification of imported buildings, character rigs/kits, scenery, and wildlife.
 - [scripts/tools/verify_campaign_save.gd](scripts/tools/verify_campaign_save.gd), [scripts/tools/verify_campaign_ui.gd](scripts/tools/verify_campaign_ui.gd), [scripts/tools/verify_opening_tutorial.gd](scripts/tools/verify_opening_tutorial.gd), [scripts/tools/verify_phase1_nav.gd](scripts/tools/verify_phase1_nav.gd), and [scripts/tools/benchmark_simulation.gd](scripts/tools/benchmark_simulation.gd) — Automated `SceneTree` campaign persistence, UI/input, opening tutorial, spatial/navigation, and simulation benchmark suites.
 - [scripts/tools/verify_expanded_valley.gd](scripts/tools/verify_expanded_valley.gd) — Expanded camp spacing, ford routes, hauling and raid paths, and layout preservation across `v3`/`v4` loads.
+- [scripts/tools/verify_diplomacy_leaders.gd](scripts/tools/verify_diplomacy_leaders.gd) — Leader nameplates, `E` negotiation, gifts, alliances, truce protection and expiry, tribute transfer, and succession/conquest save recovery.
 - [tools/assets/README.md](tools/assets/README.md) and [tools/assets/CATALOG.md](tools/assets/CATALOG.md) — Staged Blender generation, asset contracts, lineage and type directories, and sample GLBs.
 - [README.md](README.md) — Player-facing controls and feature summary.
 
@@ -95,6 +96,8 @@
    - Unarmed civilians use `unarmed_attack_damage` (`3.0..7.5` raw, halved for children) and `"UNARMED_PUNCH"` (`1.65m` reach, `1.15s / attack_speed_mult` cooldown) when cornered (`<= 2.35m`), recently struck by `_self_defense_target` (`<= 4.2m`), or defending camp (`<= 4.5m`). Weapon/offhand mounts are hidden briefly (`_unarmed_punch_vis_timer`) so workers punch bare-handed.
 3. **Factions & Diplomacy**:
    - `-3` Wounded (rescue or timed defection into `6`), `-2` Rebels, `-1` Wild Wanderers (`E` to recruit), `0` Player Tribe, `1..4` Rival Tribes, `5` Nomadic Cavemen (permanently hostile), `6` Outcast Rebels.
+   - `E` near a settled rival leader opens their card in Diplomacy. The card reads the live representative, title, distance, and direction. `GameState` owns the truce and tributary rules. Truces block attacks, war declarations and raids through two day changes. Tributaries deliver up to eight Food and three Flint each day from available stock.
+   - Player and qualifying allied victories queue conquest. A surviving village with a campfire or totem can immediately appoint an adult successor when its leader falls to a third party. Restore skips succession for pending conquest choices. Tributary settlement names a surviving representative before returning to play.
 4. **Screen & HUD layout**:
    - The resource strip and objectives reserve the upper right for Valley Radar. The guide and event log sit on the left. The combat controls are docked at the bottom centre, and management panels open above them. Check layouts at both ends of the interface scale range after changing panel widths or control labels.
 5. **Village Building Destruction & Hostile-Only Combat Health Bars**:
