@@ -139,6 +139,16 @@ The Knife-Raider carries twin dirks and sheaths, the Archer carries a bow and qu
 
 Use isolated `APPDATA` for each run. `ROLE KIT VERIFICATION PASSED` confirms live class changes, both hands and back attachments, animation binding, equipment changes, and melee contact or ranged release. `combat-kits.png` shows Knife-Raider, Archer, Club Brute, and Javelineer from left to right. [Role kit probe](../../scripts/tools/verify_role_kits.gd)
 
+## Workforce kits
+
+Hunter mounts a pelt capelet and the shared bow set. Woodcutter carries an axe and timber pack, Stoneknapper carries a flint pick and satchel, Builder/Crafter carries a mallet and adze, Shaman carries a spirit staff and charm, and Trainee uses a blunted spear and shared buckler. Farmer shares the Forager kit. [Workforce generator](generate_workforce_kits.py)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_workforce_kits.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'))
+```
+
+Run the combat-kit import and role probe again. `workforce-kits.png` shows the six new roles in the order above. The role probe checks attachments, skinned work, Hunter bow release, and Shaman casting. The farming verifier confirms that a live Farmer can still work crops and haul a harvest. [Import and test commands](#combat-kits) · [Farming verifier](../../scripts/tools/verify_farming_taming.gd)
+
 ## Valley scenery and wildlife
 
 The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)

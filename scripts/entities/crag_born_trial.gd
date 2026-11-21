@@ -16,11 +16,13 @@ const GEAR := "res://assets/models/gear"
 const CHILD_SCALE := 0.68
 const GRIP_R := Vector3(-0.012, -0.054, -0.006)
 const GRIP_L := Vector3(0.012, -0.054, -0.006)
-const COMBAT_MOVES := "res://assets/models/characters/moves/combat.glb"
+const ROLE_MOVES := "res://assets/models/characters/moves"
 const COMBAT_CLIPS := {
 	"KNIFE_RAIDER": &"KnifeSlash", "ARCHER": &"BowRelease",
 	"BRUTE": &"ClubSmash", "JAVELINEER": &"JavelinCast",
 }
+const SPECIALIST_CLIPS := {"HUNTER": [&"combat", &"BowRelease"], "SHAMAN": [&"specialist", &"ShamanCast"]}
+const WORKFORCE_KITS := ["HUNTER", "LUMBERJACK", "STONEKNAPPER", "BUILDER_CRAFTER", "SHAMAN", "TRAINEE"]
 const KIT_ITEMS := {
 	"KNIFE_RAIDER": [
 		["Hand.R", "Weapon", "knife_raider/dirk", GRIP_R, Vector3(-0.47, 0, 0.22)],
@@ -41,9 +43,38 @@ const KIT_ITEMS := {
 		["Hand.L", "Offhand", "spearman/hide_buckler", GRIP_L, Vector3(-0.70, 0, 0)],
 		["Chest", "Back", "javelineer/javelin_bundle", Vector3(0, 0.04, 0.26), Vector3.ZERO],
 	],
+	"HUNTER": [
+		["Hand.R", "Weapon", "archer/arrow", GRIP_R, Vector3(-1.45, 0, 0)],
+		["Hand.L", "Offhand", "archer/bow", GRIP_L, Vector3(-0.26, 0.14, -0.26)],
+		["Chest", "Back", "archer/quiver", Vector3(0, 0, 0.23), Vector3.ZERO],
+		["Chest", "Chestwear", "hunter/pelt_capelet", Vector3.ZERO, Vector3.ZERO],
+	],
+	"LUMBERJACK": [
+		["Hand.R", "Weapon", "lumberjack/axe", GRIP_R, Vector3(-0.45, 0, 0.26)],
+		["Chest", "Back", "lumberjack/timber_pack", Vector3(0, 0, 0.27), Vector3.ZERO],
+	],
+	"STONEKNAPPER": [
+		["Hand.R", "Weapon", "stoneknapper/pick", GRIP_R, Vector3(-0.39, 0, 0.26)],
+		["Chest", "Back", "stoneknapper/stone_satchel", Vector3(0, -0.09, 0.24), Vector3.ZERO],
+	],
+	"BUILDER_CRAFTER": [
+		["Hand.R", "Weapon", "builder_crafter/mallet", GRIP_R, Vector3(-0.38, 0, 0.20)],
+		["Hand.L", "Offhand", "builder_crafter/adze", GRIP_L, Vector3(-0.35, 0, -0.27)],
+		["Chest", "Back", "lumberjack/timber_pack", Vector3(0, -0.07, 0.26), Vector3(0, 0, 0.41)],
+	],
+	"SHAMAN": [
+		["Hand.R", "Weapon", "shaman/spirit_staff", GRIP_R, Vector3(-0.32, 0, 0.22)],
+		["Hand.L", "Offhand", "shaman/ritual_charm", GRIP_L, Vector3(-0.34, 0, -0.24)],
+		["Chest", "Chestwear", "caveman/trophy_pelt", Vector3.ZERO, Vector3.ZERO],
+	],
+	"TRAINEE": [
+		["Hand.R", "Weapon", "trainee/sparring_spear", GRIP_R, Vector3(-0.51, 0, 0.24)],
+		["Hand.L", "Offhand", "spearman/hide_buckler", GRIP_L, Vector3(-0.60, 0, 0)],
+		["Chest", "Chestwear", "forager/workwear", Vector3.ZERO, Vector3.ZERO],
+	],
 }
 
-static var _combat_moves: AnimationLibrary
+static var _move_libraries := {}
 var _armor: Node3D
 var _tier_surfaces: Array[ShaderMaterial] = []
 
@@ -74,7 +105,7 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		lineage: int = GameData.Lineage.CRAG_BORN) -> bool:
 	if not supports_lineage(lineage):
 		return false
-	var guard := class_key in ["SPEARMAN", "CAVEMAN"]
+	var guard := class_key in ["SPEARMAN", "CAVEMAN", "TRAINEE"]
 	_idle_clip = &"GuardIdle" if guard else &"Idle"
 	_walk_clip = &"GuardWalk" if guard else &"Walk"
 	var key: String = LINEAGE_KEYS[lineage]
@@ -94,16 +125,17 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		for item in KIT_ITEMS[class_key]:
 			if not _mount(skeleton, item[0], item[1], item[2], item[3], Basis.from_euler(item[4])):
 				return false
-		if not _mount(skeleton, "Chest", "Armor", "spearman/bone_guard", Vector3.ZERO):
-			return false
-		_armor = skeleton.get_node("Armor")
-		_armor.hide()
-		var moves := _get_combat_moves()
-		var clip: StringName = COMBAT_CLIPS[class_key]
-		if moves == null or not moves.has_animation(clip):
-			return false
-		_animation.add_animation_library(&"combat", moves)
-		_attack_clip = StringName("combat/" + String(clip))
+		if COMBAT_CLIPS.has(class_key):
+			if not _mount(skeleton, "Chest", "Armor", "spearman/bone_guard", Vector3.ZERO):
+				return false
+			_armor = skeleton.get_node("Armor")
+			_armor.hide()
+			if not _set_role_clip(&"combat", COMBAT_CLIPS[class_key]):
+				return false
+		elif SPECIALIST_CLIPS.has(class_key):
+			var clips: Array = SPECIALIST_CLIPS[class_key]
+			if not _set_role_clip(clips[0], clips[1]):
+				return false
 	elif class_key == "CAVEMAN":
 		if not _mount(skeleton, "Hand.R", "Weapon", "caveman/bone_club", GRIP_R, Basis(Vector3.RIGHT, -0.39)):
 			return false
@@ -130,7 +162,7 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	_body_materials = apply_materials(mesh_factory, model, faction_color)
 	if _body_materials.is_empty():
 		return false
-	if KIT_ITEMS.has(class_key):
+	if COMBAT_CLIPS.has(class_key):
 		_collect_tier_surfaces(skeleton)
 	_capture_base_emissions()
 	# Bodies and kit grip origins share Crag-Born rest dimensions. Scale them together.
@@ -143,17 +175,28 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	return true
 
 
-static func _get_combat_moves() -> AnimationLibrary:
-	if _combat_moves != null:
-		return _combat_moves
-	var model := _instantiate_model(COMBAT_MOVES)
+func _set_role_clip(library_name: StringName, clip: StringName) -> bool:
+	var moves := _get_moves(library_name)
+	if moves == null or not moves.has_animation(clip):
+		return false
+	_animation.add_animation_library(library_name, moves)
+	_attack_clip = StringName("%s/%s" % [library_name, clip])
+	return true
+
+
+static func _get_moves(library_name: StringName) -> AnimationLibrary:
+	if _move_libraries.has(library_name):
+		return _move_libraries[library_name]
+	var model := _instantiate_model("%s/%s.glb" % [ROLE_MOVES, library_name])
 	if model == null:
 		return null
 	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var moves: AnimationLibrary
 	if player != null and player.has_animation_library(&""):
-		_combat_moves = player.get_animation_library(&"")
+		moves = player.get_animation_library(&"")
+		_move_libraries[library_name] = moves
 	model.free()
-	return _combat_moves
+	return moves
 
 
 func _collect_tier_surfaces(skeleton: Skeleton3D) -> void:

@@ -14,6 +14,7 @@ func _run() -> void:
 	if Trial.enabled() and _check(out_dir.is_absolute_path() and DirAccess.make_dir_recursive_absolute(out_dir) == OK,
 			"Pass a writable absolute directory for gear captures"):
 		await _capture_kits(out_dir, Trial.COMBAT_CLIPS.keys(), "combat-kits.png")
+		await _capture_kits(out_dir, Trial.WORKFORCE_KITS, "workforce-kits.png")
 	if _issues.is_empty():
 		print("ROLE KIT VERIFICATION PASSED")
 	quit(0 if _issues.is_empty() else 1)
@@ -66,8 +67,43 @@ func _verify_live_kits() -> void:
 		rig._animation.seek(0.32, true)
 		_check(not skeleton.get_bone_pose_rotation(index).is_equal_approx(pose), "%s clip binds and moves the arm" % class_key)
 		origin.x += 4.0
+	_verify_workforce(faction, origin)
 	main.free()
 	await process_frame
+
+
+func _verify_workforce(faction: Node, origin: Vector3) -> void:
+	var roles := [_data.Role.HUNTER, _data.Role.LUMBERJACK, _data.Role.STONEKNAPPER,
+		_data.Role.BUILDER_CRAFTER, _data.Role.SHAMAN, _data.Role.TRAINEE, _data.Role.FARMER]
+	for role in roles:
+		var unit: Node = faction.spawn_colonist(origin, _data.Lineage.FEN_TIDAL, _data.Gender.MALE, _data.Role.FORAGER)
+		unit.set_physics_process(false)
+		var body := _body_file(unit)
+		_check(_state.assign_player_role(unit, role), "Assign workforce role through GameState")
+		var rig := unit._skinned_trial as Trial
+		if not Trial.enabled():
+			_check(rig == null and unit._visual_root.visible, "Workforce respects the procedural opt-out")
+			continue
+		var class_key: String = unit._get_class_key()
+		if not _check(rig != null and _body_file(unit) == body, "%s preserves the lineage body" % class_key):
+			continue
+		if role == _data.Role.FARMER:
+			var sickle := rig.find_child("Weapon", true, false)
+			_check(sickle != null and sickle.get_child(0).scene_file_path.ends_with("flint_sickle.glb"),
+				"Farmer uses the Forager sickle")
+		else:
+			_verify_mounts(rig, class_key)
+		var work_anim: String = unit._get_class_def().get("work_anim", "WORK_FORAGE")
+		unit.play_attack_animation(work_anim, 0.45)
+		unit._update_procedural_animation(0.12)
+		var expected := &"combat/BowRelease" if role == _data.Role.HUNTER else &"Work"
+		_check(rig._animation.current_animation == expected and not unit._visual_root.visible,
+			"%s plays the intended skinned work clip" % class_key)
+		if role == _data.Role.SHAMAN:
+			unit.play_attack_animation("SHAMAN_CAST", 0.5)
+			unit._update_procedural_animation(0.12)
+			_check(rig._animation.current_animation == &"specialist/ShamanCast", "Shaman casts with the specialist pose")
+		origin.z += 3.0
 
 
 func _verify_mounts(rig: Trial, class_key: String) -> void:
@@ -81,7 +117,8 @@ func _verify_mounts(rig: Trial, class_key: String) -> void:
 
 func _capture_kits(out_dir: String, class_keys: Array, filename: String) -> void:
 	_setup_stage()
-	var sheet := Image.create(SNAPSHOT.x * mini(class_keys.size(), 4), SNAPSHOT.y * ceili(class_keys.size() / 4.0), false, Image.FORMAT_RGB8)
+	var columns := 3 if class_keys.size() == 6 else mini(class_keys.size(), 4)
+	var sheet := Image.create(SNAPSHOT.x * columns, SNAPSHOT.y * ceili(float(class_keys.size()) / columns), false, Image.FORMAT_RGB8)
 	for i in range(class_keys.size()):
 		var model := Trial.new()
 		var tint: Color = _data.FACTION_COLORS[0]
@@ -90,7 +127,8 @@ func _capture_kits(out_dir: String, class_keys: Array, filename: String) -> void
 			model.sync_equipment(2, true)
 			var portrait := await _capture_model(model, false, 0.0, -37.0)
 			portrait.convert(Image.FORMAT_RGB8)
-			sheet.blit_rect(portrait, Rect2i(Vector2i.ZERO, SNAPSHOT), Vector2i((i % 4) * SNAPSHOT.x, floori(i / 4.0) * SNAPSHOT.y))
+			sheet.blit_rect(portrait, Rect2i(Vector2i.ZERO, SNAPSHOT),
+				Vector2i((i % columns) * SNAPSHOT.x, floori(float(i) / columns) * SNAPSHOT.y))
 		model.free()
 	_check(sheet.save_png(out_dir.path_join(filename)) == OK, "Write the kit comparison sheet")
 	_stage.free()

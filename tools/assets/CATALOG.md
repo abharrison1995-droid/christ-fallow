@@ -51,6 +51,7 @@ The remaining nine building types and four wildlife species are queued for impor
 | Spearman kit | [Spear](../../assets/models/gear/spearman/spear.glb), [hide buckler](../../assets/models/gear/spearman/hide_buckler.glb), [bone guard](../../assets/models/gear/spearman/bone_guard.glb) |
 | Forager kit | [Flint sickle](../../assets/models/gear/forager/flint_sickle.glb), [reed basket](../../assets/models/gear/forager/reed_basket.glb), [light workwear](../../assets/models/gear/forager/workwear.glb) |
 | Combat kits | [Knife-Raider](../../assets/models/gear/knife_raider/) · [Archer](../../assets/models/gear/archer/) · [Club Brute](../../assets/models/gear/brute/) · [Javelineer](../../assets/models/gear/javelineer/) · [Shared attack clips](../../assets/models/characters/moves/combat.glb) |
+| Workforce kits | [Hunter](../../assets/models/gear/hunter/) · [Woodcutter](../../assets/models/gear/lumberjack/) · [Stoneknapper](../../assets/models/gear/stoneknapper/) · [Builder/Crafter](../../assets/models/gear/builder_crafter/) · [Shaman](../../assets/models/gear/shaman/) · [Trainee](../../assets/models/gear/trainee/) · [Shaman cast](../../assets/models/characters/moves/specialist.glb) |
 
 [Gameplay-zoom comparison](previews/crag-born-comparison.png) · [Launch, regenerate, and verify](README.md#crag-born-pilot)
 
