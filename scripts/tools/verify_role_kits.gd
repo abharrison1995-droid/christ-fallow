@@ -15,6 +15,7 @@ func _run() -> void:
 			"Pass a writable absolute directory for gear captures"):
 		await _capture_kits(out_dir, Trial.COMBAT_CLIPS.keys(), "combat-kits.png")
 		await _capture_kits(out_dir, Trial.WORKFORCE_KITS, "workforce-kits.png")
+		await _capture_kits(out_dir, ["LEADER"], "leader-kit.png")
 	if _issues.is_empty():
 		print("ROLE KIT VERIFICATION PASSED")
 	quit(0 if _issues.is_empty() else 1)
@@ -68,8 +69,30 @@ func _verify_live_kits() -> void:
 		_check(not skeleton.get_bone_pose_rotation(index).is_equal_approx(pose), "%s clip binds and moves the arm" % class_key)
 		origin.x += 4.0
 	_verify_workforce(faction, origin)
+	_verify_leaders(leader)
 	main.free()
 	await process_frame
+
+
+func _verify_leaders(leader: Node) -> void:
+	var old_trial := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
+	var rival: Node = _state.get_faction_leader(1)
+	var player_rig := leader._skinned_trial as Trial
+	_check((player_rig != null) == (Trial.enabled() and not old_trial), "Player uses the requested leader rig")
+	_check((rival._skinned_trial is Trial) == Trial.enabled(), "Settled rival uses the default lineage leader kit")
+	_check(is_instance_valid(leader._leader_nameplate) and is_instance_valid(rival._leader_nameplate),
+		"Player and rival retain their named crests")
+	if player_rig != null:
+		_verify_mounts(player_rig, "LEADER")
+		leader.play_attack_animation("LEADER_CLEAVE", 0.55)
+		leader._update_procedural_animation(0.16)
+		_check(player_rig._animation.current_animation == &"leader/LeaderCleave", "Leader plays the promoted cleave clip")
+	var old_id: int = leader.unit_id
+	leader._die(rival, 1)
+	var successor: Node = _state.get_faction_leader(0)
+	if _check(successor != null and successor.unit_id != old_id, "The player has an immediate successor"):
+		_check((successor._skinned_trial is Trial) == (Trial.enabled() and not old_trial),
+			"Succession selects the leader gear for the new body")
 
 
 func _verify_workforce(faction: Node, origin: Vector3) -> void:

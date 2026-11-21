@@ -149,6 +149,16 @@ Hunter mounts a pelt capelet and the shared bow set. Woodcutter carries an axe a
 
 Run the combat-kit import and role probe again. `workforce-kits.png` shows the six new roles in the order above. The role probe checks attachments, skinned work, Hunter bow release, and Shaman casting. The farming verifier confirms that a live Farmer can still work crops and haul a harvest. [Import and test commands](#combat-kits) · [Farming verifier](../../scripts/tools/verify_farming_taming.gd)
 
+## Leader kit
+
+The lineage rig is the default for adult player and rival leaders. A faction-tinted bone crown and split mantle distinguish the leader. The kit mounts a great-spear and reuses the javelin bundle. The nameplate and campaign leadership rules still follow the live unit. `--skinned-tribesman-trial` selects the original trial model for the player. [Leader generator](generate_leader_kit.py) · [Leader unit setup](../../scripts/entities/human_unit.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_leader_kit.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'))
+```
+
+The isolated Forward+ role, diplomacy, and farming probes passed, including procedural roster mode and riding with both the default and original trial leaders. The role probe writes `leader-kit.png`. The farming probe writes `mounted-leader.png`. [Role kit commands](#combat-kits) · [Mounted review](#farm-structures-and-rider-review)
+
 ## Valley scenery and wildlife
 
 The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)

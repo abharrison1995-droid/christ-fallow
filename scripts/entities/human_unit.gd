@@ -292,27 +292,27 @@ func _rebuild_visual() -> void:
 		_animator.update(0.5, {"idle_stance": str(cdef.get("idle_stance", "RELAXED"))})
 
 	_refresh_gear_visual()
-	if is_player_controlled and is_leader and faction_id == 0 and not is_dead:
-		if SkinnedTribesmanTrial.LAUNCH_FLAG in OS.get_cmdline_user_args():
-			var trial := SkinnedTribesmanTrial.new()
-			var spear := _visual_root.find_child("GREAT_SPEAR", true, false) as Node3D
-			var lineage_height := float(GameData.LINEAGE_DATA[eff_lin]["height_scale"])
-			if trial.setup(MeshFactory, col, spear):
-				trial.name = "SkinnedTribesmanTrial"
-				trial.set_rig_scale(Vector3.ONE * lineage_height)
-				add_child(trial)
-				_skinned_trial = trial
-				_skinned_trial.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
-				_set_trial_visible(true)
-			else:
-				trial.free()
-	elif not is_leader and not is_dead and CragBornTrial.supports_lineage(eff_lin) and CragBornTrial.enabled():
+	if is_player_controlled and is_leader and faction_id == 0 and not is_dead \
+			and SkinnedTribesmanTrial.LAUNCH_FLAG in OS.get_cmdline_user_args():
+		var trial := SkinnedTribesmanTrial.new()
+		var spear := _visual_root.find_child("GREAT_SPEAR", true, false) as Node3D
+		var lineage_height := float(GameData.LINEAGE_DATA[eff_lin]["height_scale"])
+		if trial.setup(MeshFactory, col, spear):
+			trial.name = "SkinnedTribesmanTrial"
+			trial.set_rig_scale(Vector3.ONE * lineage_height)
+			add_child(trial)
+			_skinned_trial = trial
+			_skinned_trial.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
+			_set_trial_visible(true)
+		else:
+			trial.free()
+	elif not is_dead and CragBornTrial.supports_lineage(eff_lin) and CragBornTrial.enabled():
 		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
 		if CragBornTrial.supports_kit(trial_kit, is_child):
 			var pilot := CragBornTrial.new()
 			var variant := CragBornTrial.select_body_variant(gender, is_child, unit_id)
 			if pilot.setup_kit(MeshFactory, col, variant, trial_kit, eff_lin):
-				pilot.name = "CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig"
+				pilot.name = "SkinnedLineageLeader" if is_leader else ("CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig")
 				add_child(pilot)
 				_skinned_trial = pilot
 				pilot.sync_equipment(weapon_tier, has_armor)

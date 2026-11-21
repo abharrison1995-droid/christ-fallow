@@ -21,7 +21,10 @@ const COMBAT_CLIPS := {
 	"KNIFE_RAIDER": &"KnifeSlash", "ARCHER": &"BowRelease",
 	"BRUTE": &"ClubSmash", "JAVELINEER": &"JavelinCast",
 }
-const SPECIALIST_CLIPS := {"HUNTER": [&"combat", &"BowRelease"], "SHAMAN": [&"specialist", &"ShamanCast"]}
+const SPECIALIST_CLIPS := {
+	"HUNTER": [&"combat", &"BowRelease"], "SHAMAN": [&"specialist", &"ShamanCast"],
+	"LEADER": [&"leader", &"LeaderCleave"],
+}
 const WORKFORCE_KITS := ["HUNTER", "LUMBERJACK", "STONEKNAPPER", "BUILDER_CRAFTER", "SHAMAN", "TRAINEE"]
 const KIT_ITEMS := {
 	"KNIFE_RAIDER": [
@@ -72,6 +75,12 @@ const KIT_ITEMS := {
 		["Hand.L", "Offhand", "spearman/hide_buckler", GRIP_L, Vector3(-0.60, 0, 0)],
 		["Chest", "Chestwear", "forager/workwear", Vector3.ZERO, Vector3.ZERO],
 	],
+	"LEADER": [
+		["Hand.R", "Weapon", "leader/great_spear", GRIP_R, Vector3(-0.37, 0, 0.23)],
+		["Chest", "Cape", "leader/split_mantle", Vector3(0, 0.05, 0.206), Vector3.ZERO],
+		["Chest", "Back", "javelineer/javelin_bundle", Vector3(0.06, 0.05, 0.272), Vector3(0, 0, -0.18)],
+		["Head", "Crown", "leader/bone_crown", Vector3(0, 0.177, 0.005), Vector3.ZERO],
+	],
 }
 
 static var _move_libraries := {}
@@ -115,6 +124,7 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		return false
 	add_child(model)
 	var skeleton := model.find_child("Skeleton3D", true, false) as Skeleton3D
+	_skeleton = skeleton
 	_animation = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if skeleton == null or _animation == null:
 		return false

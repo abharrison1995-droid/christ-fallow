@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-All seven six-body lineups and the nomad, warrior, and workforce kits are verified through Batch 6. The leader kit is next. The wildcard round follows the production batches. [Batch 6 review](../tools/assets/README.md#workforce-kits) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
+All seven lineups and fourteen kits, including the lineage leader kit, are verified through Batch 7. Standing-Stone Gate is next. The wildcard round follows the production batches. [Batch 7 review](../tools/assets/README.md#leader-kit) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

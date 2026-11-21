@@ -38,7 +38,8 @@ func _verify_lineage_gameplay(lineages: Array[int]) -> void:
 	_state.start_new_campaign("Enoch", "Fallow Chosen", _data.Lineage.GOLIATH)
 	var faction: Node = _state.faction_controllers[0]
 	var leader: Node3D = _state.get_faction_leader(0)
-	_check(not (leader._skinned_trial is Trial), "The roster leaves the player leader on its own visual path")
+	var use_lineage_leader := Trial.enabled() and Trial.LAUNCH_FLAG not in OS.get_cmdline_user_args()
+	_check((leader._skinned_trial is Trial) == use_lineage_leader, "The leader follows the requested roster mode")
 	var spawn_pos := leader.global_position + Vector3(6, 0, 8)
 	var saved_bodies := {}
 	for lineage in lineages:
