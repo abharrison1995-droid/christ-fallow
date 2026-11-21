@@ -115,9 +115,7 @@ func _physics_process(delta: float) -> void:
 		for w in wild_candidates:
 			if not is_instance_valid(w) or w.get("is_dead") == true:
 				continue
-			var w_radius := 1.8 if w.get("is_boss") == true else 1.05
-			var w_center: Vector3 = (w as Node3D).global_position + Vector3(0.0, 0.9, 0.0)
-			if _segment_distance_to_point(prev_pos, next_pos, w_center) < w_radius:
+			if _segment_distance_to_point(prev_pos, next_pos, w.projectile_hit_center()) < w.projectile_hit_radius:
 				w.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return

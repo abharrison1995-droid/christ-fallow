@@ -46,6 +46,10 @@ func _run() -> void:
 	var damaged: Node = colony.spawn_building("SLEEPING_HUT", Vector3(62, 0, 52), 0.5, true)
 	damaged.hp = damaged.max_hp * 0.28
 	damaged.sync_visual_from_state()
+	var wildlife_hp := {"SLATEBACK_BOAR": 111.0, "REEDJAW": 106.0}
+	for animal in _state.wildlife_container.get_children():
+		if wildlife_hp.has(animal.animal_type):
+			animal.hp = wildlife_hp[animal.animal_type]
 	colony.spawn_building("CAMPFIRE", Vector3(56, 0, 52), 0.0, false)
 	_state.tutorial_step = 3
 	_state.tutorial_harvested = true
@@ -73,6 +77,12 @@ func _run() -> void:
 	_state.conquest_triggered.connect(func(_faction: int): events.append("conquest"), CONNECT_ONE_SHOT)
 	_check(_state.load_game(path), "Cold load v3")
 	_check(events == ["started", "loaded", "conquest"], "Cold-load signals retain their order")
+	for animal in _state.wildlife_container.get_children():
+		if wildlife_hp.has(animal.animal_type):
+			_check(is_equal_approx(float(animal.hp), float(wildlife_hp[animal.animal_type])) and animal._bite_player != null,
+				"%s restores its HP and imported bite" % animal.animal_type)
+			wildlife_hp.erase(animal.animal_type)
+	_check(wildlife_hp.is_empty(), "Both promoted wildlife species survive the save round trip")
 	var buildings: Array = _state.get_faction_buildings(0, "SLEEPING_HUT")
 	_check(buildings.size() == 1 and buildings[0].damage_stage == 2, "Critical stage derives from saved HP")
 	_check(not _state.get_faction_buildings(0, "CAMPFIRE")[0].is_constructed, "Blueprint remains unfinished")
@@ -134,6 +144,7 @@ func _run() -> void:
 		ids[unit.unit_id] = true
 	_check_guide_reward()
 	_check_combat()
+	_check_leader_damage()
 	_check_slice_0a()
 	_check_slice_0b()
 	await _check_slice_0c(path)
@@ -209,6 +220,52 @@ func _check_combat() -> void:
 	projectile.gravity = 0.0
 	projectile._physics_process(0.016)
 	_check(is_equal_approx(before - float(opponent.hp), 7.5), "Projectile retains faction attribution and armor mitigation after its shooter is freed")
+
+
+func _check_leader_damage() -> void:
+	var player: Node = _state.player_controller
+	var leader: Node = player.leader_unit
+	var rival: Node = _state.faction_controllers[2]
+	leader.global_position = Vector3(150, 0, -150)
+	_state.spatial_index.update_unit(leader)
+	var target: Node = rival.spawn_colonist(leader.global_position, GameData.Lineage.SWIFT_KIN,
+		GameData.Gender.MALE, GameData.Role.FORAGER)
+	target.armor = 10.0
+	target.hp = 100.0
+	leader.attack_damage = 20.0
+	leader.ranged_attack_damage = 16.0
+	_state.factions[0]["patron_god"] = GameData.PatronGod.SOL_KAR
+	_state.time_of_day = 12.0
+	player._attack_cd = 0.0
+	player._try_melee_cleave()
+	_check(is_equal_approx(float(target.hp), 74.5) and not target.is_dead,
+		"Daylight cleave applies 30 raw and 25.5 after armor and leaves a living target")
+
+	_state.factions[0]["patron_god"] = GameData.PatronGod.VALK_TOR
+	player._javelin_cd = 0.0
+	var projectiles: Node = _state.projectiles_container
+	var previous_count := projectiles.get_child_count()
+	player._try_throw_javelin()
+	if projectiles.get_child_count() == previous_count + 1:
+		var javelin: Node = projectiles.get_child(previous_count)
+		_check(javelin.proj_type == "JAVELIN" and is_equal_approx(float(javelin.damage), 25.0),
+			"Valk-Tor javelin launches with 25 raw damage from the ranged stat")
+		javelin.global_position = target.global_position + Vector3.UP
+		javelin.velocity = Vector3.ZERO
+		javelin.gravity = 0.0
+		javelin._physics_process(0.016)
+		_check(is_equal_approx(float(target.hp), 54.0) and javelin.is_queued_for_deletion(),
+			"Javelin contact applies 20.5 after armor and consumes the projectile")
+	else:
+		_check(false, "Leader launches one javelin")
+
+	var boar: Node = _state.world_node._spawn_animal("BOAR", leader.global_position + Vector3(3, 0, 0))
+	boar.take_damage(12.0, leader, 0)
+	_check(is_equal_approx(float(boar.hp), 73.0), "Ordinary boar takes 12 raw damage without mitigation")
+	player._blessing_cd = 0.0
+	player._try_god_blessing()
+	_check(is_equal_approx(float(target.hp), 16.5) and is_equal_approx(float(boar.hp), 31.0),
+		"Valk-Tor blessing applies 42 raw, 37.5 after human armor, and 42 to ordinary wildlife")
 
 
 func _check_slice_0a() -> void:

@@ -3,6 +3,7 @@ extends CharacterBody3D
 const Layout = preload("res://scripts/core/world_layout.gd")
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
+const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 
 var animal_type: String = "DEER"
 var animal_name: String = "Deer"
@@ -10,6 +11,8 @@ var hp: float = 55.0
 var max_hp: float = 55.0
 var move_speed: float = 7.0
 var damage: float = 8.0
+var armor: float = 0.0
+var projectile_hit_radius: float = 1.05
 var is_aggro: bool = false
 var flees_when_hit: bool = true
 var is_boss: bool = false
@@ -34,6 +37,12 @@ var _roam_target: Vector3 = Vector3.ZERO
 var _roam_wait: float = 1.5
 var _target_unit: Node = null
 var _attack_cd: float = 0.0
+var _attack_cooldown: float = 1.25
+var _attack_reach: float = 1.9
+var _attack_windup: float = 0.0
+var _bite_remaining: float = 0.0
+var _bite_target: Node3D = null
+var _projectile_hit_height: float = 0.9
 var _flee_timer: float = 0.0
 var _flee_dir: Vector3 = Vector3.ZERO
 var _index_registered: bool = false
@@ -64,9 +73,15 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	hp = max_hp
 	move_speed = float(data["speed"])
 	damage = float(data["damage"])
+	armor = float(data.get("armor", 0.0))
 	is_aggro = bool(data["aggro"])
 	flees_when_hit = bool(data["flee"])
 	is_boss = bool(data["is_boss"])
+	_attack_cooldown = float(data.get("attack_cooldown", 1.6 if is_boss else 1.25))
+	_attack_reach = float(data.get("attack_reach", 3.1 if is_boss else 1.9))
+	_attack_windup = float(data.get("attack_windup", 0.0))
+	_projectile_hit_height = float(data.get("projectile_hit_height", 0.9))
+	projectile_hit_radius = float(data.get("projectile_hit_radius", 1.8 if is_boss else 1.05))
 	_prey_scan_cd = 0.0
 	if is_inside_tree() and not _index_registered:
 		_index_registered = true
@@ -74,8 +89,8 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
-	cap.radius = 1.15 if is_boss else 0.55
-	cap.height = 2.4 if is_boss else 1.4
+	cap.radius = float(data.get("capsule_radius", 1.15 if is_boss else 0.55))
+	cap.height = float(data.get("capsule_height", 2.4 if is_boss else 1.4))
 	col.shape = cap
 	col.position = Vector3(0.0, cap.height * 0.5, 0.0)
 	add_child(col)
@@ -145,10 +160,15 @@ func serialize() -> Dictionary:
 	}
 
 
+func projectile_hit_center() -> Vector3:
+	return global_position + Vector3.UP * _projectile_hit_height
+
+
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	if is_dead:
 		return
-	hp -= amount
+	var applied := UnitStats.mitigated_damage(amount, armor) if armor > 0.0 else amount
+	hp -= applied
 	_update_hp_bar()
 	_hit_flash_timer = 0.14
 	CombatVFX.apply_overlay_recursive(_visual_root, CombatVFX.get_hit_flash_material())
@@ -169,7 +189,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 				if atk_is_spear:
 					kb_str *= 1.25
 			_knockback_vel = kb.normalized() * kb_str
-	CombatVFX.spawn_damage_popup(self, "-%d" % roundi(amount), Color(1.0, 0.88, 0.28), 1.25 if is_boss else 1.0, 2.9 if is_boss else 1.85)
+	CombatVFX.spawn_damage_popup(self, "-%d" % roundi(applied), Color(1.0, 0.88, 0.28), 1.25 if is_boss else 1.0, 2.9 if is_boss else 1.85)
 
 	if flees_when_hit and attacker != null and is_instance_valid(attacker) and attacker is Node3D:
 		_flee_timer = 5.0
@@ -300,6 +320,10 @@ func _physics_process(delta: float) -> void:
 		return
 	GameState.spatial_index.update_wildlife(self)
 	_update_wildlife_animation(delta)
+	if _bite_remaining > 0.0:
+		_bite_remaining = maxf(0.0, _bite_remaining - delta)
+		if _bite_remaining <= 0.0:
+			_land_bite()
 
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_prey_scan_cd -= delta
@@ -311,7 +335,9 @@ func _physics_process(delta: float) -> void:
 
 	var desired_vel := Vector3.ZERO
 
-	if _flee_timer > 0.0:
+	if _bite_remaining > 0.0:
+		desired_vel = Vector3.ZERO
+	elif _flee_timer > 0.0:
 		_flee_timer -= delta
 		desired_vel = _flee_dir * move_speed * 1.25
 	else:
@@ -326,13 +352,11 @@ func _physics_process(delta: float) -> void:
 			var diff: Vector3 = _target_unit.global_position - global_position
 			diff.y = 0.0
 			var dist := diff.length()
-			var reach := 3.1 if is_boss else 1.9
-			if dist > reach:
+			if dist > _attack_reach:
 				desired_vel = diff.normalized() * move_speed
-			else:
-				if _attack_cd <= 0.0:
-					_perform_attack(_target_unit)
-					_attack_cd = 1.6 if is_boss else 1.25
+			elif _attack_cd <= 0.0:
+				_perform_attack(_target_unit)
+				_attack_cd = _attack_cooldown
 		else:
 			# Roam gently around home_pos
 			var to_roam := _roam_target - global_position
@@ -404,6 +428,10 @@ func _perform_attack(target: Node) -> void:
 		_bite_player.advance(0.0)
 	else:
 		_attack_anim_timer = 0.36
+	if _attack_windup > 0.0:
+		_bite_target = target as Node3D
+		_bite_remaining = _attack_windup
+		return
 	if is_boss:
 		# Megafauna AoE stomp/swipe
 		var stomp_targets: Array = []
@@ -417,4 +445,15 @@ func _perform_attack(target: Node) -> void:
 					if global_position.distance_to(u.global_position) <= 4.0:
 						u.take_damage(damage, self, -1)
 	else:
+		target.take_damage(damage, self, -1)
+
+
+func _land_bite() -> void:
+	var target := _bite_target
+	_bite_target = null
+	if not is_instance_valid(target) or target.get("is_dead") == true or target.get("is_wounded") == true:
+		return
+	var delta := target.global_position - global_position
+	delta.y = 0.0
+	if delta.length_squared() <= _attack_reach * _attack_reach:
 		target.take_damage(damage, self, -1)

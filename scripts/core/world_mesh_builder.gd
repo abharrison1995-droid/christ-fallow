@@ -2,7 +2,10 @@ extends RefCounted
 ## Imported and procedural Stone Age buildings, wildlife, resources, and projectiles.
 
 const BUILDING_STAGE_NAMES := ["Stage_Intact", "Stage_Damaged", "Stage_Critical", "Stage_Rubble"]
-const WILDLIFE_MODELS := {"BOAR": "tusked_boar", "SABERTOOTH": "sabertooth"}
+const WILDLIFE_MODELS := {
+	"BOAR": "tusked_boar", "SLATEBACK_BOAR": "slateback_boar",
+	"SABERTOOTH": "sabertooth", "REEDJAW": "reedjaw",
+}
 const RESOURCE_MODELS := {"TREE": "windbent_pine", "STONE": "moss_limestone", "BERRY_BUSH": "berry_thicket"}
 
 
@@ -813,7 +816,7 @@ static func build_wildlife_mesh(mf: Node, animal_type: String) -> Node3D:
 					leg.height = 0.72
 					mf.add_mesh(anim_pivot, leg, Vector3(x, 0.36, z), mat)
 
-		"BOAR":
+		"BOAR", "SLATEBACK_BOAR":
 			var mat: StandardMaterial3D = mf.make_mat(Color(0.38, 0.28, 0.24), 0.92)
 			var body := SphereMesh.new()
 			body.radius = 0.45
@@ -825,7 +828,7 @@ static func build_wildlife_mesh(mf: Node, animal_type: String) -> Node3D:
 			mf.add_mesh(anim_pivot, tusk, Vector3(-0.18, 0.58, 0.56), tusk_mat, Vector3(45.0, 0.0, 0.0))
 			mf.add_mesh(anim_pivot, tusk, Vector3(0.18, 0.58, 0.56), tusk_mat, Vector3(45.0, 0.0, 0.0))
 
-		"WOLF":
+		"WOLF", "REEDJAW":
 			var mat: StandardMaterial3D = mf.make_mat(Color(0.45, 0.47, 0.50), 0.88)
 			var body := CapsuleMesh.new()
 			body.radius = 0.28

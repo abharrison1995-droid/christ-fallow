@@ -25,6 +25,8 @@ Goliath and Swift-Kin Foragers and adult Spearmen share the promoted Crag-Born r
 
 ## Larger valley and accessible world map
 
+The original valley now includes the Slateback Boar and Reedjaw. Keep their encounter profiles when assigning territories in the larger layout. Standing-Stone Gate remains a sample until units can traverse its opening through `ValleyNavigation`. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout)
+
 - [ ] **Give tribes more room.** Prototype a roughly 760 × 760 m playable valley. The existing ground is 380 × 380 m and the closest rival camp is about 83 m from the Awakening glade. Test at least 170 m between all starting camps, 170–240 m to the player's nearest rival, and a contiguous 55–70 m radius for settlement growth around each camp. Tune by travel time, resource access, and viable building space.
 - [ ] **Extend the shared world layout.** Give the new valley its own bounds, settlement sites, reachable expansion space, resource clusters, caveman caves, wildlife sites, and river crossings. Use the layout for generation, movement, placement, camera, and maps. Keep early resources within a short trip from every starting camp.
 - [ ] **Keep distant tribes active.** Check camp construction, civilian hauling, raid arrival and return, enemy scan cost, and routes around rivers or walls. Preserve the 210-second opening Peace Buffer in the first prototype so spacing can be measured independently. Adjust timing after testing.

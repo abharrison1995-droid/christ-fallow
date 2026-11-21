@@ -22,6 +22,7 @@
   - `baac676` — **Phase 2A:** Playable Opening Tutorial ([awakening_guide.gd](../scripts/core/awakening_guide.gd) `get_objective_target()`, [tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), HUD `[x]`/`[ ]` checklist & gold `Build`/`Colony` highlights, `BuildDrawer` `[RECOMMENDED]` auto-select, Valley Radar pulsing target ping, Step 4 constructed `SLEEPING_HUT`, [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd)).
   - `d4b1261` — **Phase 2B:** Baked `Work`, `Wounded`, `Attack`, `Hit`, and `Death` skeletal clips in [generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py) & [generate_crag_born.py](../tools/assets/generate_crag_born.py), zero-swap animation & shader hit-flash in [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd) & [human_unit.gd](../scripts/entities/human_unit.gd), promoted [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) to **default-enabled** (`--procedural-roster` opt-out).
   - `92ae7d0` — **Docs Sync:** Updated `ROADMAP.md`, `FUTURE.md`, `AGENTS.md`, `README.md`, `OVERHAUL.md`, `tools/assets/README.md`.
+  - `7e38544` — **Slice 2C-1.** Promoted Goliath and Swift-Kin skinned Foragers and adult Spearmen.
 
 ---
 
@@ -39,7 +40,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 | [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) | Building 4-stage + collider contracts; `tribesman_base.glb` 17-bone rig + `Idle`/`Walk`/`Work`/`Wounded`/`Attack`/`Hit`/`Death`. |
 | [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) | Default promoted Crag-Born roster + zero-swap action/hit/death playback, `--check-default-roster`, and `--procedural-roster` opt-out. |
 | [verify_skinned_lineages.gd](../scripts/tools/verify_skinned_lineages.gd) | Goliath, Crag-Born, and Swift-Kin body sizes, shared bone and clip contract, gear fit and gait clearance, combat states, save/load, and roster opt-out. |
-| [verify_valley_assets.gd](../scripts/tools/verify_valley_assets.gd) | 4 scenery GLBs + Boar/Sabertooth GLBs, resource interaction, bite timing. |
+| [verify_valley_assets.gd](../scripts/tools/verify_valley_assets.gd) | Four scenery GLBs, wildlife attack and hit volumes, Slateback armor, and four-stage Granary and Tower builds with collider and rubble checks. |
 
 ---
 
@@ -50,14 +51,11 @@ Execute sequentially in small, independently verified Git commits on `main`. Upd
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)
 1. **Slice 2C-1 completed.** Goliath and Swift-Kin share the 17-bone Crag-Born rig and gear kits for Foragers and adult Spearmen. [Runtime loader](../scripts/entities/crag_born_trial.gd) · [Generation and review](../tools/assets/README.md#goliath-and-swift-kin)
-2. **Slice 2C-2 (Pass 4 Buildings & Pass 5 Wildlife + Damage Review), next:**
-   - Promote production 4-stage GLBs (`Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble`, `Collider-convcolonly`, plus named light/flame nodes where needed) for **Reed Granary** (Storage Mound, `STORAGE_PIT`) and **Ridge Signal Tower** (`WATCHTOWER`, with arrow origin aligned to the platform). Defer **Standing-Stone Gate** until passage/nav checks confirm clean gate traversal through `ValleyNavigation`.
-   - Promote **Reedjaw** (riverbank predator) and **Slateback Boar** (armored wildlife trial) — add golden damage regression cases in `verify_campaign_save.gd` before introducing wildlife armor mitigation per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
-   - Update `tools/assets/CATALOG.md` and `verify_valley_assets.gd`.
+2. **Slice 2C-2 completed.** Reed Granary, Ridge Signal Tower, Reedjaw, and Slateback Boar are live. Golden damage fixtures passed before the Slateback armor rule was enabled. Standing-Stone Gate remains a sample pending navigation traversal verification. [Generation and verification](../tools/assets/README.md#reed-granary-ridge-signal-tower-and-new-wildlife)
 
 ### Track B — Phase 3: Larger `760×760 m` Valley & Full-Screen World Map
 Reference: [docs/FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map)
-1. **Slice 3A (Layout Definitions & `v4` Versioned Saves):**
+1. **Slice 3A (Layout Definitions & `v4` Versioned Saves), next:**
    - Finish moving remaining fixed distances (`65 m` squad charge scan, `85 m` wounded ally search, resource/blueprint search caps, `PlayerController` scans) into [world_layout.gd](../scripts/core/world_layout.gd).
    - Add named valley layouts in `WorldLayout` (`"valley_classic_380"` and `"valley_expanded_760"`): `760×760 m` ground, `>= 170 m` camp spacing (`170–240 m` to player's nearest rival), `55–70 m` expansion radius around each camp, river geometry + ford crossings, resource clusters, caveman caves, and wildlife territories.
    - Version layout ID in `CampaignSave` (`v4` saves store `"valley_layout_id"`; legacy `v1..v3` saves default cleanly to `"valley_classic_380"` with zero coordinate breakage!). Keep `"valley_expanded_760"` as default for New Game (or selectable on Awakening screen) once verified.

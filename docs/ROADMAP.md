@@ -20,9 +20,9 @@
   - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (default promoted mode, `--check-default-roster`, and `--procedural-roster` opt-out), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
 
 ### Partially delivered (3D assets)
-- **Buildings**: `2/11` GLBs (`sleeping_hut_stages.glb`, `palisade_wall_stages.glb`); remaining `9` types use procedural 4-stage meshes. Blueprints and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 otherwise.
+- **Buildings**. Four of eleven types use imported four-stage models, including the Reed Granary (`STORAGE_PIT`) and Ridge Signal Tower (`WATCHTOWER`). Blueprints and placement ghosts use a tinted intact stage.
 - **Characters & gear**. Goliath, Crag-Born, and Swift-Kin (`3/7` lineages) use skinned bodies for Foragers and adult Spearmen, with two shared role kits. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
-- **Environment & wildlife**: `4` scenery GLBs (`windbent_pine`, `moss_limestone`, `berry_thicket`, `riverbank_reeds`), `2/6` wildlife GLBs (`tusked_boar`, `sabertooth`), plus `6` reviewed concept GLBs in `tools/assets/examples/`.
+- **Environment & wildlife**. Four scenery GLBs and four of eight wildlife species use imported models, including Slateback Boar and Reedjaw. [Asset catalog](../tools/assets/CATALOG.md#valley-scenery-and-wildlife)
 
 ### Key architectural & hygiene bottlenecks
 - **Remaining Phase 1 follow-ups**: a few fixed distances still sit outside [WorldLayout](../scripts/core/world_layout.gd) (squad charge scan `65 m`, wounded-ally search `85 m`, resource/blueprint searches, `PlayerController` container scans), and `ValleyNavigation` treats the river as solid except at fords (no weighted shallows). `HumanUnit` steering follows nav paths only beyond `6 m` from its target.
@@ -194,10 +194,10 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 ### Slice 2C — Pass 3–5 Expansion Assets & Damage Review
 
-> **Active next (before or alongside Phase 3)** — ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout) · [HANDOFF.md](HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review))
+> **Completed 21 Nov 2026**. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout) · [Handoff](HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review)
 
 - **Slice 2C-1 (Lineage scale extremes), completed 21 Nov 2026.** Six Goliath and Swift-Kin GLBs share the 17-bone Crag-Born rig, nine clips, and role kits. The shared loader applies lineage and age scale, including gear and corpse height. Verified live spawn, work and combat playback, save/load, gear fit and scale, and the roster opt-out. [Forward+ lineage verifier](../scripts/tools/verify_skinned_lineages.gd)
-- **Slice 2C-2 (Buildings, wildlife & damage review):** Promote 4-stage production GLBs for **Reed Granary** (Storage Mound, `STORAGE_PIT`) and **Ridge Signal Tower** (`WATCHTOWER`), trial **Standing-Stone Gate** once `ValleyNavigation` gate traversal is verified, promote **Reedjaw** and **Slateback Boar**, and add golden damage cases in `verify_campaign_save.gd` per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
+- **Slice 2C-2 (Buildings, wildlife & damage review), completed 21 Nov 2026.** Reed Granary and Ridge Signal Tower have four-stage models and matching colliders. Tower arrows use the active deck marker. New campaigns include a Slateback Boar with eight armor and a Reedjaw with a dodgeable bite. The campaign verifier locks down cleave, ranged, unarmed, Brute, and blessing damage. Standing-Stone Gate awaits traversal verification. [Damage cases](../scripts/tools/verify_campaign_save.gd) · [Forward+ asset checks](../scripts/tools/verify_valley_assets.gd)
 
 ---
 
@@ -234,7 +234,7 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** Continue with Slice 2C-2, then 3A, 3B, Phase 4, and Phase 5. [Handoff](HANDOFF.md)
+1. **Pick one slice.** Continue with 3A, then 3B, Phase 4, and Phase 5. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.

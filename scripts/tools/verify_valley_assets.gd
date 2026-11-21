@@ -4,6 +4,10 @@ extends SceneTree
 const POST_SHADER = preload("res://scripts/shaders/psx_diablo_post.gdshader")
 const SCENERY := {"windbent_pine": "Wind-bent pine", "moss_limestone": "Moss limestone",
 	"berry_thicket": "Berry thicket", "riverbank_reeds": "Riverbank reeds"}
+const BUILDINGS := ["STORAGE_PIT", "WATCHTOWER"]
+const STAGES := ["Stage_Intact", "Stage_Damaged", "Stage_Critical", "Stage_Rubble"]
+const IMPORTED_WILDLIFE := {"BOAR": "Tusked Boar", "SABERTOOTH": "Sabertooth", "SLATEBACK_BOAR": "Slateback Boar", "REEDJAW": "Reedjaw"}
+const ENCOUNTERS := ["BOAR", "SABERTOOTH", "WOLF", "SLATEBACK_BOAR", "REEDJAW"]
 const FRAME := Rect2i(0, 0, 1320, 824)
 const INK := Color("#f1e7d0")
 const ACCENT := Color("#d9ad64")
@@ -33,6 +37,7 @@ func _run() -> void:
 	_factory = root.get_node("MeshFactory")
 	await _verify_campaign()
 	await _render_review(out_dir.path_join("valley-assets.png"))
+	await _render_building_review(out_dir.path_join("valley-buildings.png"))
 	if _fails == 0:
 		print("VALLEY ASSETS PASSED")
 	quit(0 if _fails == 0 else 1)
@@ -65,6 +70,7 @@ func _verify_campaign() -> void:
 		_check(resource_types[kind], "%s uses imported art and keeps its harvest type" % kind)
 	if bush != null:
 		leader.global_position = bush.global_position
+		_state.spatial_index.update_unit(leader)
 		var food: float = _state.factions[0]["resources"]["food"]
 		var key := InputEventKey.new()
 		key.keycode = KEY_E
@@ -79,17 +85,20 @@ func _verify_campaign() -> void:
 	for animal in wildlife:
 		animal.set_physics_process(false)
 		examples[animal.animal_type] = animal
-	for kind in ["BOAR", "SABERTOOTH", "WOLF"]:
+	for kind in ENCOUNTERS:
 		if _check(examples.has(kind), "%s spawned during Awakening" % kind):
 			_verify_animal(examples[kind], leader)
+	for i in range(BUILDINGS.size()):
+		await _verify_building(BUILDINGS[i], Vector3(158.0, 0.0, 130.0 + i * 12.0), leader)
 	main.free()
 	await process_frame
-	print("Awakening, resource harvest, boar roaming, bite damage and procedural fallback checked.")
+	print("Awakening, resource harvest, wildlife combat, and building stages checked.")
 
 
 func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 	var kind: String = animal.animal_type
-	animal.global_position = Vector3(160, 0.12, -145)
+	animal.global_position = Vector3(110 + ENCOUNTERS.find(kind) * 12, 0.12, -145)
+	_state.spatial_index.update_wildlife(animal)
 	animal.velocity = Vector3.ZERO
 	animal._target_unit = null
 	animal._attack_cd = 0.0
@@ -102,18 +111,24 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 		_check(animal.global_position.x > before.x and (player == null or not player.is_playing()),
 			"Boar roams through existing AI with its Bite clip idle")
 		animal.take_damage(1.0, leader, 0)
+	if kind == "SLATEBACK_BOAR":
+		animal.take_damage(12.0, leader, 0)
+		_check(is_equal_approx(float(animal.hp), 121.6) and animal._target_unit == leader,
+			"Slateback mitigates 3.6 damage with its plates and retaliates when struck")
 	if kind != "WOLF" and not _check(player != null, "%s spawns with imported Bite" % kind):
 		return
 
 	leader.global_position = animal.global_position + Vector3(-1.60, 0, 0)
 	_state.spatial_index.update_unit(leader)
-	if kind == "SABERTOOTH":
-		_check(animal._scan_for_prey(14.0) == leader, "Sabertooth finds quarry through the existing scan")
+	if kind in ["SABERTOOTH", "REEDJAW"]:
+		_check(animal._scan_for_prey(14.0) == leader, "%s finds quarry through the existing scan" % kind)
 	leader.hp = leader.max_hp
 	var hp: float = leader.hp
 	animal._physics_process(1.0 / 60.0)
-	_check(is_equal_approx(hp - leader.hp, maxf(2.0, animal.damage - leader.armor * 0.45)),
-		"%s applies the current attack damage through the AI" % kind)
+	var expected_damage := maxf(2.0, animal.damage - leader.armor * 0.45)
+	var delayed := kind == "REEDJAW"
+	_check(is_equal_approx(hp - leader.hp, 0.0 if delayed else expected_damage),
+		"%s starts its attack with the expected damage timing" % kind)
 	_check(animal.serialize()["animal_type"] == kind, "%s retains its save ID" % kind)
 	if kind == "WOLF":
 		_check(player == null and animal._attack_anim_timer > 0.0, "Wolf still attacks with procedural art")
@@ -139,6 +154,10 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 	_state.is_paused = false
 	animal._physics_process(0.09)
 	_check(closed_jaw.angle_to(rig.get_bone_pose_rotation(jaw)) > 0.35, "%s opens its jaw" % kind)
+	if delayed:
+		_check(is_equal_approx(leader.hp, hp), "Reedjaw telegraphs the bite before it connects")
+		animal._physics_process(0.075)
+		_check(is_equal_approx(hp - leader.hp, expected_damage), "Reedjaw deals one hit when the bite closes")
 	for i in range(10):
 		animal._physics_process(0.05)
 	_check(not player.is_playing() and closed_jaw.is_equal_approx(rig.get_bone_pose_rotation(jaw)),
@@ -150,6 +169,79 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 	animal._physics_process(0.09)
 	_check(player.is_playing() and closed_jaw.angle_to(rig.get_bone_pose_rotation(jaw)) > 0.35,
 		"%s can start the bite again on the next attack" % kind)
+	if delayed:
+		hp = leader.hp
+		leader.global_position = animal.global_position - Vector3(6, 0, 0)
+		_state.spatial_index.update_unit(leader)
+		animal._physics_process(0.10)
+		_check(is_equal_approx(leader.hp, hp), "Leaving Reedjaw's reach during the wind-up avoids the bite")
+		_verify_reedjaw_hit_volume(animal, leader)
+
+
+func _verify_reedjaw_hit_volume(animal: Node, leader: Node) -> void:
+	_state.spatial_index.update_wildlife(animal)
+	var center: Vector3 = animal.projectile_hit_center()
+	var hp: float = animal.hp
+	var projectile_script := load("res://scripts/entities/projectile_3d.gd")
+	for height in [1.3, 0.0]:
+		var origin := center - Vector3(0.5, -height, 0)
+		var shot: Node = projectile_script.spawn(leader, 0, origin, origin + Vector3.RIGHT, 12.0)
+		shot.gravity = 0.0
+		shot.velocity = Vector3(20, 0, 0)
+		shot._physics_process(0.05)
+		_check(is_equal_approx(float(animal.hp), hp - (12.0 if height == 0.0 else 0.0)),
+			"Reedjaw's low hit volume distinguishes overhead and body-level projectiles")
+		_state.projectiles_container.remove_child(shot)
+		shot.free()
+
+
+func _verify_building(type: String, point: Vector3, target: Node3D) -> void:
+	var path := "res://assets/models/buildings/%s_stages.glb" % type.to_lower()
+	var source: Node3D = load(path).instantiate()
+	_check(not source.find_children("Collider*", "StaticBody3D", true, false).is_empty(),
+		"%s imports an authored convex collider" % type)
+	source.free()
+	var nav: RefCounted = _state.valley_nav
+	var cell: Vector2i = nav.world_to_cell(point)
+	var pos: Vector3 = nav.cell_to_world(cell)
+	var building: Node = _state.faction_controllers[0].spawn_building(type, pos, PI * 0.5, false)
+	building.set_physics_process(false)
+	_check(building._visual_root.scene_file_path == path and building._visual_root.get_node(STAGES[0]).visible,
+		"%s blueprint uses the imported intact shape" % type)
+	_check(not nav.is_cell_blocked(cell), "%s blueprint leaves navigation clear" % type)
+	_check(building._visual_root.find_children("*", "Light3D", true, false).is_empty(), "%s blueprint emits no light" % type)
+	building.advance_construction(building.build_time + 0.1)
+	_check(building.is_constructed and building._col_shape.shape is BoxShape3D and nav.is_cell_blocked(cell),
+		"%s construction registers the authored footprint at the saved rotation" % type)
+	for stage in range(STAGES.size()):
+		_check(building.damage_stage == stage and building._get_active_stage_node().visible, "%s switches to %s" % [type, STAGES[stage]])
+		if type == "WATCHTOWER" and stage < 3:
+			_verify_arrow_origin(building, target, stage)
+		if stage < 3:
+			var next_hp: float = building.max_hp * [0.5, 0.24, 0.0][stage]
+			building.take_damage(building.hp - next_hp, 5)
+	await process_frame
+	_check(building.is_destroyed and building._col_shape.disabled and not nav.is_cell_blocked(cell),
+		"%s rubble releases collision and navigation" % type)
+
+
+func _verify_arrow_origin(tower: Node, target: Node3D, stage: int) -> void:
+	var active: Node3D = tower._get_active_stage_node()
+	var light := active.find_child("SignalLight*", false, false) as OmniLight3D
+	var flame := active.find_child("FlameMesh*", false, false) as MeshInstance3D
+	var marker := active.find_child("ArrowOrigin*", false, false) as Node3D
+	_check(light != null and light.visible and flame != null and flame.visible, "Active tower stage has a lit brazier")
+	if not _check(marker != null, "Watchtower stage mounts an arrow origin"):
+		return
+	var projectiles: Node = _state.projectiles_container
+	tower._fire_watchtower_arrow(target)
+	var arrow: Node3D = projectiles.get_child(projectiles.get_child_count() - 1)
+	var deck_eye_height: float = [3.21, 3.0, 1.57][stage]
+	_check(arrow.global_position.is_equal_approx(marker.global_position)
+		and is_equal_approx(arrow.global_position.y - tower.global_position.y, deck_eye_height),
+		"Watchtower projectile origin follows the active deck at its rotated stage marker")
+	projectiles.remove_child(arrow)
+	arrow.free()
 
 
 func _render_review(path: String) -> void:
@@ -168,7 +260,7 @@ func _render_review(path: String) -> void:
 		labels.append(SCENERY[name])
 		prop.free()
 
-	for kind in ["BOAR", "SABERTOOTH"]:
+	for kind in IMPORTED_WILDLIFE:
 		var model: Node3D = _factory.build_wildlife_mesh(kind)
 		var player := model.find_child("BiteAnimation", true, false) as AnimationPlayer
 		if not _check(player != null, "%s can be posed for review" % kind):
@@ -177,11 +269,9 @@ func _render_review(path: String) -> void:
 		_stage.add_child(model)
 		player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 		player.play(&"Bite")
-		player.seek(0.0, true)
-		pictures.append(await _capture(0.75, 9.2, Vector2i(298, 190), -58.0))
 		player.seek(0.09, true)
-		pictures.append(await _capture(0.75, 9.2, Vector2i(298, 190), -58.0))
-		labels.append_array(["Tusked boar" if kind == "BOAR" else "Sabertooth", "Jaw open"])
+		pictures.append(await _capture(0.70, 11.4, Vector2i(298, 190), -58.0))
+		labels.append(IMPORTED_WILDLIFE[kind])
 		model.free()
 
 	_stage.free()
@@ -207,7 +297,26 @@ func _render_review(path: String) -> void:
 	await process_frame
 	await RenderingServer.frame_post_draw
 	_check(root.get_texture().get_image().get_region(FRAME).save_png(path) == OK, "Comparison sheet saves")
+	canvas.free()
 	print("Review written to %s" % path)
+
+
+func _render_building_review(path: String) -> void:
+	_setup_stage()
+	var size := Vector2i(298, 230)
+	var sheet := Image.create(size.x * STAGES.size(), size.y * BUILDINGS.size(), false, Image.FORMAT_RGB8)
+	for row in range(BUILDINGS.size()):
+		var model: Node3D = _factory.build_building_stages(BUILDINGS[row], Color("#e6b958"), false)
+		_stage.add_child(model)
+		for column in range(STAGES.size()):
+			for stage in model.get_children():
+				stage.visible = stage.name == STAGES[column]
+			var picture := await _capture(1.38, 14.0, size, 33.0)
+			picture.convert(Image.FORMAT_RGB8)
+			sheet.blit_rect(picture, Rect2i(Vector2i.ZERO, size), Vector2i(column * size.x, row * size.y))
+		model.free()
+	_stage.free()
+	_check(sheet.save_png(path) == OK, "Building stage comparison saves")
 
 
 func _setup_stage() -> void:

@@ -102,9 +102,9 @@ Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercis
 
 ## Valley scenery and wildlife
 
-The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both banks of the existing river and are decorative. The skinned Tusked Boar and Sabertooth use their existing wildlife IDs, spawn counts, roaming, and attack rules. Both GLBs face Godot local `-Z` and export a one-shot `Bite`. Boar tosses its tusks after opening its mouth. Sabertooth crouches and snaps its jaw. Movement continues to use the campaign's existing body motion.
+The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks and are decorative. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. Boar tosses its tusks after opening its mouth. Sabertooth crouches and snaps its jaw.
 
-To regenerate the six GLBs and the [Forward+ review sheet](previews/valley-assets.png), run from the project root in PowerShell:
+To regenerate the original four scenery GLBs and two wildlife GLBs, run from the project root in PowerShell. [Original Forward+ comparison](previews/valley-assets.png)
 
 ```powershell
 $godot = Join-Path $env:LOCALAPPDATA 'Godot/Godot_v4.3-stable_win64_console.exe'
@@ -120,4 +120,18 @@ if ($LASTEXITCODE -ne 0) { throw 'Valley asset generation failed' }
 & $godot --path $staged --resolution 1600x900 --quit-after 900 --log-file (Join-Path $scratch 'review.log') --script res://scripts/tools/verify_valley_assets.gd -- "--out-dir=$scratch"
 ```
 
-Check for `VALLEY ASSETS PASSED` and clean logs. The campaign probe covers imported resource spawning, harvesting a berry thicket with `E`, boar roaming, sabertooth prey detection, jaw motion and replay, pause, normal damage, and serialized wildlife IDs. The review sheet shows both bites with PSX enabled. Damage still lands when the AI starts the attack, before the animated jaws close. Missing imports fall back to the procedural animal or resource mesh.
+Check for `VALLEY ASSETS PASSED` and clean logs. The campaign probe covers imported resources, `E` harvesting, roaming, prey detection, jaw motion, attack replay, and pause. The comparison sheet shows four attack poses with PSX enabled. Missing imports fall back to procedural meshes.
+
+## Reed Granary, Ridge Signal Tower, and new wildlife
+
+The Storage Mound (`STORAGE_PIT`) and Watchtower (`WATCHTOWER`) use the promoted four-stage GLBs. The tower’s standing stages include a brazier light, flame mesh, and an arrow marker above the remaining deck. The wildlife batch adds Slateback Boar’s plates and Reedjaw’s low profile and timed bite. Standing-Stone Gate remains a sample until navigation can route through its opening.
+
+After staging the project as above, use fresh isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` for each Godot launch.
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\examples\generate_examples.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--production')
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 900 -s res://scripts/tools/verify_valley_assets.gd -- "--out-dir=$scratch"
+```
+
+Check `VALLEY ASSETS PASSED` and inspect `valley-assets.png` and `valley-buildings.png`. The verifier exercises blueprint completion, damage stages, arrow origin and rubble clearance, plus Slateback armor, Reedjaw’s dodge window and projectile hit volume. [Valley verifier](../../scripts/tools/verify_valley_assets.gd) · [Damage and save fixtures](../../scripts/tools/verify_campaign_save.gd)

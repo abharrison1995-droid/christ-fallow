@@ -111,12 +111,12 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 	is_destroyed = false
 
 	var col_shape := CollisionShape3D.new()
-	if building_type == "PALISADE_WALL":
-		# Match the authored wall footprint and use the building's saved yaw.
-		var wall := BoxShape3D.new()
-		wall.size = Vector3(3.2, 2.2, 0.5)
-		col_shape.shape = wall
-		col_shape.position.y = wall.size.y * 0.5
+	var collider_size: Vector3 = b_info.get("collider_size", Vector3.ZERO)
+	if collider_size != Vector3.ZERO:
+		var box := BoxShape3D.new()
+		box.size = collider_size
+		col_shape.shape = box
+		col_shape.position.y = box.size.y * 0.5
 	else:
 		var cyl := CylinderShape3D.new()
 		cyl.radius = float(b_info["radius"]) * 0.72
@@ -512,7 +512,7 @@ func _destroy(attacker_faction: int) -> void:
 		for l in _visual_root.find_children("*", "Light3D", true, false):
 			if l is Light3D:
 				(l as Light3D).visible = false
-		for f in _visual_root.find_children("FlameMesh", "MeshInstance3D", true, false):
+		for f in _visual_root.find_children("FlameMesh*", "MeshInstance3D", true, false):
 			if f is MeshInstance3D:
 				(f as MeshInstance3D).visible = false
 
@@ -679,7 +679,14 @@ func _fire_watchtower_arrow(target: Node3D) -> void:
 	if GameState.has_tenet(faction_id, "ANCESTRAL_STONE"):
 		dmg *= 1.25
 	var origin := global_position + Vector3(0.0, 4.2, 0.0)
+	var stage := _get_active_stage_node()
+	if stage != null:
+		var marker := stage.find_child("ArrowOrigin*", false, false) as Node3D
+		if marker != null:
+			origin = marker.global_position
 	var aim: Vector3 = target.global_position + Vector3(0.0, 1.0, 0.0)
+	if target.has_method("projectile_hit_center"):
+		aim = target.projectile_hit_center()
 	var tier := 1
 	if GameState.factions.has(faction_id):
 		tier = int(GameState.factions[faction_id].get("tech_tier", 1))

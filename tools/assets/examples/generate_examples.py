@@ -11,6 +11,7 @@ from mathutils import Matrix, Vector
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import generate_tribesman_rig as human
+from generate_valley_assets import animate_bite
 from generate_village_building import box_part, join_and_rename, make_flat_material, timber
 
 
@@ -231,17 +232,52 @@ def reed_granary(stage, mats):
     return parts
 
 
-def export_building(output, name, builder, colliders):
+def export_building(output, name, builder, colliders, production=False):
     mats = reset()
     facing = Matrix.Rotation(math.pi, 4, "Z")
     for index, stage in enumerate(STAGES):
         joined = join_and_rename(builder(index, mats), stage)
         # The authored front is Godot local +Z.
         joined.matrix_world = facing @ joined.matrix_world
+        if production and builder == signal_tower and index < 3:
+            add_tower_markers(joined, index, mats, facing)
     for index, (x, dims) in enumerate(colliders):
         collider = box_part((x, 0, dims[2] * 0.5), dims, mats["stone"])
         collider.name = "Collider-convcolonly" if index == 0 else f"Collider{index + 1}-convcolonly"
-    export_gltf(output / f"{name}.glb")
+    export_gltf(output / f"{name}.glb", lights=production)
+
+
+def add_tower_markers(stage, index, mats, facing):
+    def place(node, point):
+        node.parent = stage
+        node.matrix_world = Matrix.Translation(facing @ Vector(point))
+
+    bpy.context.view_layer.update()
+    arrow = bpy.data.objects.new("ArrowOrigin", None)
+    bpy.context.scene.collection.objects.link(arrow)
+    deck_height = (2.37, 2.16, 0.73)[index]
+    arrow_pos = (0.52, -0.48, deck_height + 0.84) if index < 2 else (0.49, -0.12, deck_height + 0.84)
+    place(arrow, arrow_pos)
+
+    brazier = (0.0, 0.04, deck_height + 0.45) if index < 2 else (0.25, 0.44, 0.44)
+    flame_mat = mats["coal"].copy()
+    shader = flame_mat.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Emission Color"].default_value = (1.0, 0.23, 0.025, 1.0)
+    shader.inputs["Emission Strength"].default_value = 1.5 if index < 2 else 0.6
+    tips = [stone((x, 0, height * 0.38), (0.18, 0.22, height), flame_mat, x * 3)
+            for x, height in [(-0.12, 0.28), (0.02, 0.44), (0.13, 0.20)]]
+    flame = join_and_rename(tips, "FlameMesh")
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    place(flame, brazier)
+
+    lamp = bpy.data.lights.new("SignalLight", "POINT")
+    lamp.color = (1.0, 0.42, 0.13)
+    lamp.energy = (0.8, 0.55, 0.22)[index]
+    lamp.use_custom_distance = True
+    lamp.cutoff_distance = 3.5
+    light = bpy.data.objects.new("SignalLight", lamp)
+    bpy.context.scene.collection.objects.link(light)
+    place(light, (brazier[0], brazier[1], brazier[2] + 0.28))
 
 
 def scout(output):
@@ -280,7 +316,7 @@ def scout(output):
     export_gltf(output / "characters" / "archetypes" / "flintmask_scout.glb", animated=True)
 
 
-def creature_bones(body_height, leg_positions, head_pos, tail_pos):
+def creature_bones(body_height, leg_positions, head_pos, tail_pos, jaw_pos=None):
     data = bpy.data.armatures.new("CreatureSkeleton")
     armature = bpy.data.objects.new("CreatureRig", data)
     bpy.context.scene.collection.objects.link(armature)
@@ -293,6 +329,10 @@ def creature_bones(body_height, leg_positions, head_pos, tail_pos):
         bone = data.edit_bones.new(name)
         bone.head, bone.tail = origin, end
         bone.parent = center
+    if jaw_pos is not None:
+        jaw = data.edit_bones.new("Jaw")
+        jaw.head, jaw.tail = jaw_pos
+        jaw.parent = data.edit_bones["Head"]
     bpy.ops.object.mode_set(mode="OBJECT")
     return armature
 
@@ -333,27 +373,31 @@ def creature_animation(armature, walk):
     strip.action_slot = slot
 
 
-def export_creature(output, name, parts, armature):
-    model = join_and_rename(parts, "CreatureMesh")
+def export_creature(output, name, parts, armature, production=False):
+    model = join_and_rename(parts, "WildlifeMesh" if production else "CreatureMesh")
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     model.parent = armature
     deform = model.modifiers.new("SkeletonDeform", "ARMATURE")
     deform.object = armature
     set_frames()
     armature.animation_data_create()
-    creature_animation(armature, False)
-    creature_animation(armature, True)
+    if production:
+        animate_bite(armature, name == "slateback_boar")
+    else:
+        creature_animation(armature, False)
+        creature_animation(armature, True)
     export_gltf(output / "wildlife" / f"{name}.glb", animated=True)
 
 
-def boar(output):
+def boar(output, production=False):
     mats = reset()
     legs = []
     for side, label in [(1, "L"), (-1, "R")]:
         legs.extend([(f"Fore.{label}", (side * 0.32, 0.49, 0.83), (side * 0.38, 0.54, 0.09)),
                      (f"Hind.{label}", (side * 0.32, -0.64, 0.79), (side * 0.34, -0.67, 0.09))])
     armature = creature_bones(0.90, legs, ((0, 0.57, 0.93), (0, 1.38, 0.62)),
-                              ((0, -0.93, 0.85), (0, -1.32, 1.02)))
+                              ((0, -0.93, 0.85), (0, -1.32, 1.02)),
+                              ((0, 0.86, 0.58), (0, 1.51, 0.51)) if production else None)
     parts = [
         weight(stone((0, -0.16, 0.91), (1.08, 2.26, 1.27), mats["skin"], detail=1), "Body"),
         weight(stone((0, 0.75, 0.91), (0.95, 1.07, 1.03), mats["bark"], detail=1), "Head"),
@@ -361,6 +405,8 @@ def boar(output):
         weight(stone((0, 1.61, 0.65), (0.40, 0.22, 0.29), mats["black"]), "Head"),
         weight(timber((0, -0.90, 0.85), (0.13, -1.32, 1.06), 0.045, mats["skin"]), "Tail"),
     ]
+    if production:
+        parts.append(weight(stone((0, 1.25, 0.47), (0.58, 0.77, 0.25), mats["skin"], detail=1), "Jaw"))
     for y, height, width in [(0.53, 1.42, 0.98), (0.16, 1.51, 1.06), (-0.27, 1.49, 0.99), (-0.66, 1.38, 0.86)]:
         parts.append(weight(stone((0, y, height), (width, 0.52, 0.34), mats["plate"], 0.08, detail=1), "Body"))
         parts.append(weight(stone((0, y, height + 0.18), (0.24, 0.36, 0.25), mats["chalk"], 0.14), "Body"))
@@ -374,23 +420,24 @@ def boar(output):
             weight(stone((sign * 0.36, 1.04, 0.97), (0.11, 0.15, 0.12), mats["eye"]), "Head"),
             weight(timber((sign * 0.30, 0.56, 1.15), (sign * 0.50, 0.37, 1.50), 0.10, mats["bark"], True), "Head"),
         ]
-    export_creature(output, "slateback_boar", parts, armature)
+    export_creature(output, "slateback_boar", parts, armature, production)
 
 
-def reedjaw(output):
+def reedjaw(output, production=False):
     mats = reset()
     legs = []
     for side, label in [(1, "L"), (-1, "R")]:
         legs.extend([(f"Fore.{label}", (side * 0.32, 0.48, 0.43), (side * 0.75, 0.64, 0.08)),
                      (f"Hind.{label}", (side * 0.36, -0.63, 0.43), (side * 0.72, -0.55, 0.075))])
     armature = creature_bones(0.48, legs, ((0, 0.58, 0.53), (0, 1.47, 0.45)),
-                              ((0, -0.82, 0.45), (0.12, -1.88, 0.16)))
+                              ((0, -0.82, 0.45), (0.12, -1.88, 0.16)),
+                              ((0, 0.9, 0.35), (0, 1.83, 0.29)) if production else None)
     parts = [
         weight(stone((0, 0.01, 0.48), (1.04, 2.09, 0.81), mats["fen"], detail=1), "Body"),
         weight(stone((0, 0.56, 0.35), (0.79, 1.07, 0.43), mats["throat"], detail=1), "Body"),
         weight(stone((0, 0.97, 0.59), (0.92, 1.12, 0.58), mats["fen"], detail=1), "Head"),
         weight(stone((0, 1.36, 0.43), (0.84, 1.11, 0.26), mats["ridge"], detail=1), "Head"),
-        weight(stone((0, 1.38, 0.31), (0.76, 0.91, 0.21), mats["throat"], detail=1), "Head"),
+        weight(stone((0, 1.38, 0.31), (0.76, 0.91, 0.21), mats["throat"], detail=1), "Jaw" if production else "Head"),
         weight(timber((0, -0.71, 0.47), (0.13, -1.54, 0.24), 0.23, mats["ridge"]), "Tail"),
         weight(timber((0.12, -1.42, 0.27), (0.53, -2.15, 0.23), 0.103, mats["fen"], True), "Tail"),
     ]
@@ -410,7 +457,7 @@ def reedjaw(output):
         for x, y in [(0.22, 1.72), (0.30, 1.53), (0.35, 1.33)]:
             parts.append(weight(timber((sign * x, y, 0.46), (sign * x, y + 0.035, 0.31),
                                        0.024, mats["bone"], True), "Head"))
-    export_creature(output, "reedjaw", parts, armature)
+    export_creature(output, "reedjaw", parts, armature, production)
 
 
 def set_frames():
@@ -418,23 +465,30 @@ def set_frames():
     bpy.context.scene.frame_start, bpy.context.scene.frame_end = 1, 61
 
 
-def export_gltf(path, animated=False):
+def export_gltf(path, animated=False, lights=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     bpy.context.scene.frame_set(1)
     bpy.ops.export_scene.gltf(
         filepath=str(path), export_format="GLB", export_apply=not animated,
         export_skins=animated, export_animations=animated, export_animation_mode="NLA_TRACKS",
-        export_frame_range=False,
+        export_frame_range=False, export_lights=lights,
     )
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate the six standalone asset samples.")
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--production", action="store_true", help="Export campaign-ready buildings and wildlife to assets/models.")
     options = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     output = options.out_dir.resolve()
     output.mkdir(parents=True, exist_ok=True)
     buildings = output / "buildings"
+    if options.production:
+        export_building(buildings, "watchtower_stages", signal_tower, [(0, (2.65, 2.28, 3.02))], production=True)
+        export_building(buildings, "storage_pit_stages", reed_granary, [(0, (3.10, 1.83, 2.47))], production=True)
+        boar(output, production=True)
+        reedjaw(output, production=True)
+        return
     export_building(buildings, "ridge_signal_tower", signal_tower, [(0, (2.65, 2.28, 3.02))])
     export_building(buildings, "standing_stone_gate", stone_gate,
                     [(-1.25, (1.04, 1.05, 2.51)), (1.25, (1.04, 1.05, 2.51))])

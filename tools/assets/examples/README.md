@@ -16,7 +16,7 @@ Each has the four direct-child stage nodes from the [building contract](../READM
 - **Slateback Boar** is a stocky tusked animal with overlapping stone-colored back plates. [GLB](models/wildlife/slateback_boar.glb)
 - **Reedjaw** is a low marsh predator with splayed legs, amber eyes, and a ridged tail. [GLB](models/wildlife/reedjaw.glb)
 
-All three have a bound skeleton and looping `Idle` and `Walk` clips. The visual concepts are suitable for a future gameplay trial. They would still need combat animations, gameplay collision, and AI before deployment.
+All three samples have a bound skeleton and looping `Idle` and `Walk` clips. The production Slateback Boar and Reedjaw exports use the `--production` branch of the generator. [Campaign asset pipeline](../README.md#reed-granary-ridge-signal-tower-and-new-wildlife)
 
 ## Review and regenerate
 
