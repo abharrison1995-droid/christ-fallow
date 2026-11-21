@@ -855,7 +855,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.SPEARMAN,
 		"god": PatronGod.KRAG_UL,
 		"tenets": ["SACRED_CONQUEST", "ANCESTRAL_STONE"],
-		"camp_pos": Vector3(0.0, 0.0, -118.0),
 	},
 	2: {
 		"name": "Sun-Stalkers",
@@ -867,7 +866,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.ARCHER,
 		"god": PatronGod.SOL_KAR,
 		"tenets": ["SACRED_CONQUEST", "PEACEFUL_OFFERING"],
-		"camp_pos": Vector3(118.0, 0.0, -18.0),
 	},
 	3: {
 		"name": "Swift-Fang Clan",
@@ -879,7 +877,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.KNIFE_RAIDER,
 		"god": PatronGod.FEN_ROR,
 		"tenets": ["BLOOD_SACRIFICE", "WILD_HARMONY"],
-		"camp_pos": Vector3(-118.0, 0.0, -12.0),
 	},
 	4: {
 		"name": "Earth-Root Tribe",
@@ -891,7 +888,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.SPEARMAN,
 		"god": PatronGod.GAIA_MAR,
 		"tenets": ["PEACEFUL_OFFERING", "KINSHIP"],
-		"camp_pos": Vector3(58.0, 0.0, 112.0),
 	},
 	5: {
 		"name": "Nomadic Cavemen",
@@ -903,7 +899,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.BRUTE,
 		"god": PatronGod.NONE,
 		"tenets": [],
-		"camp_pos": Vector3(-125.0, 0.0, 115.0),
 	},
 	6: {
 		"name": "The Outcast Rebels",
@@ -915,7 +910,6 @@ const RIVAL_PRESETS := {
 		"specialty": WarriorClass.SPEARMAN,
 		"god": PatronGod.FEN_ROR,
 		"tenets": ["BLOOD_SACRIFICE", "SACRED_CONQUEST"],
-		"camp_pos": Vector3(-55.0, 0.0, 52.0),
 	},
 }
 

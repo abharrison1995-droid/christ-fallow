@@ -1,7 +1,5 @@
 extends CharacterBody3D
 
-const Layout = preload("res://scripts/core/world_layout.gd")
-
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 
@@ -368,8 +366,8 @@ func _physics_process(delta: float) -> void:
 				if _roam_wait <= 0.0:
 					_roam_wait = randf_range(2.0, 5.5)
 					_roam_target = home_pos + Vector3(randf_range(-14.0, 14.0), 0.0, randf_range(-14.0, 14.0))
-					_roam_target.x = clampf(_roam_target.x, -Layout.WILDLIFE_ROAM_HALF_EXTENT, Layout.WILDLIFE_ROAM_HALF_EXTENT)
-					_roam_target.z = clampf(_roam_target.z, -Layout.WILDLIFE_ROAM_HALF_EXTENT, Layout.WILDLIFE_ROAM_HALF_EXTENT)
+					_roam_target.x = clampf(_roam_target.x, -GameState.valley_layout.wildlife_roam_half_extent, GameState.valley_layout.wildlife_roam_half_extent)
+					_roam_target.z = clampf(_roam_target.z, -GameState.valley_layout.wildlife_roam_half_extent, GameState.valley_layout.wildlife_roam_half_extent)
 
 	velocity.x = desired_vel.x
 	velocity.z = desired_vel.z
@@ -389,8 +387,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _clamp_to_world_bounds() -> void:
-	global_position.x = clampf(global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
-	global_position.z = clampf(global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	global_position.x = clampf(global_position.x, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
+	global_position.z = clampf(global_position.z, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 
 
 func _scan_for_prey(radius: float) -> Node:

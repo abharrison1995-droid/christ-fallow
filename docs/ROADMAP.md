@@ -2,10 +2,10 @@
 
 > Unified engineering, UI/UX, gameplay, and 3D asset roadmap following the [20 November 2026 refactor](REFACTOR.md). For architecture and file routing, see the [agent guide](../AGENTS.md). For quick session-transfer context, see the [engineering handoff](HANDOFF.md).
 
-## Current progress snapshot (20 November 2026)
+## Current progress snapshot (21 November 2026)
 
 ### Shipped & verified
-- **Core Stone Age campaign loop**: Title screen, Awakening tribe setup (`6` playable lineages), `210 s` Peace Buffer, 5-step Awakening Guide (`+10 Food, +10 Wood, +5 Flint`), gathering/hunting/crafting, 3 tech tiers, 5 Patron Gods & 6 tenets, day/dusk/night schedules, Barracks training, Tribal Warhorn (`H`), diplomacy/conquest/succession, and `v1..v3` atomic JSON persistence.
+- **Core Stone Age campaign loop**. Title and Awakening, six playable lineages, a 210 s Peace Buffer, the five-step Awakening Guide, gathering, hunting, crafting, three gear tiers, religion, work schedules, training, Tribal Warhorn, diplomacy, conquest, and succession. The campaign writes `v4` JSON saves and accepts versions 1–4.
 - **Refactored runtime boundaries**: `CampaignSession` lifecycle ownership, `GameState` campaign rules, `CampaignSave`/`CampaignStorage`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, `WorldLayout`, `FeatureDrawer` views, `UnitInspector`, `CampaignOverlays`, and `Preferences`.
 - **Phase 0 stabilization (`Slices 0A`–`0E`, Completed 20 Nov 2026)**: Fixed conquest/wounded/pause lifecycle leaks (`0A`), wildlife defense/economy/Warhorn/tech-tier/bounds/combat parity (`0B`), save/load state isolation, cooldown/buff/timer persistence, live `KRAG_UL` HP scaling, and synchronous leader succession (`0C`), HUD focus/layout/diplomacy/radar/control polish (`0D`), and `DUAL_SHEATH`/GLB blueprint hologram/PSX material/trial rig alignment (`0E`). 
 - **Phase 1 simulation performance & navigation (Completed 20 Nov 2026)**: `SpatialIndex` (XZ hash grid plus per-faction caches) replaced per-frame container scans, `ValleyNavigation` (`AStarGrid2D`) routes units around constructed buildings and across river fords, and `WorldLayout` now owns the river, ford, camera and scan constants. See [Phase 1](#phase-1-simulation-performance--navigation-foundation) for the benchmark table.
@@ -25,7 +25,7 @@
 - **Environment & wildlife**. Four scenery GLBs and four of eight wildlife species use imported models, including Slateback Boar and Reedjaw. [Asset catalog](../tools/assets/CATALOG.md#valley-scenery-and-wildlife)
 
 ### Key architectural & hygiene bottlenecks
-- **Remaining Phase 1 follow-ups**: a few fixed distances still sit outside [WorldLayout](../scripts/core/world_layout.gd) (squad charge scan `65 m`, wounded-ally search `85 m`, resource/blueprint searches, `PlayerController` container scans), and `ValleyNavigation` treats the river as solid except at fords (no weighted shallows). `HumanUnit` steering follows nav paths only beyond `6 m` from its target.
+- **Navigation**. The active layout defines river crossings and common scan distances. `HumanUnit` steering uses cached paths beyond 6 m from the target. [Valley navigation](../scripts/core/valley_navigation.gd)
 - **Repo hygiene**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/` and temp outputs. `ChristFallow.exe` (dated `2026-11-18`) and `Christ Fallow.lnk` lag the `2026-11-20` source.
 
 ---
@@ -203,10 +203,22 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 ## Phase 3: Larger 760×760 m Valley & Full-Screen World Map
 
-> **Queued next** — ([FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map) · [HANDOFF.md](HANDOFF.md#track-b--phase-3-larger-760760-m-valley--full-screen-world-map))
+> **3A delivered. 3B is next.** [Future work](FUTURE.md#larger-valley-and-accessible-world-map) · [Handoff](HANDOFF.md#track-b--phase-3-larger-760760-m-valley--full-screen-world-map)
 
-- **Slice 3A (Expanded layout & `v4` saves):** Move remaining fixed scan distances (`65 m` / `85 m` / resource/blueprint scans) into [WorldLayout](../scripts/core/world_layout.gd), add `"valley_classic_380"` and `"valley_expanded_760"` definitions (`>= 170 m` camp spacing, `55–70 m` growth radius, river crossings, caves, wildlife territories), persist `valley_layout_id` in `v4` saves while keeping legacy `v1..v3` saves on `"valley_classic_380"`, and benchmark `760×760 m` physics & `190×190` `ValleyNavigation`.
+- **Slice 3A (Expanded layout & `v4` saves), completed 21 Nov 2026.** New Game uses `valley_expanded_760`, with five fords, at least 170 m between settled starting camps, a 62 m growth radius, and a 190×190 navigation grid. Layout-specific rivers, cave sites, camps, wildlife territories, and bounds are shared across terrain, movement, camera, and radar. `v4` stores the layout ID, and prior versions restore `valley_classic_380` with their saved coordinates. [Layout data](../scripts/core/world_layout.gd) · [Expanded valley verifier](../scripts/tools/verify_expanded_valley.gd)
 - **Slice 3B (Full-screen World Map & `M` key reassignment):** Add `scripts/ui/world_map_overlay.gd` (pan/zoom, camps/landmarks/fords/objectives, click-to-mark waypoint), move `M` to World Map (keep `Tab` for Tribal Command) across `hud_controller.gd`, `settings_screen.gd`, `README.md`, `AGENTS.md`, and `verify_campaign_ui.gd`, and add `scripts/tools/verify_expanded_valley.gd`.
+
+### Slice 3A benchmark
+
+Seed `17394`, 1280×720, Godot Forward+, Intel UHD 620, isolated `APPDATA`. The developed settlement has 91 units and 54 buildings. All scenarios had matching unit and building counts in the final layout pair.
+
+| Scenario | Pre-expansion checkpoint physics median | Final classic median | Expanded median |
+| --- | ---: | ---: | ---: |
+| Opening | 25.016 ms | 27.027 ms | 23.560 ms |
+| Developed settlement | 65.336 ms | 43.979 ms | 46.899 ms |
+| Raid | 67.547 ms | 51.360 ms | 48.617 ms |
+
+Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in classic and 0.085 ms in expanded. Short physics samples showed intermittent tail spikes. Units now reuse their paths while progressing and replan when their target moves, a building changes the grid, or their movement stalls. Wider starting building spacing keeps expanded rival camps connected to the valley. [Benchmark](../scripts/tools/benchmark_simulation.gd) · [Routes and saves verifier](../scripts/tools/verify_expanded_valley.gd)
 
 ---
 
@@ -234,7 +246,7 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** Continue with 3A, then 3B, Phase 4, and Phase 5. [Handoff](HANDOFF.md)
+1. **Pick one slice.** Continue with 3B, then Phase 4 and Phase 5. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
@@ -264,6 +276,8 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 # 3. Phase 1 spatial index, navigation and benchmark gates
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_phase1_nav.gd
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/benchmark_simulation.gd
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/benchmark_simulation.gd -- --expanded-valley
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_expanded_valley.gd
 
 # 4. Asset & skinned rig gates (Forward+ display required)
 & $godot --path $project --quit-after 600 -s res://scripts/tools/verify_glb_assets.gd -- "--out-dir=$qa/glb" --require-gameplay-rig

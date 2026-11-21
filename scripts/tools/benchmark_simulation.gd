@@ -1,6 +1,8 @@
 extends SceneTree
 ## Deterministic seed 17394 simulation benchmark for Phase 1 performance tracking.
 
+const Layout = preload("res://scripts/core/world_layout.gd")
+
 var _unit_ai: GDScript
 var _state: Node
 var _main: Node
@@ -47,10 +49,30 @@ func _measure_target_search_median(probe_unit: Node) -> float:
 	for b in range(11):
 		var t0: int = Time.get_ticks_usec()
 		for i in range(100):
-			var _found: Node = _unit_ai.find_enemy_near_point(probe_unit, origin, 85.0)
+			var _found: Node = _unit_ai.find_enemy_near_point(probe_unit, origin, Layout.SCAN_RANGE_WOUNDED)
 		var elapsed_ms: float = float(Time.get_ticks_usec() - t0) / 1000.0
 		batches.append(elapsed_ms)
 	return _median(batches)
+
+
+func _measure_ford_routes() -> bool:
+	var layout: Layout = _state.valley_layout
+	var across := Basis(Vector3.UP, deg_to_rad(layout.river_rotation_y_deg)).x
+	var middle_ford := layout.river_ford_local_z[layout.river_ford_local_z.size() / 2]
+	var axis := layout.river_point(middle_ford + 38.0)
+	var durations: Array[float] = []
+	for i in range(40):
+		var offset := Vector3.FORWARD * float(i % 9)
+		var start := axis - across * 35.0 + offset
+		var goal := axis + across * 35.0 + offset
+		var t0 := Time.get_ticks_usec()
+		var path: PackedVector3Array = _state.valley_nav.find_path(start, goal)
+		durations.append(float(Time.get_ticks_usec() - t0) / 1000.0)
+		if path.size() <= 1 or path[-1].distance_to(goal) > 4.0:
+			push_error("Benchmark could not route both banks through a ford.")
+			return false
+	print("Ford routes: 40/40, median %.3f ms" % _median(durations))
+	return true
 
 
 func _measure_scenario(label: String, probe_unit: Node) -> Dictionary:
@@ -152,7 +174,8 @@ func _run() -> void:
 	await process_frame
 
 	seed(17394)
-	if not _state.start_new_campaign("Bench Leader", "Bench Tribe", GameData.Lineage.CRAG_BORN):
+	var layout_id := Layout.EXPANDED_ID if "--expanded-valley" in OS.get_cmdline_user_args() else Layout.CLASSIC_ID
+	if not _state.start_new_campaign("Bench Leader", "Bench Tribe", GameData.Lineage.CRAG_BORN, layout_id):
 		push_error("Failed to start benchmark campaign.")
 		quit(1)
 		return
@@ -176,7 +199,7 @@ func _run() -> void:
 	_setup_raid()
 	results.append(await _measure_scenario("Raid", leader))
 
-	print("")
+	print("Benchmark layout: %s" % layout_id)
 	print("| Scenario | Unit nodes | Building nodes | Physics median (ms) | Physics p95 (ms) | 100 target searches (ms) |")
 	print("| --- | ---: | ---: | ---: | ---: | ---: |")
 	for row in results:
@@ -189,6 +212,9 @@ func _run() -> void:
 			float(row["search_median"]),
 		])
 	print("")
+	if not _measure_ford_routes():
+		quit(1)
+		return
 	print("SIMULATION BENCHMARK COMPLETE")
 
 	_state.end_campaign()

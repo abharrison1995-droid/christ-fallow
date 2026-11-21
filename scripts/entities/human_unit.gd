@@ -106,6 +106,8 @@ var _nav_path: PackedVector3Array = PackedVector3Array()
 var _nav_idx: int = 0
 var _nav_target: Vector3 = Vector3(INF, 0.0, INF)
 var _nav_repath_cd: float = 0.0
+var _nav_revision: int = -1
+var _nav_progress_pos := Vector3.INF
 var _last_label_text: String = ""
 var _last_move_idle: bool = false
 var _work_timer: float = 0.0
@@ -1079,8 +1081,8 @@ func _physics_process(delta: float) -> void:
 
 
 func _clamp_to_world_bounds() -> void:
-	global_position.x = clampf(global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
-	global_position.z = clampf(global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	global_position.x = clampf(global_position.x, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
+	global_position.z = clampf(global_position.z, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 
 
 func _process_wild_wanderer(_delta: float) -> void:
@@ -1217,11 +1219,11 @@ func _process_player_warrior(delta: float, enemy: Node) -> void:
 		GameData.SquadOrder.CHARGE:
 			var charge_target := enemy
 			if charge_target == null:
-				charge_target = _find_nearest_enemy_unit(65.0)
+				charge_target = _find_nearest_enemy_unit(Layout.SCAN_RANGE_CHARGE)
 			if charge_target != null and (not is_ranged_unit or fire_at_will or global_position.distance_to((charge_target as Node3D).global_position) < 8.0):
 				_engage_target(charge_target)
 			else:
-				var b_target := _find_nearest_enemy_building(65.0)
+				var b_target := _find_nearest_enemy_building(Layout.SCAN_RANGE_CHARGE)
 				if b_target != null and (not is_ranged_unit or fire_at_will):
 					_engage_building(b_target)
 				elif p_leader != null:
@@ -1433,16 +1435,18 @@ func _nav_waypoint(target_pos: Vector3) -> Vector3:
 	if not nav.is_ready():
 		return target_pos
 	var flat_target := Vector3(target_pos.x, 0.0, target_pos.z)
-	var moved: bool = _nav_target.distance_squared_to(flat_target) > 16.0
-	if moved or (_nav_repath_cd <= 0.0 and _nav_idx >= _nav_path.size()):
+	var needs_path: bool = _nav_target.distance_squared_to(flat_target) > 16.0 or _nav_revision != nav.revision
+	if _nav_repath_cd <= 0.0:
+		# Reuse a valid route while the unit moves. Stalled units retry after the normal delay.
+		var stalled := global_position.distance_squared_to(_nav_progress_pos) < 0.25
+		needs_path = needs_path or _nav_path.is_empty() or stalled
+		_nav_progress_pos = global_position
+		_nav_repath_cd = randf_range(0.45, 0.65)
+	if needs_path:
 		_nav_path = nav.find_path(global_position, target_pos)
 		_nav_idx = 0
 		_nav_target = flat_target
-		_nav_repath_cd = randf_range(0.45, 0.65)
-	elif _nav_repath_cd <= 0.0:
-		_nav_repath_cd = randf_range(0.45, 0.65)
-		_nav_path = nav.find_path(global_position, target_pos)
-		_nav_idx = 0
+		_nav_revision = nav.revision
 	while _nav_idx < _nav_path.size() - 1:
 		var wp: Vector3 = _nav_path[_nav_idx]
 		var dx: float = wp.x - global_position.x
@@ -1450,7 +1454,7 @@ func _nav_waypoint(target_pos: Vector3) -> Vector3:
 		if dx * dx + dz * dz > NAV_WAYPOINT_REACH * NAV_WAYPOINT_REACH:
 			break
 		_nav_idx += 1
-	if _nav_idx < _nav_path.size():
+	if _nav_idx < _nav_path.size() - 1:
 		return _nav_path[_nav_idx]
 	return target_pos
 

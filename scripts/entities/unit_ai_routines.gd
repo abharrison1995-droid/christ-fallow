@@ -324,8 +324,8 @@ static func gain_training_xp(u, xp_gain: float) -> void:
 
 static func find_wounded_ally(u) -> Node:
 	var best: Node = null
-	var best_d := 85.0
-	for other in _units_near((u as Node3D).global_position, 85.0):
+	var best_d := Layout.SCAN_RANGE_WOUNDED
+	for other in _units_near((u as Node3D).global_position, Layout.SCAN_RANGE_WOUNDED):
 		if is_instance_valid(other) and not other.get("is_dead") and other.get("is_wounded") and not other.get("is_healing_in_shack"):
 			if int(other.get("original_faction_id")) == u.faction_id:
 				var claimer: Variant = other.get("_rescue_shaman")
@@ -354,7 +354,7 @@ static func get_nearest_dropoff_pos(u) -> Vector3:
 
 static func find_nearest_blueprint(u) -> Node:
 	var best: Node = null
-	var best_d := 80.0
+	var best_d := Layout.SCAN_RANGE_BLUEPRINT
 	for b in GameState.get_faction_buildings(u.faction_id, "", false):
 		if not b.get("is_constructed"):
 			var d: float = (u as Node3D).global_position.distance_to((b as Node3D).global_position)

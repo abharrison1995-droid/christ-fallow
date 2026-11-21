@@ -15,21 +15,17 @@ var _size := Vector2i.ZERO
 var _river_center := Vector3.ZERO
 var _river_length: float = 0.0
 var _river_width: float = 0.0
-var _river_rot_deg: float = 0.0
+var _river_inverse := Basis.IDENTITY
 var _fords: Array = []
 var _river_solid: Dictionary = {} # Vector2i -> true (deep, non-ford river cells)
 var _block_count: Dictionary = {} # Vector2i -> int (building refs)
 var _obstacles: Dictionary = {} # instance_id -> Array[Vector2i]
+var revision := 0
 
-## Builds the grid from WorldLayout bounds. River local axes: X = width, Z = length;
-## rotation_deg is rotation about Y (same as MeshInstance3D.rotation_degrees.y).
-## fords: Array of {pos: Vector3, half_width: float}.
-func configure_from_layout(river_center: Vector3 = Vector3.ZERO, river_length: float = 0.0, river_width: float = 0.0, river_rotation_deg: float = 0.0, fords: Array = []) -> void:
+func configure_from_layout(layout: WorldLayout) -> void:
 	clear()
-	var half: float = WorldLayout.GROUND_SIZE.x * 0.5
-	var halfz: float = WorldLayout.GROUND_SIZE.y * 0.5
-	_origin = Vector2(-half, -halfz)
-	_size = Vector2i(int(ceilf(WorldLayout.GROUND_SIZE.x / CELL_SIZE)), int(ceilf(WorldLayout.GROUND_SIZE.y / CELL_SIZE)))
+	_origin = -layout.ground_size * 0.5
+	_size = Vector2i((layout.ground_size / CELL_SIZE).ceil())
 	_grid = AStarGrid2D.new()
 	_grid.region = Rect2i(Vector2i.ZERO, _size)
 	_grid.cell_size = Vector2(CELL_SIZE, CELL_SIZE)
@@ -37,12 +33,13 @@ func configure_from_layout(river_center: Vector3 = Vector3.ZERO, river_length: f
 	_grid.default_compute_heuristic = AStarGrid2D.HEURISTIC_EUCLIDEAN
 	_grid.default_estimate_heuristic = AStarGrid2D.HEURISTIC_EUCLIDEAN
 	_grid.update()
-	_river_center = river_center
-	_river_length = river_length
-	_river_width = river_width
-	_river_rot_deg = river_rotation_deg
-	_fords = fords.duplicate(true)
-	_bake_river()
+	_river_center = layout.river_center
+	_river_length = layout.river_length
+	_river_width = layout.river_width
+	var river_basis := Basis(Vector3.UP, deg_to_rad(layout.river_rotation_y_deg))
+	_river_inverse = river_basis.inverse()
+	_fords = layout.river_crossings()
+	_bake_river(river_basis)
 
 ## Scans world_node for BuildingEntity nodes and registers their obstacles.
 func rebuild_from_world(world_node: Node) -> void:
@@ -66,6 +63,7 @@ static func _default_radius(building_type: String) -> float:
 	return 3.0
 
 func clear() -> void:
+	revision += 1
 	_grid = null
 	_river_solid.clear()
 	_block_count.clear()
@@ -88,7 +86,7 @@ func cell_to_world(c: Vector2i) -> Vector3:
 func _in_river(p: Vector3) -> bool:
 	if _river_length <= 0.0 or _river_width <= 0.0:
 		return false
-	var local: Vector3 = Basis(Vector3.UP, deg_to_rad(_river_rot_deg)).inverse() * (p - _river_center)
+	var local := _river_inverse * (p - _river_center)
 	return absf(local.x) <= _river_width * 0.5 and absf(local.z) <= _river_length * 0.5
 
 func _in_ford(p: Vector3) -> bool:
@@ -101,13 +99,17 @@ func _in_ford(p: Vector3) -> bool:
 			return true
 	return false
 
-func _bake_river() -> void:
+func _bake_river(river_basis: Basis) -> void:
 	if _grid == null or _river_length <= 0.0:
 		return
 	# Cells whose centre OR corners touch deep water are impassable, so diagonals cannot leak.
 	var q: float = CELL_SIZE * 0.5
-	for x in range(_size.x):
-		for z in range(_size.y):
+	var extent := (river_basis.x.abs() * _river_width + river_basis.z.abs() * _river_length) * 0.5
+	extent += Vector3.ONE * CELL_SIZE
+	var first := world_to_cell(_river_center - extent)
+	var last := world_to_cell(_river_center + extent)
+	for x in range(first.x, last.x + 1):
+		for z in range(first.y, last.y + 1):
 			var c := Vector2i(x, z)
 			var p: Vector3 = cell_to_world(c)
 			var wet: bool = _in_river(p)
@@ -147,6 +149,7 @@ func register_building_obstacle(building: Node3D, building_type: String, footpri
 				_block_count[c] = int(_block_count.get(c, 0)) + 1
 				_grid.set_point_solid(c, true)
 	_obstacles[id] = cells
+	revision += 1
 
 func unregister_building_obstacle(building: Node3D) -> void:
 	if building == null:
@@ -172,6 +175,7 @@ func _release_id(id: int) -> void:
 		else:
 			_block_count[cell] = n
 	_obstacles.erase(id)
+	revision += 1
 
 func _clear_buildings() -> void:
 	for id in _obstacles.keys():

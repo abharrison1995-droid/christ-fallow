@@ -1,7 +1,6 @@
 extends Control
 
 const Look = preload("res://scripts/ui/fallow_theme.gd")
-const Layout = preload("res://scripts/core/world_layout.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 const FACTION_TAGS := {
 	0: "YOU",
@@ -26,8 +25,9 @@ func _process(delta: float) -> void:
 
 
 func _to_map(world_pos: Vector3) -> Vector2:
-	var nx := (world_pos.x + Layout.RADAR_HALF_EXTENT) / (Layout.RADAR_HALF_EXTENT * 2.0)
-	var nz := (world_pos.z + Layout.RADAR_HALF_EXTENT) / (Layout.RADAR_HALF_EXTENT * 2.0)
+	var extent := GameState.valley_layout.radar_half_extent
+	var nx := (world_pos.x + extent) / (extent * 2.0)
+	var nz := (world_pos.z + extent) / (extent * 2.0)
 	return Vector2(clampf(nx, 0.0, 1.0) * size.x, clampf(nz, 0.0, 1.0) * size.y)
 
 
@@ -43,10 +43,10 @@ func _draw() -> void:
 	var font: Font = get_theme_default_font()
 
 	# Draw River strip hint
-	var r1 := _to_map(Layout.river_start())
-	var r2 := _to_map(Layout.river_end())
+	var r1 := _to_map(GameState.valley_layout.river_start())
+	var r2 := _to_map(GameState.valley_layout.river_end())
 	draw_line(r1, r2, Color("405657"), 5.0, true)
-	for ford in Layout.river_crossings():
+	for ford in GameState.valley_layout.river_crossings():
 		var fp := _to_map(ford["pos"])
 		draw_rect(Rect2(fp - Vector2(3.5, 3.5), Vector2(7.0, 7.0)), Color("a39a82"), true)
 		draw_rect(Rect2(fp - Vector2(3.5, 3.5), Vector2(7.0, 7.0)), Color("4b4638"), false, 1.0)

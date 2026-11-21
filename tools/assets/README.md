@@ -102,7 +102,7 @@ Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercis
 
 ## Valley scenery and wildlife
 
-The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks and are decorative. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. Boar tosses its tusks after opening its mouth. Sabertooth crouches and snaps its jaw.
+The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)
 
 To regenerate the original four scenery GLBs and two wildlife GLBs, run from the project root in PowerShell. [Original Forward+ comparison](previews/valley-assets.png)
 

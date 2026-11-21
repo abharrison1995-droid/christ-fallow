@@ -55,7 +55,6 @@ func setup(p_leader: CharacterBody3D) -> void:
 
 		camera = Camera3D.new()
 		camera.name = "MainCamera"
-		camera.far = Layout.CAMERA_FAR
 		camera.fov = 58.0
 		camera_pivot.add_child(camera)
 		camera.current = true
@@ -68,6 +67,7 @@ func setup(p_leader: CharacterBody3D) -> void:
 		_leader_light.light_energy = 2.20
 		_leader_light.position = Vector3(0.0, 1.4, 0.0)
 		camera_pivot.add_child(_leader_light)
+	camera.far = GameState.valley_layout.camera_far
 	_ensure_tutorial_beacon()
 	attach_leader(p_leader)
 
@@ -340,8 +340,8 @@ func _move_leader(delta: float) -> void:
 		leader_unit.velocity.y = 0.0
 
 	leader_unit.move_and_slide()
-	leader_unit.global_position.x = clampf(leader_unit.global_position.x, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
-	leader_unit.global_position.z = clampf(leader_unit.global_position.z, -Layout.UNIT_HALF_EXTENT, Layout.UNIT_HALF_EXTENT)
+	leader_unit.global_position.x = clampf(leader_unit.global_position.x, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
+	leader_unit.global_position.z = clampf(leader_unit.global_position.z, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 
 
 func _update_camera(delta: float) -> void:
@@ -371,7 +371,7 @@ func _get_ground_mouse_pos() -> Vector3:
 	var ray_dir := camera.project_ray_normal(m_pos)
 	if absf(ray_dir.y) > 0.001:
 		var t := -ray_orig.y / ray_dir.y
-		if t > 0.0 and t < Layout.CAMERA_RAY_LENGTH:
+		if t > 0.0 and t < GameState.valley_layout.camera_ray_length:
 			var hit := ray_orig + ray_dir * t
 			hit.y = 0.0
 			return hit
@@ -380,8 +380,8 @@ func _get_ground_mouse_pos() -> Vector3:
 
 func _update_blueprint_ghost() -> void:
 	var pos := _get_ground_mouse_pos()
-	pos.x = clampf(pos.x, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT)
-	pos.z = clampf(pos.z, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT)
+	pos.x = clampf(pos.x, -GameState.valley_layout.blueprint_half_extent, GameState.valley_layout.blueprint_half_extent)
+	pos.z = clampf(pos.z, -GameState.valley_layout.blueprint_half_extent, GameState.valley_layout.blueprint_half_extent)
 	_blueprint_ghost.global_position = pos
 	_blueprint_ghost.rotation.y = blueprint_rot_y
 
@@ -538,16 +538,16 @@ func _try_inspect_clicked_unit() -> bool:
 		if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded"):
 			var u_fid: int = int(u.get("faction_id"))
 			if GameState.is_hostile(0, u_fid):
-				if click_pos.distance_to((u as Node3D).global_position) <= 4.2:
+				if click_pos.distance_to((u as Node3D).global_position) <= Layout.SCAN_RANGE_INSPECT_ENEMY:
 					return false
 	if GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
 			if is_instance_valid(w) and not w.get("is_dead"):
-				var check_r := 4.8 if w.get("is_boss") == true else 4.2
+				var check_r := Layout.SCAN_RANGE_INSPECT_BOSS if w.get("is_boss") == true else Layout.SCAN_RANGE_INSPECT_WILDLIFE
 				if click_pos.distance_to((w as Node3D).global_position) <= check_r:
 					return false
 	var best_u: Node = null
-	var best_d := 1.5
+	var best_d := Layout.SCAN_RANGE_INSPECT
 	for u in GameState.units_container.get_children():
 		if is_instance_valid(u) and not u.get("is_dead"):
 			var u_fid: int = int(u.get("faction_id"))
@@ -570,7 +570,7 @@ func _try_interact_or_harvest() -> void:
 		var shacks: Array = GameState.get_faction_buildings(0, "SHAMAN_SHACK", true)
 		for u in GameState.units_container.get_children():
 			if is_instance_valid(u) and not u.get("is_dead") and u.get("is_wounded") and not u.get("is_healing_in_shack"):
-				if leader_unit.global_position.distance_to((u as Node3D).global_position) <= 5.5:
+				if leader_unit.global_position.distance_to((u as Node3D).global_position) <= Layout.SCAN_RANGE_FIELD_AID:
 					if not shacks.is_empty():
 						var best_shack: Node3D = shacks[0] as Node3D
 						var best_sd: float = (u as Node3D).global_position.distance_squared_to(best_shack.global_position)
@@ -595,7 +595,7 @@ func _try_interact_or_harvest() -> void:
 	if GameState.units_container != null:
 		for u in GameState.units_container.get_children():
 			if is_instance_valid(u) and not u.get("is_dead") and u.get("faction_id") == -1:
-				if leader_unit.global_position.distance_to(u.global_position) <= 6.5:
+				if leader_unit.global_position.distance_to(u.global_position) <= Layout.SCAN_RANGE_RECRUIT:
 					u.convert_to_faction(0, false)
 					recruited += 1
 	if recruited > 0:
@@ -606,7 +606,7 @@ func _try_interact_or_harvest() -> void:
 	# 1.5 Direct assist on unfinished blueprint nearby
 	for b in GameState.get_faction_buildings(0, "", false):
 		if is_instance_valid(b) and not b.get("is_constructed"):
-			if leader_unit.global_position.distance_to((b as Node3D).global_position) <= 4.6:
+			if leader_unit.global_position.distance_to((b as Node3D).global_position) <= Layout.SCAN_RANGE_CONSTRUCTION_ASSIST:
 				if _harvest_cd > 0.0:
 					return
 				_harvest_cd = 0.45
@@ -625,7 +625,7 @@ func _try_interact_or_harvest() -> void:
 		return
 	if GameState.resources_container != null:
 		var best_node: Node = null
-		var best_d := 4.8
+		var best_d := Layout.SCAN_RANGE_HARVEST
 		for n in GameState.resources_container.get_children():
 			if not is_instance_valid(n):
 				continue

@@ -1,6 +1,7 @@
 extends SceneTree
 ## Run on a clean Forward+ import with -- --out-dir=<absolute directory>.
 
+const Layout = preload("res://scripts/core/world_layout.gd")
 const POST_SHADER = preload("res://scripts/shaders/psx_diablo_post.gdshader")
 const SCENERY := {"windbent_pine": "Wind-bent pine", "moss_limestone": "Moss limestone",
 	"berry_thicket": "Berry thicket", "riverbank_reeds": "Riverbank reeds"}
@@ -53,7 +54,7 @@ func _verify_campaign() -> void:
 	if _check(reeds != null and reeds.get_child_count() == 42, "Reed beds populate both riverbanks"):
 		_check(reeds.find_children("*", "CollisionObject3D", true, false).is_empty(),
 			"Reed beds leave river traversal clear")
-	_state.start_new_campaign("Enoch", "Fallow Chosen", root.get_node("GameData").Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Fallow Chosen", root.get_node("GameData").Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var leader: CharacterBody3D = _state.get_faction_leader(0)
 	leader.set_physics_process(false)
 	_state.player_controller.set_physics_process(false)

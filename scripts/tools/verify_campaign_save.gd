@@ -38,7 +38,7 @@ func _run() -> void:
 		return
 	var path := "user://probe-%d.json" % Time.get_ticks_usec()
 	_mount()
-	_state.start_new_campaign("Enoch", "Restoration Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Restoration Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var player: Node = _state.get_faction_leader(0)
 	var leader_id: int = player.unit_id
 	var colony: Node = _state.faction_controllers[0]
@@ -59,11 +59,11 @@ func _run() -> void:
 	fallen.is_dead = true
 	_state.trigger_conquest_if_eligible(1, 0)
 	if not _state.save_game(path):
-		push_error("Could not write the v3 fixture.")
+		push_error("Could not write the v4 fixture.")
 		quit(1)
 		return
 	var current: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
-	_check(int(current["version"]) == 3, "The writer emits schema v3")
+	_check(int(current["version"]) == 4 and current["valley_layout_id"] == Layout.CLASSIC_ID, "The writer emits schema v4")
 	_unmount()
 	await process_frame
 	_mount()
@@ -75,7 +75,7 @@ func _run() -> void:
 		events.append("loaded")
 	, CONNECT_ONE_SHOT)
 	_state.conquest_triggered.connect(func(_faction: int): events.append("conquest"), CONNECT_ONE_SHOT)
-	_check(_state.load_game(path), "Cold load v3")
+	_check(_state.load_game(path), "Cold load v4")
 	_check(events == ["started", "loaded", "conquest"], "Cold-load signals retain their order")
 	for animal in _state.wildlife_container.get_children():
 		if wildlife_hp.has(animal.animal_type):
@@ -99,11 +99,11 @@ func _run() -> void:
 	var missing_leader := current.duplicate(true)
 	missing_leader["units"] = units.filter(func(unit: Dictionary): return int(unit["faction_id"]) != 0 or not unit["is_leader"])
 	_write(path, JSON.stringify(missing_leader))
-	_check(not _state.load_game(path) and _state.get_faction_leader(0) == live_leader, "A v3 save missing its recorded leader is rejected before restore")
+	_check(not _state.load_game(path) and _state.get_faction_leader(0) == live_leader, "A v4 save missing its recorded leader is rejected before restore")
 	missing_leader["units"] = units.filter(func(unit: Dictionary): return int(unit["faction_id"]) != 0)
 	missing_leader.erase("player_leader_id")
 	_write(path, JSON.stringify(missing_leader))
-	_check(_state.read_campaign_save(path).has("data"), "A v3 save with no surviving player units remains readable")
+	_check(_state.read_campaign_save(path).has("data"), "A v4 save with no surviving player units remains readable")
 	var legacy := current.duplicate(true)
 	legacy.erase("wildlife")
 	legacy.erase("combat_commands")
@@ -269,7 +269,7 @@ func _check_leader_damage() -> void:
 
 
 func _check_slice_0a() -> void:
-	_state.start_new_campaign("Enoch", "Slice0A Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Slice0A Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 
 	# (g) Diplomatic opinion breakdown matches get_diplomatic_opinion() across states & tenets
 	_state.factions[0]["patron_god"] = int(_state.factions[4]["patron_god"])
@@ -393,7 +393,7 @@ func _check_slice_0a() -> void:
 
 	# (c) Field aid without Shaman Shack does not freeze being_rescued, Shaman claim clears on interruption,
 	#     and wounded defection triggers defeat when no healthy player units remain
-	_state.start_new_campaign("Enoch", "Wounded Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Wounded Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var p_leader: Node = _state.get_faction_leader(0)
 	var p_colony: Node = _state.faction_controllers[0]
 	var rebel_unit: Node = p_colony.spawn_colonist(p_leader.global_position + Vector3(1.5, 0.0, 0.0), GameData.Lineage.CRAG_BORN, GameData.Gender.MALE, GameData.Role.FORAGER)
@@ -427,7 +427,7 @@ func _check_slice_0a() -> void:
 
 
 func _check_slice_0b() -> void:
-	_state.start_new_campaign("Enoch", "Slice0B Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Slice0B Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var colony: Node = _state.faction_controllers[0]
 	var leader: Node = _state.get_faction_leader(0)
 	var base := Vector3(130.0, 0.0, 120.0)
@@ -515,15 +515,15 @@ func _check_slice_0b() -> void:
 	guard.try_equip_from_stockpile()
 	_check(int(guard.weapon_tier) == 2 and int(_state.factions[0]["stockpile"]["spears"]) == 0, "Living warrior upgrades weapon_tier by consuming crafted stockpile")
 
-	# 5. HumanUnit & WildlifeEntity stay clamped inside WorldLayout.UNIT_HALF_EXTENT
+	# 5. HumanUnit & WildlifeEntity stay clamped inside World_state.valley_layout.unit_half_extent
 	guard.global_position = Vector3(220.0, 0.0, -230.0)
 	guard.velocity = Vector3(10.0, 0.0, -10.0)
 	guard._physics_process(0.1)
-	_check(absf(guard.global_position.x) <= Layout.UNIT_HALF_EXTENT + 0.01 and absf(guard.global_position.z) <= Layout.UNIT_HALF_EXTENT + 0.01, "HumanUnit XZ stays clamped inside world bounds")
+	_check(absf(guard.global_position.x) <= _state.valley_layout.unit_half_extent + 0.01 and absf(guard.global_position.z) <= _state.valley_layout.unit_half_extent + 0.01, "HumanUnit XZ stays clamped inside world bounds")
 	wolf.global_position = Vector3(-240.0, 0.0, 210.0)
 	wolf.velocity = Vector3(-10.0, 0.0, 10.0)
 	wolf._physics_process(0.1)
-	_check(absf(wolf.global_position.x) <= Layout.UNIT_HALF_EXTENT + 0.01 and absf(wolf.global_position.z) <= Layout.UNIT_HALF_EXTENT + 0.01, "WildlifeEntity XZ stays clamped inside world bounds")
+	_check(absf(wolf.global_position.x) <= _state.valley_layout.unit_half_extent + 0.01 and absf(wolf.global_position.z) <= _state.valley_layout.unit_half_extent + 0.01, "WildlifeEntity XZ stays clamped inside world bounds")
 
 	# 6. ANCESTRAL_STONE discounts buildings (is_building=true) ONLY, not crafting/tier/gifts (is_building=false)
 	_state.factions[0]["tenets"] = ["ANCESTRAL_STONE"]
@@ -596,7 +596,7 @@ func _find_unit_by_id(uid: int) -> Node:
 
 
 func _check_slice_0c(path: String) -> void:
-	_state.start_new_campaign("Enoch", "Slice0C Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Slice0C Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var colony: Node = _state.faction_controllers[0]
 	var pc: Node = _state.player_controller
 
@@ -792,7 +792,7 @@ func _check_slice_0c(path: String) -> void:
 	_check(_state._conquest_pending_factions.is_empty() and not _state.is_paused, "Resolving all restored conquests clears queue and pause")
 
 	# G. AwakeningGuide steps 1, 2, 4, and skip persist across save/load
-	_state.start_new_campaign("Enoch", "Guide Persistence", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Guide Persistence", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	_check(is_equal_approx(float(_state.player_controller._blessing_cd), 0.0), "start_new_campaign resets PlayerController _blessing_cd")
 	_check(_state.save_game(path) and _state.load_game(path), "Save/load guide step 1")
 	_check(_state.tutorial_step == 1 and not _state.tutorial_skipped and not _state.tutorial_completed, "AwakeningGuide step 1 persists")
@@ -815,7 +815,7 @@ func _check_slice_0c(path: String) -> void:
 	_check(_state.tutorial_skipped and not _state.tutorial_completed and _state.bandit_grace_remaining > 0.0, "AwakeningGuide skip and Peace Buffer persist")
 
 	# H. Synchronous player leader succession prevents 1-frame leaderless save window
-	_state.start_new_campaign("Enoch", "Succession Sync", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Succession Sync", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var old_leader: Node = _state.get_faction_leader(0)
 	var heir: Node = _state.faction_controllers[0].spawn_colonist(Vector3(6.0, 0.0, 52.0), GameData.Lineage.CRAG_BORN, GameData.Gender.FEMALE, GameData.Role.WARRIOR)
 	var heir_id: int = int(heir.unit_id)

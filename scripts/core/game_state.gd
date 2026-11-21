@@ -57,6 +57,7 @@ var projectiles_container: Node3D = null
 
 var spatial_index = SpatialIndex.new()
 var valley_nav = ValleyNavigation.new()
+var valley_layout := Layout.new()
 
 var faction_controllers: Dictionary = {}
 var player_controller: Node = null
@@ -136,11 +137,14 @@ func allocate_unit_id() -> int:
 	return id
 
 
-func start_new_campaign(leader_name: String, tribe_name: String, lineage: int) -> bool:
+func start_new_campaign(leader_name: String, tribe_name: String, lineage: int, layout_id: String = Layout.DEFAULT_ID) -> bool:
 	if not is_instance_valid(world_node) or not world_node.has_method("populate_new_world"):
 		push_log("The campaign world is unavailable.", "danger")
 		return false
-	initialize_new_campaign(leader_name, tribe_name, lineage)
+	if not Layout.has_layout(layout_id):
+		push_log("Unknown valley layout.", "danger")
+		return false
+	initialize_new_campaign(leader_name, tribe_name, lineage, layout_id)
 	world_node.populate_new_world()
 	AwakeningGuide.advance(self)
 	if is_instance_valid(hud_controller):
@@ -149,7 +153,8 @@ func start_new_campaign(leader_name: String, tribe_name: String, lineage: int) -
 	return true
 
 
-func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: int) -> void:
+func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: int, layout_id: String = Layout.DEFAULT_ID) -> void:
+	valley_layout = Layout.new(layout_id)
 	game_active = true
 	is_paused = false
 	campaign_finished = false
@@ -190,7 +195,7 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 		"tech_tier": 1,
 		"is_founded": false,
 		"is_defeated": false,
-		"camp_position": Vector3(0.0, 0.0, 52.0),
+		"camp_position": valley_layout.camp_position(0),
 		"captured_cavemen": 0,
 		"blessing_cooldown": 0.0,
 		"resources": {
@@ -231,7 +236,7 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 			"tech_tier": 1,
 			"is_founded": (not is_feral and not is_rebel),
 			"is_defeated": false,
-			"camp_position": preset["camp_pos"],
+			"camp_position": valley_layout.camp_position(fid),
 			"captured_cavemen": 0,
 			"blessing_cooldown": 0.0,
 			"resources": {
@@ -446,8 +451,8 @@ func found_rebel_faction(defector: Node) -> void:
 		for i in range(12):
 			var ang := float(i) * TAU / 12.0
 			var cand := p_camp + Vector3(cos(ang) * 60.0, 0.0, sin(ang) * 60.0)
-			cand.x = clampf(cand.x, -Layout.REBEL_CAMP_CLAMP, Layout.REBEL_CAMP_CLAMP)
-			cand.z = clampf(cand.z, -Layout.REBEL_CAMP_CLAMP, Layout.REBEL_CAMP_CLAMP)
+			cand.x = clampf(cand.x, -valley_layout.rebel_camp_clamp, valley_layout.rebel_camp_clamp)
+			cand.z = clampf(cand.z, -valley_layout.rebel_camp_clamp, valley_layout.rebel_camp_clamp)
 			var min_d := 99999.0
 			for rid in range(1, 5):
 				if factions.has(rid):
@@ -656,7 +661,7 @@ func rebuild_spatial_systems() -> void:
 		valley_nav.clear()
 		return
 	spatial_index.rebuild_from_world(world_node)
-	valley_nav.configure_from_layout(Layout.RIVER_CENTER, Layout.RIVER_LENGTH, Layout.RIVER_WIDTH, Layout.RIVER_ROTATION_Y_DEG, Layout.river_crossings())
+	valley_nav.configure_from_layout(valley_layout)
 	valley_nav.rebuild_from_world(world_node)
 
 
@@ -892,6 +897,7 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 
 	var save_payload := {
 		"version": CampaignSave.VERSION,
+		"valley_layout_id": valley_layout.id,
 		"time_of_day": time_of_day,
 		"day_count": day_count,
 		"warhorn_active": warhorn_active,
@@ -961,6 +967,7 @@ func load_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 
 
 func _apply_campaign_snapshot(parsed: Dictionary) -> void:
+	valley_layout = Layout.new(parsed["valley_layout_id"])
 	game_active = true
 	is_paused = false
 	_paused_before_conquest = false
@@ -1002,6 +1009,7 @@ func _apply_campaign_snapshot(parsed: Dictionary) -> void:
 
 func end_campaign() -> void:
 	clear_spatial_systems()
+	valley_layout = Layout.new()
 	game_active = false
 	is_paused = false
 	campaign_finished = false

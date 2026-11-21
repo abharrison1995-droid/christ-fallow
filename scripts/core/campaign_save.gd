@@ -1,6 +1,7 @@
 extends RefCounted
 
-const VERSION := 3
+const Layout = preload("res://scripts/core/world_layout.gd")
+const VERSION := 4
 
 const FACTION_FIELDS := {
 	"name": TYPE_STRING, "leader_name": TYPE_STRING, "personality_name": TYPE_STRING,
@@ -45,7 +46,7 @@ static func unpack(parsed: Variant) -> Dictionary:
 		return {}
 	var save: Dictionary = parsed
 	if not _matches(save, {
-		"version": TYPE_INT, "time_of_day": TYPE_FLOAT, "day_count": TYPE_INT,
+		"version": TYPE_INT, "valley_layout_id": TYPE_STRING, "time_of_day": TYPE_FLOAT, "day_count": TYPE_INT,
 		"bandit_grace_remaining": TYPE_FLOAT, "warhorn_active": TYPE_BOOL, "tutorial_step": TYPE_INT,
 		"tutorial_completed": TYPE_BOOL, "tutorial_skipped": TYPE_BOOL, "tutorial_harvested": TYPE_BOOL,
 		"tutorial_assigned_role": TYPE_BOOL, "tutorial_cleaved": TYPE_BOOL, "tutorial_thrown": TYPE_BOOL,
@@ -58,10 +59,14 @@ static func unpack(parsed: Variant) -> Dictionary:
 	var version := int(save.get("version", 1))
 	if version < 1 or version > VERSION:
 		return {}
-	if version == VERSION and not save.has_all(["wildlife", "combat_commands"]):
+	if version >= 3 and not save.has_all(["wildlife", "combat_commands"]):
+		return {}
+	if version < 4:
+		save["valley_layout_id"] = Layout.CLASSIC_ID
+	elif not Layout.has_layout(str(save.get("valley_layout_id", ""))):
 		return {}
 	var commands: Dictionary = save.get("combat_commands", {})
-	if not _matches(commands, COMMAND_FIELDS, version == VERSION):
+	if not _matches(commands, COMMAND_FIELDS, version >= 3):
 		return {}
 	var selected_class := int(commands.get("selected_warrior_class", -1))
 	if selected_class != -1 and not GameData.WARRIOR_CLASS_NAMES.has(selected_class):

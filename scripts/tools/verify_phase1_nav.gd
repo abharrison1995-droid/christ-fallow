@@ -79,7 +79,7 @@ func _path_is_walkable(path: PackedVector3Array, from: Vector3) -> bool:
 
 func _min_dist_to_fords(path: PackedVector3Array) -> float:
 	var best := 99999.0
-	for ford in Layout.river_crossings():
+	for ford in _state.valley_layout.river_crossings():
 		var fp: Vector3 = ford["pos"]
 		for wp in path:
 			best = minf(best, Vector2(wp.x - fp.x, wp.z - fp.z).length())
@@ -96,7 +96,7 @@ func _run() -> void:
 	var path := "user://phase1-nav-%d.json" % Time.get_ticks_usec()
 	seed(17394)
 	_mount()
-	_state.start_new_campaign("Enoch", "Nav Probe", GameData.Lineage.CRAG_BORN)
+	_state.start_new_campaign("Enoch", "Nav Probe", GameData.Lineage.CRAG_BORN, Layout.CLASSIC_ID)
 	var index = _state.spatial_index
 	var nav = _state.valley_nav
 	_check(index.is_populated() and nav.is_ready(), "Index and navigation exist after a new campaign")
@@ -164,14 +164,14 @@ func _run() -> void:
 	_check(open.size() == 1 and open[0].is_equal_approx(Vector3(goal.x, 0, goal.z)), "Direct path reopens once the wall is rubble")
 
 	# River ford routing: west bank to east bank at a point far from every ford
-	var yaw_basis := Basis(Vector3.UP, deg_to_rad(Layout.RIVER_ROTATION_Y_DEG))
-	var axis_pt: Vector3 = Layout.river_point(40.0)
+	var yaw_basis := Basis(Vector3.UP, deg_to_rad(_state.valley_layout.river_rotation_y_deg))
+	var axis_pt: Vector3 = _state.valley_layout.river_point(40.0)
 	var west: Vector3 = axis_pt + yaw_basis * Vector3(-30.0, 0.0, 0.0)
 	var east: Vector3 = axis_pt + yaw_basis * Vector3(30.0, 0.0, 0.0)
 	_check(not nav.has_line_of_sight(nav.world_to_cell(west), nav.world_to_cell(east)), "Straight line across deep water is blocked")
 	var crossing: PackedVector3Array = nav.find_path(west, east)
 	_check(crossing.size() > 1 and _path_is_walkable(crossing, west), "Crossing path never enters deep water (%d waypoints)" % crossing.size())
-	_check(_min_dist_to_fords(crossing) <= Layout.RIVER_FORD_HALF_WIDTH + 4.0, "Crossing path uses a ford")
+	_check(_min_dist_to_fords(crossing) <= _state.valley_layout.river_ford_half_width + 4.0, "Crossing path uses a ford")
 	var edge_path: PackedVector3Array = nav.find_path(axis_pt + yaw_basis * Vector3(-5.5, 0.0, 0.0), east)
 	_check(edge_path.size() >= 1, "A unit standing on the river edge still receives a path")
 

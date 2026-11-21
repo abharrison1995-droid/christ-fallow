@@ -9,6 +9,7 @@ var _sky_mat: ProceduralSkyMaterial = null
 var _psx_layer: CanvasLayer = null
 var _psx_rect: ColorRect = null
 var _brightness_mult: float = 1.25
+var _terrain_layout_id := ""
 
 
 func _ready() -> void:
@@ -18,7 +19,7 @@ func _ready() -> void:
 	_setup_psx_post_process()
 	Preferences.changed.connect(_apply_visual_preferences)
 	_apply_visual_preferences()
-	_build_valley_terrain()
+	_ensure_layout_terrain()
 
 
 func _apply_visual_preferences() -> void:
@@ -150,7 +151,20 @@ func _process(_delta: float) -> void:
 		if env: env.fog_light_color = Color(0.14, 0.16, 0.22)
 
 
-func _build_valley_terrain() -> void:
+func _ensure_layout_terrain() -> bool:
+	var layout := GameState.valley_layout
+	if _terrain_layout_id == layout.id:
+		return false
+	var previous := get_node_or_null("Terrain")
+	if previous != null:
+		remove_child(previous)
+		previous.queue_free()
+	_build_valley_terrain(layout)
+	_terrain_layout_id = layout.id
+	return true
+
+
+func _build_valley_terrain(layout: Layout) -> void:
 	var terrain_root := Node3D.new()
 	terrain_root.name = "Terrain"
 	add_child(terrain_root)
@@ -159,49 +173,50 @@ func _build_valley_terrain() -> void:
 	var ground := StaticBody3D.new()
 	var col := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(Layout.GROUND_SIZE.x, 2.0, Layout.GROUND_SIZE.y)
+	box.size = Vector3(layout.ground_size.x, 2.0, layout.ground_size.y)
 	col.shape = box
 	col.position = Vector3(0.0, -1.0, 0.0)
 	ground.add_child(col)
 
 	var ground_mesh_inst := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	plane.size = Layout.GROUND_SIZE
+	plane.size = layout.ground_size
 	ground_mesh_inst.mesh = plane
 	var gmat := StandardMaterial3D.new()
 	gmat.albedo_color = Color(0.36, 0.43, 0.24)
 	gmat.albedo_texture = MeshFactory.get_gritty_texture("ground")
 	gmat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
 	gmat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
-	gmat.uv1_scale = Vector3(120.0, 120.0, 120.0)
+	var terrain_scale := layout.ground_size.x / 380.0
+	gmat.uv1_scale = Vector3.ONE * 120.0 * terrain_scale
 	gmat.roughness = 0.98
 	ground_mesh_inst.material_override = gmat
 	ground.add_child(ground_mesh_inst)
 	terrain_root.add_child(ground)
 
 	# Gritty biome ground patches (Ash highlands, Ochre plains, Forest woods, Fertile basin)
-	_add_ground_patch(terrain_root, Vector3(0.0, 0.02, -118.0), Vector2(95.0, 80.0), Color(0.42, 0.39, 0.36))
-	_add_ground_patch(terrain_root, Vector3(118.0, 0.02, -18.0), Vector2(85.0, 85.0), Color(0.50, 0.44, 0.24))
-	_add_ground_patch(terrain_root, Vector3(-118.0, 0.02, -12.0), Vector2(85.0, 85.0), Color(0.26, 0.38, 0.22))
-	_add_ground_patch(terrain_root, Vector3(58.0, 0.02, 112.0), Vector2(85.0, 80.0), Color(0.30, 0.45, 0.24))
+	_add_ground_patch(terrain_root, layout.camp_position(1) + Vector3.UP * 0.02, Vector2(95.0, 80.0) * terrain_scale, Color(0.42, 0.39, 0.36))
+	_add_ground_patch(terrain_root, layout.camp_position(2) + Vector3.UP * 0.02, Vector2(85.0, 85.0) * terrain_scale, Color(0.50, 0.44, 0.24))
+	_add_ground_patch(terrain_root, layout.camp_position(3) + Vector3.UP * 0.02, Vector2(85.0, 85.0) * terrain_scale, Color(0.26, 0.38, 0.22))
+	_add_ground_patch(terrain_root, layout.camp_position(4) + Vector3.UP * 0.02, Vector2(85.0, 80.0) * terrain_scale, Color(0.30, 0.45, 0.24))
 
 	# Valley River running North-West to South-East
 	var river := MeshInstance3D.new()
 	var rmesh := PlaneMesh.new()
-	rmesh.size = Vector2(Layout.RIVER_WIDTH, Layout.RIVER_LENGTH)
+	rmesh.size = Vector2(layout.river_width, layout.river_length)
 	river.mesh = rmesh
 	var rmat := StandardMaterial3D.new()
 	rmat.albedo_color = Color(0.20, 0.44, 0.62, 0.90)
 	rmat.albedo_texture = MeshFactory.get_gritty_texture("stone")
 	rmat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	rmat.uv1_scale = Vector3(4.0, 80.0, 1.0)
+	rmat.uv1_scale = Vector3(4.0, 80.0 * terrain_scale, 1.0)
 	rmat.roughness = 0.42
 	river.material_override = rmat
-	river.position = Vector3(Layout.RIVER_CENTER.x, 0.04, Layout.RIVER_CENTER.z)
-	river.rotation_degrees.y = Layout.RIVER_ROTATION_Y_DEG
+	river.position = layout.river_center + Vector3.UP * 0.04
+	river.rotation_degrees.y = layout.river_rotation_y_deg
 	terrain_root.add_child(river)
-	_add_riverbank_reeds(terrain_root, river.transform)
-	_add_river_fords(terrain_root)
+	_add_riverbank_reeds(terrain_root, river.transform, layout)
+	_add_river_fords(terrain_root, layout)
 
 	# Jagged PSX Slate Mountain Rim Crags
 	var peak_mat := StandardMaterial3D.new()
@@ -211,25 +226,27 @@ func _build_valley_terrain() -> void:
 	peak_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	peak_mat.uv1_scale = Vector3(4.0, 4.0, 4.0)
 	peak_mat.roughness = 0.96
+	var rim_rng := RandomNumberGenerator.new()
+	rim_rng.seed = 87931
 	for i in range(44):
 		var ang := float(i) * TAU / 44.0
-		var r := Layout.MOUNTAIN_RIM_RADIUS + randf_range(-4.0, 6.0)
+		var r := layout.mountain_rim_radius + rim_rng.randf_range(-4.0, 6.0)
 		var peak := MeshInstance3D.new()
 		var cone := CylinderMesh.new()
 		cone.radial_segments = 5
 		cone.rings = 1
-		cone.top_radius = randf_range(0.8, 3.2)
-		cone.bottom_radius = randf_range(14.0, 22.0)
-		cone.height = randf_range(20.0, 36.0)
+		cone.top_radius = rim_rng.randf_range(0.8, 3.2)
+		cone.bottom_radius = rim_rng.randf_range(14.0, 22.0) * terrain_scale
+		cone.height = rim_rng.randf_range(20.0, 36.0)
 		peak.mesh = cone
 		peak.material_override = peak_mat
 		peak.position = Vector3(cos(ang) * r, cone.height * 0.45, sin(ang) * r)
-		peak.rotation_degrees.y = randf_range(0.0, 360.0)
+		peak.rotation_degrees.y = rim_rng.randf_range(0.0, 360.0)
 		terrain_root.add_child(peak)
 
 
 ## Flat stone-and-log crossings on the river axis; they sit at y = 0.07 so units walk over them.
-func _add_river_fords(parent: Node3D) -> void:
+func _add_river_fords(parent: Node3D, layout: Layout) -> void:
 	var fords := Node3D.new()
 	fords.name = "RiverFords"
 	parent.add_child(fords)
@@ -246,16 +263,18 @@ func _add_river_fords(parent: Node3D) -> void:
 	log_mat.roughness = 0.95
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7311
-	var yaw: float = deg_to_rad(Layout.RIVER_ROTATION_Y_DEG)
-	for local_z in Layout.RIVER_FORD_LOCAL_Z:
+	var yaw := deg_to_rad(layout.river_rotation_y_deg)
+	var across_scale := layout.river_width / 12.0
+	var ford_span := 11.0 * layout.river_ford_half_width / 9.0
+	for local_z in layout.river_ford_local_z:
 		var ford := Node3D.new()
-		ford.position = Layout.river_point(local_z) + Vector3(0.0, 0.07, 0.0)
+		ford.position = layout.river_point(local_z) + Vector3(0.0, 0.07, 0.0)
 		ford.rotation.y = yaw
 		fords.add_child(ford)
 		# Shallow gravel bed across the river
 		var bed := MeshInstance3D.new()
 		var bed_mesh := BoxMesh.new()
-		bed_mesh.size = Vector3(Layout.RIVER_WIDTH + 5.0, 0.05, 11.0)
+		bed_mesh.size = Vector3(layout.river_width + 5.0, 0.05, ford_span)
 		bed.mesh = bed_mesh
 		bed.material_override = stone_mat
 		ford.add_child(bed)
@@ -266,20 +285,20 @@ func _add_river_fords(parent: Node3D) -> void:
 			sm.size = Vector3(rng.randf_range(1.3, 2.1), 0.07, rng.randf_range(1.1, 1.9))
 			slab.mesh = sm
 			slab.material_override = stone_mat
-			slab.position = Vector3(-6.4 + float(i) * 1.6, 0.05, rng.randf_range(-3.6, 3.6))
+			slab.position = Vector3((-6.4 + float(i) * 1.6) * across_scale, 0.05, rng.randf_range(-3.6, 3.6))
 			slab.rotation.y = rng.randf_range(-0.5, 0.5)
 			ford.add_child(slab)
 		for side in [-1.0, 1.0]:
 			var rail := MeshInstance3D.new()
 			var rm := BoxMesh.new()
-			rm.size = Vector3(Layout.RIVER_WIDTH + 4.0, 0.12, 0.38)
+			rm.size = Vector3(layout.river_width + 4.0, 0.12, 0.38)
 			rail.mesh = rm
 			rail.material_override = log_mat
-			rail.position = Vector3(0.0, 0.06, float(side) * 5.2)
+			rail.position = Vector3(0.0, 0.06, float(side) * (ford_span * 0.5 - 0.3))
 			ford.add_child(rail)
 
 
-func _add_riverbank_reeds(parent: Node3D, river_transform: Transform3D) -> void:
+func _add_riverbank_reeds(parent: Node3D, river_transform: Transform3D, layout: Layout) -> void:
 	var template := MeshFactory.build_environment_mesh("riverbank_reeds")
 	if template == null:
 		return
@@ -289,11 +308,13 @@ func _add_riverbank_reeds(parent: Node3D, river_transform: Transform3D) -> void:
 	# Reproduce the same decorative beds on each launch without consuming the campaign RNG.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 64903
+	var length_scale := layout.river_length / 340.0
 	for bank in [-1, 1]:
 		for z in range(-135, 146, 14):
 			var patch := template.duplicate() as Node3D
-			patch.position = river_transform * Vector3(float(bank) * rng.randf_range(5.7, 6.8),
-				-0.04, float(z) + rng.randf_range(-4.0, 4.0))
+			var bank_x := layout.river_width * 0.5 + rng.randf_range(-0.3, 0.8)
+			patch.position = river_transform * Vector3(float(bank) * bank_x,
+				-0.04, float(z) * length_scale + rng.randf_range(-4.0, 4.0))
 			patch.rotation.y = rng.randf_range(0.0, TAU)
 			patch.scale = Vector3.ONE * rng.randf_range(0.75, 1.25)
 			beds.add_child(patch)
@@ -318,6 +339,7 @@ func _add_ground_patch(parent: Node3D, pos: Vector3, sz: Vector2, col: Color) ->
 
 
 func populate_new_world() -> void:
+	_ensure_layout_terrain()
 	_clear_dynamic_world()
 	_create_faction_controllers()
 	_spawn_resources_and_caves()
@@ -361,17 +383,18 @@ func _create_faction_controllers() -> void:
 
 
 func _spawn_resources_and_caves() -> void:
-	# Starter resource cluster around player awakening glade (0, 0, 52)
-	_spawn_resource_cluster(Vector3(0.0, 0.0, 52.0), 14.0, 28.0, 6, 4, 3, 5)
-	# Rival region resources
-	_spawn_resource_cluster(Vector3(0.0, 0.0, -118.0), 16.0, 32.0, 6, 6, 4, 4)
-	_spawn_resource_cluster(Vector3(118.0, 0.0, -18.0), 16.0, 32.0, 6, 4, 4, 5)
-	_spawn_resource_cluster(Vector3(-118.0, 0.0, -12.0), 16.0, 32.0, 8, 4, 3, 5)
-	_spawn_resource_cluster(Vector3(58.0, 0.0, 112.0), 16.0, 32.0, 6, 5, 3, 6)
+	var layout := GameState.valley_layout
+	# Each starting camp has resources inside its short gathering radius.
+	_spawn_resource_cluster(layout.camp_position(0), 14.0, 28.0, 6, 4, 3, 5)
+	_spawn_resource_cluster(layout.camp_position(1), 16.0, 32.0, 6, 6, 4, 4)
+	_spawn_resource_cluster(layout.camp_position(2), 16.0, 32.0, 6, 4, 4, 5)
+	_spawn_resource_cluster(layout.camp_position(3), 16.0, 32.0, 8, 4, 3, 5)
+	_spawn_resource_cluster(layout.camp_position(4), 16.0, 32.0, 6, 5, 3, 6)
 
 	# Scattered wilderness groves & flint crags
+	var extent := layout.scatter_half_extent
 	for i in range(45):
-		var pos := Vector3(randf_range(-Layout.SCATTER_HALF_EXTENT, Layout.SCATTER_HALF_EXTENT), 0.0, randf_range(-Layout.SCATTER_HALF_EXTENT, Layout.SCATTER_HALF_EXTENT))
+		var pos := Vector3(randf_range(-extent, extent), 0.0, randf_range(-extent, extent))
 		var r := randf()
 		var ntype := "TREE"
 		if r < 0.42:
@@ -384,13 +407,7 @@ func _spawn_resources_and_caves() -> void:
 			ntype = "BERRY_BUSH"
 		_spawn_resource_node(ntype, pos)
 
-	# 3 Wilderness Bone-Caves for Nomadic Cavemen
-	var cave_positions := [
-		Vector3(-125.0, 0.0, 115.0),
-		Vector3(128.0, 0.0, 108.0),
-		Vector3(-82.0, 0.0, -122.0),
-	]
-	for cp in cave_positions:
+	for cp in layout.cave_positions:
 		_spawn_resource_node("CAVEMAN_CAVE", cp)
 
 
@@ -420,24 +437,11 @@ func _spawn_resource_node(ntype: String, pos: Vector3) -> void:
 
 
 func _spawn_wildlife() -> void:
-	var spawns := [
-		{"type": "DEER", "pos": Vector3(24.0, 0.0, 40.0), "count": 4},
-		{"type": "DEER", "pos": Vector3(-30.0, 0.0, 36.0), "count": 4},
-		{"type": "BOAR", "pos": Vector3(28.0, 0.0, 74.0), "count": 3},
-		{"type": "BOAR", "pos": Vector3(-55.0, 0.0, 60.0), "count": 2},
-		{"type": "SLATEBACK_BOAR", "pos": Vector3(-55.0, 0.0, 60.0), "count": 1},
-		{"type": "WOLF", "pos": Vector3(-78.0, 0.0, 38.0), "count": 3},
-		{"type": "WOLF", "pos": Vector3(72.0, 0.0, -58.0), "count": 2},
-		{"type": "REEDJAW", "pos": Layout.river_point(-120.0) + Vector3(18.0, 0.0, 0.0), "count": 1},
-		{"type": "SABERTOOTH", "pos": Vector3(-55.0, 0.0, -68.0), "count": 2},
-		{"type": "MAMMOTH", "pos": Vector3(0.0, 0.0, -45.0), "count": 1},
-		{"type": "MAMMOTH", "pos": Vector3(-84.0, 0.0, 68.0), "count": 1},
-		{"type": "CAVE_BEAR", "pos": Vector3(74.0, 0.0, 48.0), "count": 1},
-	]
-	for s in spawns:
-		for i in range(int(s["count"])):
-			var p: Vector3 = s["pos"] + Vector3(randf_range(-8.0, 8.0), 0.0, randf_range(-8.0, 8.0))
-			_spawn_animal(s["type"], p)
+	for territory in GameState.valley_layout.wildlife_territories():
+		var center: Vector3 = territory[1]
+		for i in range(territory[2]):
+			var point := center + Vector3(randf_range(-8.0, 8.0), 0.0, randf_range(-8.0, 8.0))
+			_spawn_animal(territory[0], point)
 
 
 func _spawn_animal(animal_type: String, pos: Vector3) -> CharacterBody3D:
@@ -480,6 +484,7 @@ func _spawn_player_awakening() -> void:
 
 
 func _spawn_rival_colonies() -> void:
+	var spacing := GameState.valley_layout.rival_building_spacing
 	for fid in range(1, 5):
 		var fdata: Dictionary = GameState.factions[fid]
 		var fc = GameState.faction_controllers[fid]
@@ -489,16 +494,16 @@ func _spawn_rival_colonies() -> void:
 
 		# Core buildings
 		fc.spawn_building("CAMPFIRE", camp, 0.0, true)
-		fc.spawn_building("SACRED_TOTEM", camp + Vector3(0.0, 0.0, -6.0), 0.0, true)
-		fc.spawn_building("SLEEPING_HUT", camp + Vector3(-8.0, 0.0, -3.0), 0.4, true)
-		fc.spawn_building("SLEEPING_HUT", camp + Vector3(8.0, 0.0, -3.0), -0.4, true)
-		fc.spawn_building("CRAFTING_PIT", camp + Vector3(-6.0, 0.0, 6.0), 0.0, true)
-		fc.spawn_building("WEAPON_RACK", camp + Vector3(6.0, 0.0, 6.0), 0.0, true)
-		fc.spawn_building("PALISADE_WALL", camp + Vector3(0.0, 0.0, 12.0), 0.0, true)
-		fc.spawn_building("PALISADE_WALL", camp + Vector3(-11.0, 0.0, 8.0), 0.7, true)
-		fc.spawn_building("PALISADE_WALL", camp + Vector3(11.0, 0.0, 8.0), -0.7, true)
+		fc.spawn_building("SACRED_TOTEM", camp + Vector3(0.0, 0.0, -6.0) * spacing, 0.0, true)
+		fc.spawn_building("SLEEPING_HUT", camp + Vector3(-8.0, 0.0, -3.0) * spacing, 0.4, true)
+		fc.spawn_building("SLEEPING_HUT", camp + Vector3(8.0, 0.0, -3.0) * spacing, -0.4, true)
+		fc.spawn_building("CRAFTING_PIT", camp + Vector3(-6.0, 0.0, 6.0) * spacing, 0.0, true)
+		fc.spawn_building("WEAPON_RACK", camp + Vector3(6.0, 0.0, 6.0) * spacing, 0.0, true)
+		fc.spawn_building("PALISADE_WALL", camp + Vector3(0.0, 0.0, 12.0) * spacing, 0.0, true)
+		fc.spawn_building("PALISADE_WALL", camp + Vector3(-11.0, 0.0, 8.0) * spacing, 0.7, true)
+		fc.spawn_building("PALISADE_WALL", camp + Vector3(11.0, 0.0, 8.0) * spacing, -0.7, true)
 		if fid == 4:
-			fc.spawn_building("WATCHTOWER", camp + Vector3(-7.0, 0.0, 11.0), 0.0, true)
+			fc.spawn_building("WATCHTOWER", camp + Vector3(-7.0, 0.0, 11.0) * spacing, 0.0, true)
 
 		# Leader + 4 Warriors (including Brutes & Javelineers) + 4 Citizens
 		fc.spawn_colonist(camp + Vector3(0.0, 0.0, 2.5), lin, GameData.Gender.MALE, GameData.Role.WARRIOR, true, false, false, fdata["leader_name"])
@@ -516,6 +521,7 @@ func _spawn_rival_colonies() -> void:
 
 
 func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
+	var layout_changed := _ensure_layout_terrain()
 	if GameState.player_controller != null:
 		GameState.player_controller.exit_build_mode()
 		GameState.player_controller.attach_leader(null)
@@ -530,6 +536,9 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 			GameState.wildlife_container,
 			GameState.projectiles_container,
 		])
+		if layout_changed:
+			_clear_containers([GameState.resources_container])
+			_spawn_resources_and_caves()
 
 	for fid in GameState.faction_controllers.keys():
 		var fc: Node = GameState.faction_controllers[fid]

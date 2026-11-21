@@ -1,6 +1,6 @@
 # Future development
 
-**Status as of 20 November 2026** — proposed. See the [master roadmap](ROADMAP.md) for cross-track sequencing and prerequisites (`Phase 0` stabilization and `Phase 1` simulation/navigation foundation before the larger valley). The live campaign uses the original valley and the HUD's Valley Radar. The [shared layout](../scripts/core/world_layout.gd) defines the current ground, blueprint, wildlife, and radar extents.
+See the [master roadmap](ROADMAP.md) for sequencing. New campaigns use the 760 m valley. Legacy campaigns keep their original terrain. [Shared layout definitions](../scripts/core/world_layout.gd)
 
 ## Playable opening tutorial
 
@@ -25,13 +25,13 @@ Goliath and Swift-Kin Foragers and adult Spearmen share the promoted Crag-Born r
 
 ## Larger valley and accessible world map
 
-The original valley now includes the Slateback Boar and Reedjaw. Keep their encounter profiles when assigning territories in the larger layout. Standing-Stone Gate remains a sample until units can traverse its opening through `ValleyNavigation`. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout)
+Both valleys include the Slateback Boar and Reedjaw in layout-specific territories. Standing-Stone Gate awaits traversal verification. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout)
 
-- [ ] **Give tribes more room.** Prototype a roughly 760 × 760 m playable valley. The existing ground is 380 × 380 m and the closest rival camp is about 83 m from the Awakening glade. Test at least 170 m between all starting camps, 170–240 m to the player's nearest rival, and a contiguous 55–70 m radius for settlement growth around each camp. Tune by travel time, resource access, and viable building space.
-- [ ] **Extend the shared world layout.** Give the new valley its own bounds, settlement sites, reachable expansion space, resource clusters, caveman caves, wildlife sites, and river crossings. Use the layout for generation, movement, placement, camera, and maps. Keep early resources within a short trip from every starting camp.
+- [x] **Give tribes more room.** The 760 m layout gives the settled starting sites at least 170 m of separation and a 62 m growth radius. The nearest rival is about 197 m away.
+- [x] **Extend the shared world layout.** Each layout defines its own camps, caves, wildlife territories, fords, and movement, building, camera, and radar bounds. Starting camps keep nearby trees, stone, flint, and berries.
 - [ ] **Keep distant tribes active.** Check camp construction, civilian hauling, raid arrival and return, enemy scan cost, and routes around rivers or walls. Preserve the 210-second opening Peace Buffer in the first prototype so spacing can be measured independently. Adjust timing after testing.
 - [ ] **Add a full-screen World Map.** Open it from the HUD or Valley Radar. Provide pan, zoom, a player marker, known camps, and landmarks. Today `Tab` and `M` both open Tribal Command. If `M` moves to the map, keep `Tab` for Tribal Command and update the HUD, Settings controls reference, and README together. Evaluate fog of war and click-to-mark waypoints with the larger valley prototype.
-- [ ] **Version the layout in saves.** Current saves store coordinates against the existing valley. Give each layout an ID and decide whether older campaigns continue on the original layout or use an explicit migration. Verify that loading keeps the same camp and landmark positions.
+- [x] **Version the layout in saves.** `v4` records the layout ID. `v1` through `v3` load in `valley_classic_380` with their saved coordinates. Switching layouts regenerates the appropriate terrain and caves.
 
 **Ready to ship when** all starting tribes can grow a useful colony, resources and crossings are reachable, raids still travel and resolve, and map markers agree with in-world positions across pan, zoom, and save/load.
 

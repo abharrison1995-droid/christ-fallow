@@ -1,6 +1,5 @@
 extends RefCounted
 
-const Layout = preload("res://scripts/core/world_layout.gd")
 
 const STEP_LOGS := {
 	1: "Guide 1/5 complete! Press [B] Build to light your Tribal Campfire.",
@@ -176,6 +175,7 @@ static func _find_nearest_resource(state, from_pos: Vector3) -> Node3D:
 
 static func _find_clear_build_spot(state, center: Vector3) -> Vector3:
 	var existing: Array = state.get_faction_buildings(0)
+	var extent: float = state.valley_layout.blueprint_half_extent
 	var candidate_offsets: Array[Vector3] = [
 		Vector3(0.0, 0.0, -4.0),
 		Vector3(5.0, 0.0, 3.5),
@@ -190,9 +190,9 @@ static func _find_clear_build_spot(state, center: Vector3) -> Vector3:
 	]
 	for offset in candidate_offsets:
 		var cand := Vector3(
-			clampf(center.x + offset.x, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT),
+			clampf(center.x + offset.x, -extent, extent),
 			0.0,
-			clampf(center.z + offset.z, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT)
+			clampf(center.z + offset.z, -extent, extent)
 		)
 		var clear := true
 		for b in existing:
@@ -202,7 +202,7 @@ static func _find_clear_build_spot(state, center: Vector3) -> Vector3:
 		if clear:
 			return cand
 	return Vector3(
-		clampf(center.x + 12.0, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT),
+		clampf(center.x + 12.0, -extent, extent),
 		0.0,
-		clampf(center.z, -Layout.BLUEPRINT_HALF_EXTENT, Layout.BLUEPRINT_HALF_EXTENT)
+		clampf(center.z, -extent, extent)
 	)

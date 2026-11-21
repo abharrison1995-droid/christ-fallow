@@ -23,6 +23,7 @@
   - `d4b1261` — **Phase 2B:** Baked `Work`, `Wounded`, `Attack`, `Hit`, and `Death` skeletal clips in [generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py) & [generate_crag_born.py](../tools/assets/generate_crag_born.py), zero-swap animation & shader hit-flash in [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd) & [human_unit.gd](../scripts/entities/human_unit.gd), promoted [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) to **default-enabled** (`--procedural-roster` opt-out).
   - `92ae7d0` — **Docs Sync:** Updated `ROADMAP.md`, `FUTURE.md`, `AGENTS.md`, `README.md`, `OVERHAUL.md`, `tools/assets/README.md`.
   - `7e38544` — **Slice 2C-1.** Promoted Goliath and Swift-Kin skinned Foragers and adult Spearmen.
+  - `c225c07` — **Slice 2C-2.** Promoted Reed Granary, Ridge Signal Tower, Slateback Boar, and Reedjaw. Added golden damage fixtures.
 
 ---
 
@@ -33,7 +34,8 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 | Suite | Scope Verified |
 | :--- | :--- |
 | [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) | Steps 1–5, 3D beacon & `[E]` prompts, HUD/BuildDrawer highlights, Sleeping Hut construction, mid-tutorial save/load, once-only reward, Skip + Peace Buffer. |
-| [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | `v1`/`v2`/`v3` saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
+| [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | Legacy and v4 saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
+| [verify_expanded_valley.gd](../scripts/tools/verify_expanded_valley.gd) | Camp spacing and resources, ford routes, cross-bank raids and hauling, v3/v4 in-session terrain changes, and corrupt layout rejection. |
 | [verify_campaign_ui.gd](../scripts/tools/verify_campaign_ui.gd) | `1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`: title/awakening, focus release vs `Space`, non-overlap geometry, `Esc` vs `OptionButton` popup, Diplomacy opinion breakdown & faction-6 recovery, Colony Crafting refresh, UnitInspector, pause/conquest/quit. |
 | [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) | SpatialIndex parity across spawn/move/convert/death/rubble/save-load; palisade detour & rubble reopening; river ford crossing (`38/38`). |
 | [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
@@ -55,15 +57,11 @@ Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/ass
 
 ### Track B — Phase 3: Larger `760×760 m` Valley & Full-Screen World Map
 Reference: [docs/FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map)
-1. **Slice 3A (Layout Definitions & `v4` Versioned Saves), next:**
-   - Finish moving remaining fixed distances (`65 m` squad charge scan, `85 m` wounded ally search, resource/blueprint search caps, `PlayerController` scans) into [world_layout.gd](../scripts/core/world_layout.gd).
-   - Add named valley layouts in `WorldLayout` (`"valley_classic_380"` and `"valley_expanded_760"`): `760×760 m` ground, `>= 170 m` camp spacing (`170–240 m` to player's nearest rival), `55–70 m` expansion radius around each camp, river geometry + ford crossings, resource clusters, caveman caves, and wildlife territories.
-   - Version layout ID in `CampaignSave` (`v4` saves store `"valley_layout_id"`; legacy `v1..v3` saves default cleanly to `"valley_classic_380"` with zero coordinate breakage!). Keep `"valley_expanded_760"` as default for New Game (or selectable on Awakening screen) once verified.
-   - Re-run `benchmark_simulation.gd` on the expanded valley to verify physics median stays healthy and `ValleyNavigation` (`190×190` cells at `4 m`) routes raids/haulers reliably across rivers.
-2. **Slice 3B (Full-Screen World Map & `M` Key Reassignment):**
+1. **Slice 3A completed.** `WorldLayout` now defines `valley_classic_380` and `valley_expanded_760`. New Game uses the expanded layout, and `v4` stores the selected layout ID. `v1` through `v3` load as classic. Compare benchmarks with `--expanded-valley`. [Layout data](../scripts/core/world_layout.gd) · [Benchmark commands](ROADMAP.md#verification-gate-commands-windows-powershell)
+2. **Slice 3B (Full-Screen World Map & `M` Key Reassignment), next:**
    - Build a full-screen World Map overlay (`scripts/ui/world_map_overlay.gd`, opened via `M` or clicking Valley Radar) with pan, zoom, player/camp/rival/cave/ford/objective markers, and click-to-set rally/waypoint marker.
    - Reassign `M` from Tribal Command to World Map (keeping `Tab` for Tribal Command) and update **all** entry points together: `hud_controller.gd`, `settings_screen.gd`, `README.md`, `AGENTS.md`, and `verify_campaign_ui.gd`.
-   - Add `scripts/tools/verify_expanded_valley.gd` asserting camp spacing, reachability across fords, distant rival colony construction/raids, map-to-world coordinate parity, and `v3`/`v4` save/load layout preservation.
+   - Extend the expanded valley verifier with map-to-world coordinate parity, map input, and distant colony activity. [Expanded valley verifier](../scripts/tools/verify_expanded_valley.gd)
 
 ### Track C — Phase 4: Tribal Leaders, Diplomacy & Conquest Integration
 Reference: [docs/FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy)

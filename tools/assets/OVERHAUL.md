@@ -16,6 +16,8 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 
 Author assets against scale and attachment contracts, and stage changes through Blender generation, clean Godot import, Forward+ captures, and a live test scene. Keep appearance choices out of balance calculations. When a visual needs different gameplay bounds, tune the collider and hit volume deliberately.
 
+Classic and expanded layouts share the imported scenery, building, and wildlife models. Both place reed beds and ford art through their active layout geometry. [Terrain definitions](../../scripts/core/world_layout.gd)
+
 Blender 4.5.16 regenerated all six samples with matching file hashes. A fresh Godot 4.3 Forward+ import verified the stages, colliders, and clips and rendered both comparison sheets.
 
 The [Crag-Born review](README.md#crag-born-pilot) records the attachment and procedural handoff checks. The [gameplay-zoom comparison](previews/crag-born-comparison.png) shows the silhouettes and attachment fit.
