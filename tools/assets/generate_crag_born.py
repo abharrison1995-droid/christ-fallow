@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_tribesman_rig import SkinnedMesh, animate, animate_action_clips, joint, make_armature, material
 
 LINEAGES = ("crag_born", "goliath", "swift_kin")
+BASE_VARIANTS = ("broad", "braided", "child")
+CRAG_BORN_VARIANTS = (*BASE_VARIANTS, "cropped", "twin_knots", "boy")
 
 
 class PilotMesh(SkinnedMesh):
@@ -50,10 +52,15 @@ class PilotMesh(SkinnedMesh):
 
 def body(mesh, variant):
     broad = variant == "broad"
-    child = variant == "child"
+    child = variant in ("child", "boy")
     chest_width = 0.326 if broad else (0.249 if child else 0.274)
     hip_width = 0.246 if broad else (0.218 if child else 0.257)
     waist = 0.215 if broad else 0.178
+    if variant == "cropped":
+        chest_width, hip_width, waist = 0.298, 0.236, 0.199
+    elif variant == "twin_knots":
+        chest_width, hip_width, waist = 0.288, 0.247, 0.185
+    tunic = "hide" if variant == "boy" else "skin"
     mesh.tube([
         ((0, 0.016, 0.79), hip_width + 0.018, 0.174, "Hips"),
         ((0, 0.012, 0.94), hip_width, 0.164, "Hips"),
@@ -63,7 +70,7 @@ def body(mesh, variant):
         ((0, -0.004, 1.43), chest_width, 0.145, "Chest"),
         ((0, 0.0, 1.52), 0.111 if broad else 0.098, 0.095, {"Chest": 0.77, "Neck": 0.23}),
         ((0, 0.018, 1.60), 0.080, 0.079, {"Neck": 0.66, "Head": 0.34}),
-    ], ["hide", "leather", "trim", "skin", "skin", "skin", "skin"], sides=10)
+    ], ["hide", "leather", "trim", tunic, tunic, "skin", "skin"], sides=10)
     mesh.tube([
         ((-0.025, 0.182, 0.755), 0.092, 0.017, "Hips"),
         ((-0.018, 0.182, 0.91), 0.120, 0.019, "Hips"),
@@ -90,11 +97,15 @@ def braid(mesh, start, end, radius, dark):
 
 def head(mesh, variant, lineage):
     broad = variant == "broad"
-    child = variant == "child"
-    hair = "hair" if broad else "auburn"
+    child = variant in ("child", "boy")
+    hair = "hair" if variant in ("broad", "cropped", "boy") else "auburn"
     width = 0.144 if broad else (0.152 if child else 0.128)
     crown = 1.914 if child else 1.866
     jaw = 0.111 if broad else 0.085
+    if variant == "cropped":
+        width, jaw = 0.136, 0.104
+    elif variant == "twin_knots":
+        width, jaw = 0.134, 0.091
     mesh.tube([
         ((0, 0.038, 1.566), jaw * 0.84, 0.091, "Head"),
         ((0, 0.061, 1.637), jaw, 0.112, "Head"),
@@ -151,6 +162,36 @@ def head(mesh, variant, lineage):
             ], [hair], sides=5)
         if not broad and not child:
             braid(mesh, (-0.073, -0.109, 1.823), (-0.117, -0.184, 1.578), 0.042, "auburn")
+    elif variant == "cropped":
+        mesh.tube([
+            ((0.005, -0.105, 1.745), 0.096, 0.078, "Head"),
+            ((0.011, -0.042, 1.819), 0.093, 0.106, "Head"),
+            ((0.022, 0.012, 1.879), 0.069, 0.090, "Head"),
+            ((0.030, 0.040, 1.925), 0.038, 0.058, "Head"),
+        ], ["hair", "hair", "hair"], sides=7)
+        mesh.tube([
+            ((0.0, 0.113, 1.566), 0.066, 0.046, "Head"),
+            ((0.0, 0.125, 1.607), 0.086, 0.051, "Head"),
+            ((0.0, 0.149, 1.652), 0.057, 0.037, "Head"),
+        ], ["hair", "hair"], sides=7)
+        mesh.bar((-0.103, 0.092, 1.650), (-0.121, 0.074, 1.687), 0.013, "bone", "Head")
+    elif variant == "twin_knots":
+        for side in (-1, 1):
+            mesh.tube([
+                (joint(side, 0.100, -0.073, 1.815), 0.067, 0.062, "Head"),
+                (joint(side, 0.142, -0.090, 1.864), 0.083, 0.075, "Head"),
+                (joint(side, 0.150, -0.097, 1.919), 0.061, 0.059, "Head"),
+                (joint(side, 0.135, -0.090, 1.951), 0.030, 0.031, "Head"),
+            ], ["auburn", "hair", "auburn"], sides=7)
+            mesh.bar(joint(side, 0.116, 0.037, 1.630), joint(side, 0.124, 0.037, 1.665),
+                     0.022, "bone", "Head")
+        mesh.bar((-0.111, 0.093, 1.782), (0.102, 0.102, 1.800), 0.022, "leather", "Head")
+    elif variant == "boy":
+        mesh.tube([
+            ((-0.032, 0.054, 1.817), 0.103, 0.069, "Head"),
+            ((-0.057, 0.066, 1.888), 0.084, 0.070, "Head"),
+            ((-0.089, 0.042, 1.953), 0.030, 0.038, "Head"),
+        ], ["hair", "auburn"], sides=7)
     elif broad:
         mesh.tube([
             ((0, 0.128, 1.546), 0.079, 0.044, "Head"),
@@ -168,8 +209,8 @@ def head(mesh, variant, lineage):
 
 
 def limbs(mesh, variant):
-    broad = variant == "broad"
-    child = variant == "child"
+    broad = variant in ("broad", "cropped")
+    child = variant in ("child", "boy")
     shoulder = 0.147 if broad else (0.102 if child else 0.113)
     girth = 1.0 if broad else (0.78 if child else 0.92)
     for side, label in [(1, "L"), (-1, "R")]:
@@ -297,7 +338,8 @@ def export(path, skinned):
 
 
 def build_bodies(models, lineage):
-    for variant in ("broad", "braided", "child"):
+    variants = CRAG_BORN_VARIANTS if lineage == "crag_born" else BASE_VARIANTS
+    for variant in variants:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         armature = make_armature()
         mesh = PilotMesh()

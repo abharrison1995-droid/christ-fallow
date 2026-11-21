@@ -6,6 +6,8 @@ Use this catalog to find the current asset or locate the right home for a replac
 
 Goliath, Crag-Born, and Swift-Kin Foragers and adult Spearmen use the [shared skinned lineup](#skinned-lineage-bodies-and-gear). Other units use [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) and the [procedural animator](../../scripts/entities/tribesman_animator.gd). The [base tribesman](../../assets/models/characters/tribesman_base.glb) supplies the opt-in player leader trial. Each row identifies a silhouette and its export directory under `assets/models/characters/lineages/`.
 
+The rollout targets six bodies per lineage. Crag-Born has all six in production, with Goliath and Swift-Kin next. [Production batches](OVERHAUL.md#production-batches)
+
 | Stable lineage ID | Body cues to carry forward | Export directory |
 | --- | --- | --- |
 | `GOLIATH` | Tall barrel chest, heavy brow, broad shoulders, fur mantle | `goliath/` |
@@ -32,11 +34,13 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 Approved exports keep their existing model paths. New imports should follow the category directory, with a stable filename tied to the gameplay ID. The [asset pipeline](README.md) owns generation and preview. The [overhaul plan](OVERHAUL.md) owns sequencing and combat design.
 
+The remaining nine building types and four wildlife species are queued for imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
+
 ## Skinned lineage bodies and gear
 
 | Asset | GLBs |
 | --- | --- |
-| Shared-rig Crag-Born bodies | [Broad adult](../../assets/models/characters/lineages/crag_born/crag_born_broad.glb), [braided adult](../../assets/models/characters/lineages/crag_born/crag_born_braided.glb), [child](../../assets/models/characters/lineages/crag_born/crag_born_child.glb) |
+| Shared-rig Crag-Born bodies | [Broad man](../../assets/models/characters/lineages/crag_born/crag_born_broad.glb), [cropped-hair man](../../assets/models/characters/lineages/crag_born/crag_born_cropped.glb), [braided woman](../../assets/models/characters/lineages/crag_born/crag_born_braided.glb), [twin-knot woman](../../assets/models/characters/lineages/crag_born/crag_born_twin_knots.glb), [boy](../../assets/models/characters/lineages/crag_born/crag_born_boy.glb), [girl](../../assets/models/characters/lineages/crag_born/crag_born_child.glb) |
 | Shared-rig Goliath bodies | [Broad adult](../../assets/models/characters/lineages/goliath/goliath_broad.glb), [braided adult](../../assets/models/characters/lineages/goliath/goliath_braided.glb), [child](../../assets/models/characters/lineages/goliath/goliath_child.glb) |
 | Shared-rig Swift-Kin bodies | [Broad adult](../../assets/models/characters/lineages/swift_kin/swift_kin_broad.glb), [braided adult](../../assets/models/characters/lineages/swift_kin/swift_kin_braided.glb), [child](../../assets/models/characters/lineages/swift_kin/swift_kin_child.glb) |
 | Spearman kit | [Spear](../../assets/models/gear/spearman/spear.glb), [hide buckler](../../assets/models/gear/spearman/hide_buckler.glb), [bone guard](../../assets/models/gear/spearman/bone_guard.glb) |

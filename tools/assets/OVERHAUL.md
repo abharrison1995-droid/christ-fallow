@@ -14,6 +14,71 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | 4. Refresh buildings and world props | Four buildings in production | Sleeping Hut, Palisade, Reed Granary, and Ridge Signal Tower support four stages. The new tower fires from its current deck. Standing-Stone Gate awaits traversal verification. |
 | 5. Refresh wildlife and trial the enemies | Four wildlife rigs in production | Boar, Sabertooth, Reedjaw, and Slateback have articulated bites. Flintmask Scout remains a sample. |
 
+## Production batches
+
+Apply the six-body lineup to all seven lineages, including the three already in production. Each lineup has two women, two men, one boy, and one girl. Give each adult pair distinct silhouettes, with visible differences in hair, face shape, or clothing at normal gameplay zoom. Keep the children age-appropriate with their own proportions and work gear fit. Preserve each lineage’s established body cues across all six variants. [Lineage art reference](CATALOG.md#lineage-bodies)
+
+The target is **42 lineage body GLBs**. The rollout starts from nine bodies and adds 33 slots. Batch 1 raises current coverage to 12 bodies, with 30 slots left. Gate and Scout are two separate prototype promotions. Gear kit counts below refer to shared kits, which can contain multiple GLBs. [Current body and gear inventory](CATALOG.md#skinned-lineage-bodies-and-gear)
+
+| Order | Batch | Output and promotion gate |
+| --- | --- | --- |
+| 1 | Crag-Born pilot · Verified | Added the cropped-hair man, twin-knot woman, and boy. Verified all six bodies through spawn, role changes, gear fit, reload, and child growth. [Crag-Born review](README.md#crag-born-pilot) |
+| 2 | Goliath and Swift-Kin | Add six body slots across the two lineages. Verify gear and gait clearance at both size extremes and capture all six variants per lineage. |
+| 3 | Stalker and Ash-Walker | Add twelve bodies. Carry over Stalker’s long limbs and hunter crest and Ash-Walker’s angular silhouette and ember markings. Verify each lineup in the shared Forager and adult Spearman kits. |
+| 4 | Fen-Tidal and Cave-Kin | Add twelve bodies. Keep Fen-Tidal’s finned silhouette and Cave-Kin’s hunch distinct. Build one shared Cave-Kin kit and verify the nomadic spawn, captive conversion, and save paths. |
+| 5 | Combat kits | Create four shared kits for Knife-Raider, Archer, Club Brute, and Javelineer. Reuse Spearman. Review both hands, carried gear, class-specific attack clips, release and contact timing, and equipment changes. |
+| 6 | Work and specialist kits | Create six shared kits for Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, and Trainee. Reuse Forager tools and workwear for Farmer, with the farming work animation checked in play. |
+| 7 | Leader kit | Create one shared leader kit for the adult bodies. Verify faction crest and nameplate readability, succession, and the leader’s seated pose and camera before promoting it. Include the existing trial leader in regression checks. |
+| 8 | Standing-Stone Gate | Finish the four-stage prototype. Verify that the leader and AI can traverse the opening at supported rotations, that both piers still block travel, and that damage stages, rubble, and reload update collision and navigation correctly. |
+| 9 | Flintmask Scout | Finish the prototype as its own enemy archetype. Complete the action clips and attach the hooked club. Verify live spawn, attack contact, hit and death playback, and persistence before promotion. |
+| 10 | Settlement economy | Tribal Campfire, Forager & Hunter Lodge, and Flint-Knapping & Crafting Pit. |
+| 11 | Faith and warband | Sacred Totem, Shaman’s Healing Shack, Weapon & Armor Rack, and Tribal Barracks. |
+| 12 | Farming and husbandry | Crop Field and Animal Pen. |
+| 13 | Deer and Dire Wolf | Two mid-sized wildlife rigs. Verify wild deer flight and taming, and wolf pursuit and attack. |
+| 14 | Megafauna | Woolly Mammoth and Giant Cave Bear. Verify their boss encounters, including area damage, hit volumes, and rewards. |
+| 15 | Wildcard model round | After Batches 1–14 ship, generate a series of exploratory Blender models and present them for the user to review and select. |
+
+For Batches 1–4, use the shared 17-bone skeleton, compatible rest transforms, nine clips, and `FactionTrim`. Select the child body from age and gender and use a stable choice based on the saved unit ID for adults. Check that reload and role changes keep the same body, that growing up picks the expected adult body, and that older saves still load. Exercise the normal roster and `--procedural-roster`. Capture each lineup at a shared camera distance with the PSX filter enabled. [Generator](generate_crag_born.py) · [Runtime selection](../../scripts/entities/human_unit.gd) · [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)
+
+For every batch, stage the exports with Blender 4.5 LTS, import them into Godot 4.3, run the relevant Forward+ probes with isolated saves, and inspect captures before promoting the batch. Make one verified checkpoint per batch and update the catalog with the production paths. [Generation and review workflow](README.md) · [Verification commands](../../docs/ROADMAP.md#verification-gate-commands-windows-powershell)
+
+### Building batches
+
+Batches 10–12 add **nine building GLBs with 36 damage stages** across them. That completes imported coverage for all 13 existing building types. Standing-Stone Gate is a separate addition from Batch 8. Export one `<building_id>_stages.glb` per type with four root stages, `FactionTrim` where appropriate, and the authored footprint reference. Preserve the existing placement and navigation dimensions. [Building contract](README.md#building-contract) · [Building data](../../scripts/core/game_data.gd) · [Asset loader](../../scripts/core/world_mesh_builder.gd)
+
+| Batch | Asset and visual direction | Gameplay check |
+| --- | --- | --- |
+| 10 | **Tribal Campfire** (`CAMPFIRE`). Ring of scorched stone, stacked fuel, and a low flame. | Preserve `CampfireLight` and `FlameMesh` in standing stages. Found a tribe through the opening guide, drop off resources, check dusk healing, and verify dimming and extinguishing through damage. |
+| 10 | **Forager & Hunter Lodge** (`FORAGER_LODGE`). Drying hides, woven packs, and a low shelter. | Compare the existing gathering and hunting yield bonuses before and after construction. |
+| 10 | **Flint-Knapping & Crafting Pit** (`CRAFTING_PIT`). Low stone work surface with flint chips, blanks, and tools. | Queue a recipe and complete a gear-tier upgrade in the Colony drawer. |
+| 11 | **Sacred Totem** (`SACRED_TOTEM`). Tall carved pole with stone footing and a distinct faction marker. | Verify Faith access, shaman Faith generation, and captive enlightenment after construction. |
+| 11 | **Shaman’s Healing Shack** (`SHAMAN_SHACK`). Hide canopy, medicinal bundles, and a shaded lantern. | Preserve `ShamanLight` in standing stages. Follow a wounded unit through rescue, treatment, and recovery. Check light dimming and shutoff. |
+| 11 | **Weapon & Armor Rack** (`WEAPON_RACK`). Open-backed timber rack with spear shafts and hide shields visible from the command camera. | Confirm a warrior can approach the rack and equip the expected gear from stock. |
+| 11 | **Tribal Barracks** (`BARRACKS`). Training frame, hide targets, and a worn practice yard. | Verify a trainee and an idle guard can approach and accrue training XP. |
+| 12 | **Crop Field** (`CROP_FIELD`). Low furrows and grain rows. Flatten or scatter crops as damage advances. | Keep `Crops` under the standing stages so growth and visibility follow the crop state. Place and rotate a blueprint, then verify sowing, tending, harvesting, hauling, and a growing-field reload. |
+| 12 | **Animal Pen** (`ANIMAL_PEN`). Low wattle rails and a visible trough. | Keep the pen and field walkable. Verify arrivals, feeding, breeding, and movement through the pen on foot and mounted. Reload with an owned herd in the pen. |
+
+For each building, review the Build drawer preview, rotated placement ghost, completed model, all four damage stages, and reload of a damaged building. Check blueprint progress, hostile damage feedback, and collision and navigation through destruction. Compare the damage silhouettes under the PSX filter at normal gameplay zoom. [Building entity](../../scripts/entities/building_entity.gd) · [Opening verifier](../../scripts/tools/verify_opening_tutorial.gd) · [Valley assets verifier](../../scripts/tools/verify_valley_assets.gd) · [Farming verifier](../../scripts/tools/verify_farming_taming.gd)
+
+### Wildlife batches
+
+Batches 13–14 add **four wildlife GLBs**, completing imported coverage for all eight existing species. Author in-place idle and walk loops for all four and a run cycle for deer and wolf. Export facing local `-Z`. Preserve the existing species IDs, territories, taming and aggro rules, damage, and yields. Reuse the imported `Bite` path for the wolf and verify the boss attack visuals against the existing area-damage event. Check that the larger models fit the active collision and projectile hit volumes before promotion. [Wildlife data](../../scripts/core/game_data.gd) · [Wildlife entity](../../scripts/entities/wildlife_entity.gd) · [Valley territories](../../scripts/core/world_layout.gd)
+
+| Batch | Asset and visual direction | Gameplay check |
+| --- | --- | --- |
+| 13 | **Deer** (`DEER`). Slender body, a clear antler silhouette, and a bounding flee gait. | Check wild flight after damage, taming with `E`, travel to the pen, scaling for offspring, and ownership after reload. |
+| 13 | **Dire Wolf** (`WOLF`). Long muzzle, raised shoulders, and an articulated lunge and bite. | Check pursuit, bite playback, reach and cooldown, projectile hits, and hunting yield. |
+| 14 | **Woolly Mammoth** (`MAMMOTH`). Shaggy shoulder hump, curved tusks, and a heavy stomp. | Check roaming and retaliation, the existing stomp damage radius, boss markers, and rewards. |
+| 14 | **Giant Cave Bear** (`CAVE_BEAR`). Broad upper body, heavy paw stride, and a swipe readable at tactical zoom. | Check hostile pursuit, the existing swipe damage radius, boss markers, and rewards. |
+
+Capture all four at the same gameplay camera distance. Check species spawning and save/load in both valley layouts, then record the live animation and hit-volume probes. [Valley assets verifier](../../scripts/tools/verify_valley_assets.gd) · [Farming verifier](../../scripts/tools/verify_farming_taming.gd) · [Campaign save verifier](../../scripts/tools/verify_campaign_save.gd)
+
+### Wildcard model round
+
+Once Batches 1–14 are complete, generate a first set of six original 3D prototypes in Blender. Use the finished roster and valley as reference. Explore a mix of wildlife, structures, scenery, character kits, and tools so the review offers distinct directions. [Existing model examples](examples/README.md)
+
+Export each prototype as a GLB and put it on a comparison sheet at gameplay scale with the PSX filter. Include a close view, a short description of where it might fit, and any animation or collision work it would need. Present the numbered set to the user for selection. The user’s picks become candidates for a future production batch. [Generation and review workflow](README.md)
+
 Author assets against scale and attachment contracts, and stage changes through Blender generation, clean Godot import, Forward+ captures, and a live test scene. Keep appearance choices out of balance calculations. When a visual needs different gameplay bounds, tune the collider and hit volume deliberately.
 
 Classic and expanded layouts share the imported scenery, building, and wildlife models. Both place reed beds and ford art through their active layout geometry. [Terrain definitions](../../scripts/core/world_layout.gd)

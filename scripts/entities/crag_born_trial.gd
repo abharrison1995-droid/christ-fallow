@@ -22,6 +22,16 @@ static func supports_lineage(lineage: int) -> bool:
 	return LINEAGE_KEYS.has(lineage)
 
 
+static func select_body_variant(lineage: int, gender: int, is_child: bool, unit_id: int) -> String:
+	var male := gender == GameData.Gender.MALE
+	if is_child:
+		return "boy" if lineage == GameData.Lineage.CRAG_BORN and male else "child"
+	# Use the second ID bit so alternating male and female spawns can both vary.
+	if lineage == GameData.Lineage.CRAG_BORN and (unit_id & 2) != 0:
+		return "cropped" if male else "twin_knots"
+	return "broad" if male else "braided"
+
+
 func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_key: String,
 		lineage: int = GameData.Lineage.CRAG_BORN) -> bool:
 	if not supports_lineage(lineage):
@@ -68,7 +78,7 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	var profile: Dictionary = GameData.LINEAGE_DATA[lineage]
 	var reference: Dictionary = GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]
 	var relative_width := float(profile["width_scale"]) / float(reference["width_scale"])
-	var age_scale := CHILD_SCALE if variant == "child" else 1.0
+	var age_scale := CHILD_SCALE if variant in ["child", "boy"] else 1.0
 	set_rig_scale(Vector3(relative_width, float(profile["height_scale"]), relative_width) * age_scale)
 	_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	return true

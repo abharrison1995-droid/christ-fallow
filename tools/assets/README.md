@@ -53,13 +53,13 @@ The launch flag selects the imported `tribesman_base.glb` model for the active p
 
 ## Crag-Born pilot
 
-Crag-Born Foragers and adult Spearmen outside the leader slot now use the imported skinned rig **by default** (`--procedural-roster` opts back out to procedural meshes; `--crag-born-trial` is retained as a compatibility no-op). The child has a larger head, narrower limbs, and a smaller model scale on the same rig. The braided and broad adult bodies follow the existing gender field. Role and class select a kit at runtime using the existing unit state.
+Crag-Born Foragers and adult Spearmen outside the leader slot use the imported skinned rig by default. The two men have broad or cropped silhouettes, and the two women wear braids or twin knots. The girl wears a short braid, and the boy has swept hair and a hide tunic. The children share a smaller rig scale with larger heads and narrower limbs. The runtime uses age, gender, and the saved unit ID to select the body, and role and class to select the kit. `--procedural-roster` switches to procedural meshes. `--crag-born-trial` remains a compatibility no-op.
 
 Both kits fit the shared bone names and rest transforms. The rigid weapon and offhand GLBs use grip origins and mount on `Hand.R` and `Hand.L`. The spear and sickle point up in the source model. The chestwear and the basket follow `Chest`. Offsets and carry angles use model rest axes, with `-Z` forward in Godot. `FactionTrim` marks the shared belt and cloth, the buckler ring and chest guard trim, and the basket rim and workwear. The Spearman uses `GuardIdle` and `GuardWalk`, based on the original breathing and stride with raised arms. [Shared loader](../../scripts/entities/crag_born_trial.gd)
 
 ### Reproduce the review
 
-Run from the project root in PowerShell. The generator writes three body GLBs and six rigid kit GLBs under the staged `assets/models` tree.
+Run from the project root in PowerShell. The generator writes six Crag-Born body GLBs and six rigid kit GLBs under the staged `assets/models` tree. `--lineage crag_born` generates only the bodies. Use a fresh, isolated `APPDATA` and set `CHRIST_FALLOW_QA_APPDATA` to the same directory for each Godot invocation.
 
 ```powershell
 $godot = Join-Path $env:LOCALAPPDATA 'Godot/Godot_v4.3-stable_win64_console.exe'
@@ -78,11 +78,12 @@ if ($LASTEXITCODE -ne 0) { throw 'Crag-Born generation failed' }
 & $godot --path $staged --quit-after 1800 --log-file (Join-Path $review 'procedural.log') --script res://scripts/tools/verify_crag_born.gd -- --check-default-roster --procedural-roster
 ```
 
-Check for `CRAG-BORN PILOT PASSED` and `DEFAULT ROSTER CHECK PASSED` and for clean logs. The [comparison sheet](previews/crag-born-comparison.png) uses the default 12 m camera distance and 58° FOV at 1600×900 with the PSX post-process enabled. The front columns use the same angle and native pixel scale. The rear column shows the basket fit. The child Spearman view is an attachment fit study.
+Check for `CRAG-BORN PILOT PASSED` and `DEFAULT ROSTER CHECK PASSED` and for clean logs. The verifier writes `crag-born-six-variants.png` at the default 12 m camera distance and 58° FOV with the PSX post-process enabled. Its first row shows both men and the boy, and its second row shows both women and the girl. It also writes the original format of the [kit comparison sheet](previews/crag-born-comparison.png), including a rear view for basket fit and a child Spearman attachment study.
 
 ### Review results and gaps
 
-- Blender 4.5.16 produced matching hashes for all nine GLBs on repeat export and reproduced the existing leader GLB byte for byte. A fresh Godot 4.3 Forward+ project imported the models, matched all 17 named bones and rest transforms against the existing tribesman, and verified skin binds, vertex weights, UVs, and looping clips.
+- The six-body pilot reproduced the three original body GLBs byte for byte in Blender 4.5.16 and staged three new imports. In Forward+, `verify_crag_born.gd` confirmed all six live spawns, gear attachment motion, appearance through role changes and reload, and both children growing up. The default and procedural roster modes, `verify_skinned_lineages.gd`, and `verify_campaign_save.gd` also passed with clean logs. Use short scratch paths for `APPDATA` so Forward+ can write its shader cache on Windows.
+- During the original three-body trial, Blender 4.5.16 produced matching hashes for all nine body and gear GLBs on repeat export. A fresh Godot 4.3 Forward+ project checked bones and rest transforms, skin binds, vertex weights, UVs, and looping clips.
 - Both kits kept their hand, offhand, and back offsets through the sampled gait. Both weapons cleared the floor. At some side-on angles the spear shaft overlaps the shin in the image, and the rear braid can overlap the basket rim. Sun Gold and Moss Green trim remained visible with PSX enabled. The in-game filter toggle also toggled pilot vertex snapping.
 - The probe uses the shared campaign-start path, then approaches berries, harvests and deposits food, switches to Spearman in the unit inspector, walks in guard, performs a thrust, takes a directional hit with flash, and returns to Forager with the Colony roster opened via `C`. Starter equipment, human armor mitigation, the Awakening role flag, and the serialized unit ID follow the existing rules. The default roster and the original opt-in leader trial also passed separate launch checks.
 - All action states (`Work`, `Attack`, `Hit`, `Death`, and `Wounded`) now play natively on the skinned rig with shader hit-flash and zero procedural fallback swap; the shared walk remains in-place.

@@ -6,6 +6,7 @@ const POST_SHADER = preload("res://scripts/shaders/psx_diablo_post.gdshader")
 const FRAME := Rect2i(0, 0, 1180, 824)
 const SNAPSHOT := Vector2i(288, 188)
 const VARIANTS := ["broad", "braided", "child"]
+const SIX_VARIANTS := ["broad", "cropped", "boy", "braided", "twin_knots", "child"]
 const KITS := ["SPEARMAN", "FORAGER"]
 
 var _issues: Array[String] = []
@@ -84,9 +85,11 @@ func _verify_gameplay() -> void:
 	if not Trial.enabled():
 		_check(forager == null and child_model == null and unit._visual_root.visible and child._visual_root.visible,
 			"--procedural-roster opts out to the procedural Crag-Born roster")
+		_verify_body_variants(faction, base_pos + Vector3(12, 0, 6))
 		main.free()
 		return
 	if _check(forager != null and child_model != null, "Default Crag-Born adults and children spawn the promoted skinned rig"):
+		var initial_body := _body_file(unit)
 		_check(child_model.scale.is_equal_approx(Vector3.ONE * Trial.CHILD_SCALE), "Child scale is applied")
 		_check(leader.get_node_or_null("CragBornTrial") == null, "Crag-Born promotion does not replace the leader slot")
 		_check(world.is_psx_filter_enabled(), "Campaign PSX filter is enabled")
@@ -139,6 +142,7 @@ func _verify_gameplay() -> void:
 				and guard.find_child("Offhand", true, false) != null, "Role change replaces basket with buckler")
 			_check(_state.tutorial_assigned_role, "Role change still updates the Awakening guide")
 			_check(unit.serialize()["unit_id"] == unit.unit_id, "Role change preserves the serialized unit ID")
+			_check(_body_file(unit) == initial_body, "Inspector role change keeps the same adult body")
 			_check(unit.has_equipped_weapon and unit.has_armor and unit.weapon_tier == 1
 				and is_equal_approx(unit.max_hp, unit.base_hp_stat * 1.15 * 1.25)
 				and is_equal_approx(unit.attack_range, 2.75) and is_equal_approx(unit.armor, 17.0),
@@ -234,9 +238,60 @@ func _verify_gameplay() -> void:
 						and restored.find_child("Back", true, false) != null
 						and restored.find_child("Offhand", true, false) == null,
 						"Colony roster returns to Forager and clears the old offhand")
+					_check(_body_file(unit) == initial_body, "Colony role change keeps the same adult body")
+	_verify_body_variants(faction, base_pos + Vector3(12, 0, 6))
 	main.free()
 	await process_frame
 	print("Campaign path checked from Awakening through role selection, harvest, thrust and hit.")
+
+
+func _verify_body_variants(faction: Node, origin: Vector3) -> void:
+	var saved_bodies := {}
+	var body_files := {}
+	var lineage: int = _data.Lineage.CRAG_BORN
+	for i in range(10):
+		var gender: int = _data.Gender.MALE if i % 2 == 0 else _data.Gender.FEMALE
+		var unit: Node = faction.spawn_colonist(origin + Vector3((i % 5) * 2.0, 0, floorf(i / 5.0) * 2.0),
+			lineage, gender, _data.Role.FORAGER, false, i >= 8)
+		unit.set_physics_process(false)
+		var body_file := _body_file(unit)
+		if Trial.enabled():
+			var variant := Trial.select_body_variant(lineage, gender, unit.is_child, unit.unit_id)
+			_check(body_file == "crag_born_%s.glb" % variant, "The live roster loads %s" % variant)
+			saved_bodies[unit.unit_id] = body_file
+			body_files[body_file] = true
+		else:
+			_check(body_file.is_empty() and unit._visual_root.visible, "Roster opt-out uses a procedural body")
+	if not Trial.enabled():
+		return
+	for variant in SIX_VARIANTS:
+		_check(body_files.has("crag_born_%s.glb" % variant), "Campaign spawns %s in the six-body lineup" % variant)
+	var scratch := OS.get_environment("CHRIST_FALLOW_QA_APPDATA").replace("\\", "/").rstrip("/")
+	if not _check(not scratch.is_empty() and OS.get_user_data_dir().replace("\\", "/").begins_with(scratch + "/"),
+			"Set APPDATA and CHRIST_FALLOW_QA_APPDATA to the same isolated directory"):
+		return
+	var path := OS.get_user_data_dir().path_join("crag-born-variants.json")
+	if _check(_state.save_game(path) and _state.load_game(path), "The six-body roster saves and reloads"):
+		var grown := 0
+		for unit in _state.get_faction_units(0):
+			if not saved_bodies.has(unit.unit_id):
+				continue
+			_check(_body_file(unit) == saved_bodies[unit.unit_id], "Reload keeps the body for unit %d" % unit.unit_id)
+			saved_bodies.erase(unit.unit_id)
+			if unit.is_child:
+				var adult := Trial.select_body_variant(lineage, unit.gender, false, unit.unit_id)
+				unit.growth_progress = 0.999
+				unit._physics_process(0.1)
+				_check(not unit.is_child and _body_file(unit) == "crag_born_%s.glb" % adult,
+					"Growing up selects the stable %s adult body" % adult)
+				grown += 1
+		_check(saved_bodies.is_empty() and grown == 2, "All roster variants return and both children grow up")
+	DirAccess.remove_absolute(path)
+
+
+func _body_file(unit: Node) -> String:
+	var rig: Trial = unit._skinned_trial as Trial
+	return rig.get_child(0).scene_file_path.get_file() if rig != null else ""
 
 
 func _review_models(out_dir: String) -> void:
@@ -245,7 +300,10 @@ func _review_models(out_dir: String) -> void:
 	var shared_rig := reference.find_child("Skeleton3D", true, false) as Skeleton3D
 	var portraits: Array[Image] = []
 	var back_views: Array[Image] = []
-	for variant in VARIANTS:
+	portraits.resize(VARIANTS.size() * KITS.size())
+	back_views.resize(VARIANTS.size())
+	var gallery := Image.create(SNAPSHOT.x * 3, SNAPSHOT.y * 2, false, Image.FORMAT_RGB8)
+	for variant in SIX_VARIANTS:
 		for kit in KITS:
 			var tint: Color = _data.FACTION_COLORS[0 if kit == "SPEARMAN" else 4]
 			var model := Trial.new()
@@ -258,12 +316,22 @@ func _review_models(out_dir: String) -> void:
 			await _verify_motion(model, kit)
 			var walking: bool = variant != "broad"
 			var phase := 0.15 if walking else 0.0
-			portraits.append(await _capture_model(model, walking, phase, -30.0))
+			var portrait := await _capture_model(model, walking, phase, -30.0)
+			if variant in VARIANTS:
+				# Keep the original sheet's row order for the existing side-by-side review.
+				var row: int = VARIANTS.find(variant)
+				portraits[row * 2 + KITS.find(kit)] = portrait
 			if kit == "FORAGER":
-				back_views.append(await _capture_model(model, walking, phase, -142.0))
+				portrait.convert(Image.FORMAT_RGB8)
+				var i: int = SIX_VARIANTS.find(variant)
+				gallery.blit_rect(portrait, Rect2i(Vector2i.ZERO, SNAPSHOT),
+					Vector2i((i % 3) * SNAPSHOT.x, (1 if i >= 3 else 0) * SNAPSHOT.y))
+				if variant in VARIANTS:
+					back_views[VARIANTS.find(variant)] = await _capture_model(model, walking, phase, -142.0)
 			model.free()
 	reference.free()
-	if portraits.size() == 6 and back_views.size() == 3:
+	_check(gallery.save_png(out_dir.path_join("crag-born-six-variants.png")) == OK, "Save the six-body comparison PNG")
+	if not portraits.has(null) and not back_views.has(null):
 		await _write_sheet(portraits, back_views, out_dir.path_join("crag-born-comparison.png"))
 
 
