@@ -11,12 +11,12 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_tribesman_rig import SkinnedMesh, animate, animate_action_clips, joint, make_armature, material
 
-LINEAGES = ("crag_born", "goliath", "swift_kin")
+LINEAGES = ("crag_born", "goliath", "swift_kin", "stalker", "ash_walker")
 BODY_VARIANTS = ("broad", "braided", "child", "cropped", "twin_knots", "boy")
 
 
 class PilotMesh(SkinnedMesh):
-    def __init__(self):
+    def __init__(self, lineage=None):
         super().__init__()
         for name, color in {
             "auburn": (0.135, 0.051, 0.026),
@@ -28,6 +28,20 @@ class PilotMesh(SkinnedMesh):
             "straw": (0.72, 0.54, 0.25),
         }.items():
             self.materials[name] = material(f"Mat_{name.title()}", color, 0.96)
+        if lineage == "stalker":
+            self.materials["skin"] = material("Mat_StalkerSkin", (0.40, 0.28, 0.20), 0.92)
+            self.materials["hair"] = material("Mat_StalkerHair", (0.044, 0.045, 0.039), 0.98)
+            self.materials["paint"] = material("Mat_StalkerSkinPaint", (0.14, 0.23, 0.15), 0.93)
+        elif lineage == "ash_walker":
+            self.materials["skin"] = material("Mat_AshSkin", (0.29, 0.27, 0.30), 0.92)
+            self.materials["hair"] = material("Mat_AshHair", (0.69, 0.67, 0.62), 0.98)
+            self.materials["auburn"] = material("Mat_AshHairShade", (0.49, 0.48, 0.47), 0.96)
+            self.materials["obsidian"] = material("Mat_Obsidian", (0.078, 0.065, 0.088), 0.88)
+            ember = material("Mat_EmberSkinPaint", (0.79, 0.22, 0.045), 0.89)
+            shader = ember.node_tree.nodes.get("Principled BSDF")
+            shader.inputs["Emission Color"].default_value = (1.0, 0.21, 0.035, 1.0)
+            shader.inputs["Emission Strength"].default_value = 0.42
+            self.materials["ember"] = ember
 
     def bar(self, start, end, radius, surface, bone="Chest", sides=6):
         self.tube([(start, radius, radius, bone), (end, radius, radius, bone)],
@@ -49,7 +63,7 @@ class PilotMesh(SkinnedMesh):
                        [(0, 0), (1, 0), (1, 1), (0, 1)], rim)
 
 
-def body(mesh, variant):
+def body(mesh, variant, lineage):
     broad = variant == "broad"
     child = variant in ("child", "boy")
     chest_width = 0.326 if broad else (0.249 if child else 0.274)
@@ -59,6 +73,10 @@ def body(mesh, variant):
         chest_width, hip_width, waist = 0.298, 0.236, 0.199
     elif variant == "twin_knots":
         chest_width, hip_width, waist = 0.288, 0.247, 0.185
+    if lineage == "stalker":
+        chest_width *= 0.94
+        hip_width *= 0.94
+        waist *= 0.89
     tunic = "hide" if variant == "boy" else "skin"
     mesh.tube([
         ((0, 0.016, 0.79), hip_width + 0.018, 0.174, "Hips"),
@@ -76,6 +94,13 @@ def body(mesh, variant):
         ((-0.018, 0.143, 1.089), 0.137, 0.017, {"Hips": 0.40, "Spine": 0.60}),
     ], ["trim", "trim"], sides=6)
     mesh.bar((0.10, 0.137, 1.034), (0.10, 0.139, 1.103), 0.048, "bone", "Hips")
+    if lineage == "ash_walker":
+        # Set the bead collar high above the shared chestwear and basket mounts.
+        for i in range(7):
+            angle = (i - 3) * 0.35
+            x, y = 0.113 * math.sin(angle), 0.109 * math.cos(angle)
+            z = 1.542 + abs(x) * 0.24
+            mesh.bar((x, y, z - 0.014), (x, y, z + 0.014), 0.022, "obsidian", "Neck")
 
 
 def braid(mesh, start, end, radius, dark):
@@ -183,6 +208,74 @@ def swift_kin_headwear(mesh, variant, hair, width, crown):
             braid(mesh, (-0.073, -0.109, 1.823), (-0.117, -0.184, 1.578), 0.042, "auburn")
 
 
+def stalker_headwear(mesh, variant, hair, width, crown):
+    for side in (-1, 1):
+        mesh.tube([
+            (joint(side, width * 0.78, 0.031, 1.682), 0.030, 0.041, "Head"),
+            (joint(side, width * 1.11, -0.030, 1.736), 0.034, 0.030, "Head"),
+            (joint(side, width * 1.31, -0.101, 1.815), 0.004, 0.007, "Head"),
+        ], ["skin", "skin"], sides=5)
+        mesh.bar(joint(side, 0.052, 0.151, 1.686), joint(side, 0.106, 0.109, 1.650),
+                 0.017, "paint", "Head")
+
+    # Keep a swept crest across the lineup, with different angles and binding.
+    x, rake, rise, crest_width = {
+        "broad": (0.0, 0.17, 0.17, 0.058),
+        "cropped": (-0.082, 0.25, 0.08, 0.073),
+        "braided": (0.034, 0.17, 0.14, 0.055),
+        "twin_knots": (0.063, 0.22, 0.10, 0.048),
+        "boy": (0.067, 0.15, 0.11, 0.054),
+        "child": (-0.040, 0.12, 0.07, 0.070),
+    }[variant]
+    mesh.tube([
+        ((0.0, 0.017, crown - 0.090), crest_width, 0.073, "Head"),
+        ((x * 0.4, -0.049, crown + rise * 0.36), crest_width * 1.14, 0.085, "Head"),
+        ((x, -rake, crown + rise), 0.006, 0.009, "Head"),
+    ], [hair, "hair"], sides=7)
+    if variant == "braided":
+        braid(mesh, (0.105, -0.060, crown - 0.05), (0.192, -0.096, 1.533), 0.049, "hair")
+    elif variant == "twin_knots":
+        for side in (-1, 1):
+            mesh.tube([
+                (joint(side, 0.071, -0.089, crown - 0.028), 0.051, 0.056, "Head"),
+                (joint(side, 0.111, -0.128, crown + 0.032), 0.064, 0.055, "Head"),
+                (joint(side, 0.134, -0.156, crown + 0.069), 0.026, 0.028, "Head"),
+            ], ["hair", "leather"], sides=7)
+    elif variant == "child":
+        braid(mesh, (-0.094, -0.073, crown - 0.076), (-0.156, -0.098, 1.702), 0.035, "hair")
+
+
+def ash_walker_locks(mesh, variant, crown):
+    for side in (-1, 1):
+        mesh.bar(joint(side, 0.050, 0.153, 1.687), joint(side, 0.103, 0.104, 1.646),
+                 0.016, "ember", "Head")
+        mesh.bar(joint(side, 0.079, 0.139, 1.669), joint(side, 0.105, 0.096, 1.626),
+                 0.011, "ember", "Head")
+    # Each entry gives the roots and tips of the visible silver locks in head space.
+    locks = {
+        "broad": ((-0.076, 0.024, -0.125, -0.177, -0.065),
+                  (0.000, 0.012, 0.019, -0.175, 0.184), (0.078, 0.022, 0.153, -0.144, -0.082)),
+        "cropped": ((-0.081, 0.041, 0.087, -0.109, 0.108),
+                    (0.000, 0.040, 0.181, -0.129, 0.055), (0.082, -0.001, 0.192, -0.122, -0.042)),
+        "braided": ((-0.072, 0.054, -0.152, -0.040, -0.093),
+                    (0.028, 0.025, 0.123, -0.149, 0.078)),
+        "twin_knots": ((-0.073, -0.045, -0.155, -0.130, 0.123),
+                       (0.073, -0.045, 0.150, -0.144, 0.149)),
+        "boy": ((-0.053, -0.020, -0.093, 0.089, 0.031),
+                (0.045, -0.033, 0.111, 0.094, 0.104)),
+        "child": ((-0.063, 0.004, -0.144, 0.019, -0.141),
+                  (0.041, 0.023, 0.114, 0.007, -0.105), (0.000, -0.035, -0.041, -0.087, 0.064)),
+    }[variant]
+    for x, y, tip_x, tip_y, tip_z in locks:
+        mesh.tube([
+            ((x, y, crown - 0.096), 0.066, 0.071, "Head"),
+            (((x + tip_x) * 0.5, (y + tip_y) * 0.5, crown + tip_z * 0.35), 0.065, 0.057, "Head"),
+            ((tip_x, tip_y, crown + tip_z), 0.012, 0.018, "Head"),
+        ], ["hair", "auburn"], sides=6)
+    if variant == "braided":
+        braid(mesh, (0.103, -0.031, crown - 0.058), (0.164, -0.073, 1.510), 0.057, "auburn")
+
+
 def head(mesh, variant, lineage):
     broad = variant == "broad"
     child = variant in ("child", "boy")
@@ -194,6 +287,8 @@ def head(mesh, variant, lineage):
         width, jaw = 0.136, 0.104
     elif variant == "twin_knots":
         width, jaw = 0.134, 0.091
+    if lineage in ("stalker", "ash_walker"):
+        jaw *= 0.90
     mesh.tube([
         ((0, 0.038, 1.566), jaw * 0.84, 0.091, "Head"),
         ((0, 0.061, 1.637), jaw, 0.112, "Head"),
@@ -212,17 +307,23 @@ def head(mesh, variant, lineage):
         ((0, 0.165, 1.683), 0.036, 0.035, "Head"),
         ((0, 0.138, 1.734), 0.021, 0.017, "Head"),
     ], ["skin", "skin"], sides=5)
+    brow = "obsidian" if lineage == "ash_walker" else hair
+    eye = "ember" if lineage == "ash_walker" else "hair"
     for side in (-1, 1):
         mesh.bar(joint(side, 0.045, 0.149, 1.728), joint(side, 0.105, 0.117, 1.737),
-                 0.020 if broad else 0.015, hair, "Head")
+                 0.020 if broad else 0.015, brow, "Head")
         mesh.bar(joint(side, 0.046, 0.148, 1.699), joint(side, 0.093, 0.127, 1.703),
-                 0.011, "hair", "Head", sides=5)
+                 0.011, eye, "Head", sides=5)
         mesh.bar(joint(side, width * 0.91, 0.023, 1.654),
                  joint(side, width, 0.026, 1.728), 0.027, "skin", "Head")
     if lineage == "goliath":
         goliath_hair(mesh, variant, hair, crown)
     elif lineage == "swift_kin":
         swift_kin_headwear(mesh, variant, hair, width, crown)
+    elif lineage == "stalker":
+        stalker_headwear(mesh, variant, hair, width, crown)
+    elif lineage == "ash_walker":
+        ash_walker_locks(mesh, variant, crown)
     elif variant == "cropped":
         mesh.tube([
             ((0.005, -0.105, 1.745), 0.096, 0.078, "Head"),
@@ -269,32 +370,38 @@ def head(mesh, variant, lineage):
         braid(mesh, (0.099, 0.021, 1.852), (0.183, -0.150, 1.485), 0.059, "auburn")
 
 
-def limbs(mesh, variant):
+def limbs(mesh, variant, lineage):
     broad = variant in ("broad", "cropped")
     child = variant in ("child", "boy")
     shoulder = 0.147 if broad else (0.102 if child else 0.113)
     girth = 1.0 if broad else (0.78 if child else 0.92)
+    limb_girth = girth * (0.93 if lineage == "stalker" else 1.0)
+    if lineage == "stalker":
+        shoulder *= 0.92
     for side, label in [(1, "L"), (-1, "R")]:
         arm, forearm, hand = (f"{part}.{label}" for part in ("UpperArm", "LowerArm", "Hand"))
         mesh.tube([
             (joint(side, 0.210, -0.002, 1.480), shoulder * 0.74, shoulder * 0.87, {"Chest": 0.85, arm: 0.15}),
             (joint(side, 0.263, -0.002, 1.413), shoulder, shoulder, {"Chest": 0.28, arm: 0.72}),
-            (joint(side, 0.310, 0, 1.330), 0.103 * girth, 0.101 * girth, arm),
-            (joint(side, 0.373, 0, 1.199), 0.078 * girth, 0.078 * girth, {arm: 0.51, forearm: 0.49}),
-            (joint(side, 0.400, 0.010, 1.115), 0.100 * girth, 0.093 * girth, forearm),
+            (joint(side, 0.310, 0, 1.330), 0.103 * limb_girth, 0.101 * limb_girth, arm),
+            (joint(side, 0.373, 0, 1.199), 0.078 * limb_girth, 0.078 * limb_girth, {arm: 0.51, forearm: 0.49}),
+            (joint(side, 0.400, 0.010, 1.115), 0.100 * limb_girth, 0.093 * limb_girth, forearm),
             (joint(side, 0.430, 0.017, 1.006), 0.076 * girth, 0.069 * girth, {forearm: 0.88, hand: 0.12}),
             (joint(side, 0.445, 0.021, 0.94), 0.057 * girth, 0.051 * girth, {forearm: 0.47, hand: 0.53}),
             (joint(side, 0.455, 0.025, 0.885), 0.063 * girth, 0.057 * girth, hand),
             (joint(side, 0.475, 0.030, 0.840), 0.049 * girth, 0.045 * girth, hand),
         ], ["skin"] * 5 + ["leather", "skin", "skin"], sides=8)
+        if lineage == "ash_walker":
+            mesh.bar(joint(side, 0.384, 0.079 * girth, 1.153),
+                     joint(side, 0.422, 0.081 * girth, 1.062), 0.018, "ember", forearm)
 
         thigh, calf, foot = (f"{part}.{label}" for part in ("UpperLeg", "LowerLeg", "Foot"))
         mesh.tube([
             (joint(side, 0.126, 0, 0.959), 0.122, 0.123, {"Hips": 0.60, thigh: 0.40}),
             (joint(side, 0.131, 0, 0.805), 0.117, 0.116, thigh),
-            (joint(side, 0.144, 0.016, 0.52), 0.079 * girth, 0.077 * girth, {thigh: 0.52, calf: 0.48}),
-            (joint(side, 0.148, 0.0, 0.399), 0.097 * girth, 0.089 * girth, calf),
-            (joint(side, 0.148, -0.011, 0.25), 0.072 * girth, 0.067 * girth, calf),
+            (joint(side, 0.144, 0.016, 0.52), 0.079 * limb_girth, 0.077 * limb_girth, {thigh: 0.52, calf: 0.48}),
+            (joint(side, 0.148, 0.0, 0.399), 0.097 * limb_girth, 0.089 * limb_girth, calf),
+            (joint(side, 0.148, -0.011, 0.25), 0.072 * limb_girth, 0.067 * limb_girth, calf),
             (joint(side, 0.148, -0.015, 0.14), 0.067 * girth, 0.062 * girth, {calf: 0.50, foot: 0.50}),
             (joint(side, 0.148, -0.013, 0.079), 0.066 * girth, 0.062 * girth, foot),
         ], ["hide", "skin", "skin", "skin", "leather", "hide"], sides=8)
@@ -402,10 +509,10 @@ def build_bodies(models, lineage):
     for variant in BODY_VARIANTS:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         armature = make_armature()
-        mesh = PilotMesh()
-        body(mesh, variant)
+        mesh = PilotMesh(lineage)
+        body(mesh, variant, lineage)
         head(mesh, variant, lineage)
-        limbs(mesh, variant)
+        limbs(mesh, variant, lineage)
         mesh.build(armature)
         bpy.context.scene.render.fps = 30
         bpy.context.scene.frame_end = 61

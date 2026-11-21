@@ -47,7 +47,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 | [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
 | [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) | Building 4-stage + collider contracts; `tribesman_base.glb` 17-bone rig + `Idle`/`Walk`/`Work`/`Wounded`/`Attack`/`Hit`/`Death`. |
 | [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) | Default promoted Crag-Born roster + zero-swap action/hit/death playback, `--check-default-roster`, and `--procedural-roster` opt-out. |
-| [verify_skinned_lineages.gd](../scripts/tools/verify_skinned_lineages.gd) | Goliath, Crag-Born, and Swift-Kin body sizes, shared bone and clip contract, gear fit and gait clearance, combat states, save/load, and roster opt-out. |
+| [verify_skinned_lineages.gd](../scripts/tools/verify_skinned_lineages.gd) | Five six-body lineups, shared bone and clip contract, body sizes and ember emission, gear fit and gait clearance, combat states, role changes, child growth, save/load, and roster opt-out. |
 | [verify_valley_assets.gd](../scripts/tools/verify_valley_assets.gd) | Four scenery GLBs, wildlife attack and hit volumes, Slateback armor, and four-stage Granary and Tower builds with collider and rubble checks. |
 
 ---
@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-The Crag-Born, Goliath, and Swift-Kin six-body lineups are verified. Continue with Batch 3 for Stalker and Ash-Walker. Remaining batches cover Fen-Tidal and Cave-Kin, shared kits, Standing-Stone Gate, Flintmask Scout, nine building types, and four wildlife species. After those batches ship, generate a wildcard set of model prototypes and present it to the user for selection. [Batch 2 review](../tools/assets/README.md#goliath-and-swift-kin) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
+Five six-body lineups are verified through Batch 3. Continue with Batch 4 for Fen-Tidal and Cave-Kin, including a dedicated Cave-Kin kit. Remaining batches cover shared kits, Standing-Stone Gate, Flintmask Scout, nine building types, and four wildlife species. After those batches ship, generate a wildcard set of model prototypes and present it to the user for selection. [Batch 3 review](../tools/assets/README.md#stalker-and-ash-walker) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

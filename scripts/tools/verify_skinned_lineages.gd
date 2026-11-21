@@ -18,7 +18,10 @@ func _run() -> void:
 				"Set APPDATA and CHRIST_FALLOW_QA_APPDATA to the same isolated directory"):
 			quit(1)
 			return
-	var lineages: Array[int] = [_data.Lineage.GOLIATH, _data.Lineage.CRAG_BORN, _data.Lineage.SWIFT_KIN]
+	var lineages: Array[int] = [
+		_data.Lineage.GOLIATH, _data.Lineage.CRAG_BORN, _data.Lineage.SWIFT_KIN,
+		_data.Lineage.STALKER, _data.Lineage.ASH_WALKER,
+	]
 	await _verify_lineage_gameplay(lineages)
 	if Trial.enabled() and _check(out_dir.is_absolute_path() and DirAccess.make_dir_recursive_absolute(out_dir) == OK,
 			"Pass a writable absolute --out-dir for the lineage review"):
@@ -102,7 +105,7 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 	var shared_rig := reference.find_child("Skeleton3D", true, false) as Skeleton3D
 	var sheet := Image.create(LINEAGE_SNAPSHOT.x * lineages.size(), LINEAGE_SNAPSHOT.y * VARIANTS.size(),
 		false, Image.FORMAT_RGB8)
-	var body_sizes: Array[Vector3] = []
+	var body_sizes := {}
 	for i in range(lineages.size()):
 		var gallery := Image.create(LINEAGE_SNAPSHOT.x * 3, LINEAGE_SNAPSHOT.y * 2, false, Image.FORMAT_RGB8)
 		for j in range(SIX_VARIANTS.size()):
@@ -117,6 +120,8 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 				_stage.add_child(model)
 				await process_frame
 				_verify_rig(model, tint, shared_rig)
+				if lineages[i] == _data.Lineage.ASH_WALKER:
+					_verify_ember_material(model)
 				await _verify_motion(model, kit)
 				if kit == "FORAGER" or variant == "broad":
 					var portrait := await _capture_model(model, true, 0.15, -30.0, LINEAGE_SNAPSHOT)
@@ -131,14 +136,31 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 				if variant == "broad" and kit == "SPEARMAN":
 					for mesh_node in model.find_children("*", "MeshInstance3D", true, false):
 						if mesh_node.skin != null:
-							body_sizes.append(mesh_node.get_aabb().size * model.scale)
+							body_sizes[lineages[i]] = mesh_node.get_aabb().size * model.scale
 				model.free()
 		var lineage_key: String = Trial.LINEAGE_KEYS[lineages[i]]
 		var path := out_dir.path_join("%s-six-variants.png" % lineage_key.replace("_", "-"))
 		_check(gallery.save_png(path) == OK, "Save the %s six-body comparison PNG" % lineage_key)
-	_check(body_sizes.size() == 3 and body_sizes[0].y > body_sizes[1].y * 1.3
-		and body_sizes[2].y < body_sizes[1].y * 0.85
-		and body_sizes[0].x > body_sizes[1].x and body_sizes[2].x < body_sizes[1].x,
+	var goliath: Vector3 = body_sizes.get(_data.Lineage.GOLIATH, Vector3.ZERO)
+	var crag: Vector3 = body_sizes.get(_data.Lineage.CRAG_BORN, Vector3.ZERO)
+	var swift: Vector3 = body_sizes.get(_data.Lineage.SWIFT_KIN, Vector3.ZERO)
+	var stalker: Vector3 = body_sizes.get(_data.Lineage.STALKER, Vector3.ZERO)
+	_check(goliath.y > crag.y * 1.3 and swift.y > 0.0 and swift.y < crag.y * 0.85
+		and goliath.x > crag.x and swift.x < crag.x,
 		"Goliath and Swift-Kin bracket Crag-Born in rendered height and width")
+	_check(stalker.y > crag.y and stalker.x < crag.x, "Stalkers retain a tall, narrow silhouette")
 	_check(sheet.save_png(out_dir.path_join("skinned-lineages.png")) == OK, "Save the lineage comparison PNG")
 	reference.free()
+
+
+func _verify_ember_material(model: Trial) -> void:
+	for node in model.find_children("*", "MeshInstance3D", true, false):
+		var mesh_node := node as MeshInstance3D
+		for slot in range(mesh_node.mesh.get_surface_count()):
+			var source := mesh_node.mesh.surface_get_material(slot)
+			if source.resource_name == "Mat_EmberSkinPaint":
+				var shader := mesh_node.get_surface_override_material(slot) as ShaderMaterial
+				_check(shader != null and float(shader.get_shader_parameter("emission_energy")) > 0.0,
+					"Ash-Walker ember marks glow through the gameplay shader")
+				return
+	_check(false, "Ash-Walker body has its imported ember marks")

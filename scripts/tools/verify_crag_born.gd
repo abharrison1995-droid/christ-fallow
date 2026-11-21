@@ -74,10 +74,10 @@ func _verify_gameplay() -> void:
 	child.set_physics_process(false)
 	var forager := unit.get_node_or_null("CragBornTrial") as Trial
 	var child_model := child.get_node_or_null("CragBornTrial") as Trial
-	var stalker: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.STALKER,
-		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Stalker Check")
-	stalker.set_physics_process(false)
-	_check(stalker._skinned_trial == null and stalker._visual_root.visible,
+	var fen_tidal: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.FEN_TIDAL,
+		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Fen-Tidal Check")
+	fen_tidal.set_physics_process(false)
+	_check(fen_tidal._skinned_trial == null and fen_tidal._visual_root.visible,
 		"Unpromoted lineages continue to use procedural rigs")
 	var leader_trial_enabled := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
 	_check((leader.get_node_or_null("SkinnedTribesmanTrial") != null) == leader_trial_enabled,

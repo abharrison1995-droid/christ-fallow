@@ -7,6 +7,8 @@ const LINEAGE_KEYS := {
 	GameData.Lineage.CRAG_BORN: "crag_born",
 	GameData.Lineage.GOLIATH: "goliath",
 	GameData.Lineage.SWIFT_KIN: "swift_kin",
+	GameData.Lineage.STALKER: "stalker",
+	GameData.Lineage.ASH_WALKER: "ash_walker",
 }
 const GEAR := "res://assets/models/gear"
 const CHILD_SCALE := 0.68

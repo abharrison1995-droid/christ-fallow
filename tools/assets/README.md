@@ -103,6 +103,20 @@ Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercis
 
 Batch 2 reproduced the six original body GLBs byte for byte in Blender 4.5.16 and added six new bodies. Godot 4.3 imported the stage cleanly. The default and procedural multi-lineage runs, Crag-Born default roster check, and campaign save regression passed in Forward+. Both new comparison sheets were reviewed at the same camera distance.
 
+## Stalker and Ash-Walker
+
+Stalkers have lean limbs, swept ears, green cheek paint, and crests with different heights and angles. Ash-Walkers use ash-grey skin, angular jaws, pale locks, obsidian beads, and emissive ember markings. Each lineage uses six bodies on the same skeleton and shared attachment points as the Crag-Born pilot. Ash-Walker appears as Ash-Born in the game. [Lineage reference](CATALOG.md#lineage-bodies)
+
+Generate all twelve models into the staged project, then import and run the same Forward+ lineage commands used in the Goliath and Swift-Kin review. [Import and test commands](#goliath-and-swift-kin)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_crag_born.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--lineage', 'stalker', '--lineage', 'ash_walker')
+```
+
+The verifier adds `stalker-six-variants.png` and `ash-walker-six-variants.png`. It checks that the Stalker remains tall and narrow relative to Crag-Born and that the Ash-Walker markings retain emission in the gameplay shader. [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)
+
+Batch 3 generated twelve new bodies with Blender 4.5.16. Godot 4.3 imported all twelve cleanly. The default and procedural five-lineage runs, Crag-Born default roster check, and campaign save regression passed in Forward+. Both new lineups were reviewed at the same gameplay camera distance.
+
 ## Valley scenery and wildlife
 
 The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)
