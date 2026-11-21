@@ -31,7 +31,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 7 | Leader kit · Verified | Adult player and rival leaders use a bone crown, split mantle, great-spear, back javelins, and cleave clip. Verified succession, naming, mounted pose and camera, and the original trial rig. [Batch review](README.md#leader-kit) |
 | 8 | Standing-Stone Gate · Verified | Promoted the four-stage gate after capsule traversal and AI route checks at all eight rotations. Both piers block movement and release when the gate collapses. [Batch review](README.md#standing-stone-gate) |
 | 9 | Flintmask Scout · Verified | Nomadic packs include a masked scout with a hooked club and complete skin animation. Verified contact, hit and death playback, and save validation. [Batch review](README.md#flintmask-scout) |
-| 10 | Settlement economy | Tribal Campfire, Forager & Hunter Lodge, and Flint-Knapping & Crafting Pit. |
+| 10 | Settlement economy · Verified | Promoted the Campfire, Forager Lodge, and Crafting Pit. Verified founding, healing, hauling, the Lodge yield bonus, crafting and tier upgrades, damage, and reload. [Batch review](README.md#settlement-building-batches) |
 | 11 | Faith and warband | Sacred Totem, Shaman’s Healing Shack, Weapon & Armor Rack, and Tribal Barracks. |
 | 12 | Farming and husbandry | Crop Field and Animal Pen. |
 | 13 | Deer and Dire Wolf | Two mid-sized wildlife rigs. Verify wild deer flight and taming, and wolf pursuit and attack. |

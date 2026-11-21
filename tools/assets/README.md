@@ -219,6 +219,18 @@ Each new nomadic pack includes one Flintmask Scout. The carved mask and hooked c
 
 The Forward+ probe covers actual cave spawning, attack contact, the full skin lifecycle, reload, invalid archetypes, and `--procedural-roster`. It writes `flintmask-scout.png`. [Scout verifier](../../scripts/tools/verify_flintmask_scout.gd)
 
+## Settlement building batches
+
+The economy batch imports the Campfire, Forager Lodge, and Crafting Pit at the existing footprints. The Campfire retains its flame, light, and dusk healing. Each building has four damage stages. [Settlement generator](generate_settlement_assets.py) · [Building contract](#building-contract)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_settlement_assets.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--batch', 'settlement')
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_settlement_assets.gd -- --batch=settlement "--out-dir=$review"
+```
+
+With isolated app data, `SETTLEMENT ASSET VERIFICATION PASSED` covers rotated placement, building behavior, hostile damage stages, reload, and rubble. `settlement-buildings.png` shows Campfire, Lodge, and Pit across all four stages. The opening tutorial and campaign save suites also passed. [Settlement verifier](../../scripts/tools/verify_settlement_assets.gd)
+
 ## Farm structures and rider review
 
 The Crop Field and Animal Pen use four procedural damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The mount reuses the Tusked Boar GLB. The rider pose follows the same saddle height on the procedural leader and the trial skinned leader. [Procedural building stages](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)

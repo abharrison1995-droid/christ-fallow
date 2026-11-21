@@ -338,7 +338,9 @@ func _find_in_active_stage(node_name: String) -> Node:
 	var st := _get_active_stage_node()
 	if st == null:
 		return null
-	return st.get_node_or_null(node_name)
+	var node := st.get_node_or_null(node_name)
+	# Blender and the glTF importer may suffix names that repeat across stages.
+	return node if node != null else st.find_child(node_name + "*", false, false)
 
 
 func _sync_stage_lights() -> void:

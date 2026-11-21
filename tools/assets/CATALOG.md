@@ -26,6 +26,8 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 [Flintmask Scout](../../assets/models/characters/archetypes/flintmask_scout.glb) spawns with nomadic packs and carries a [hooked club](../../assets/models/gear/flintmask_scout/hooked_club.glb). [Scout review](README.md#flintmask-scout)
 
+[Campfire](../../assets/models/buildings/campfire_stages.glb), [Forager Lodge](../../assets/models/buildings/forager_lodge_stages.glb), and [Crafting Pit](../../assets/models/buildings/crafting_pit_stages.glb) use imported damage stages. [Settlement review](README.md#settlement-building-batches)
+
 | Type | Current coverage | Where to work |
 | --- | --- | --- |
 | Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers use procedural workwear and tools. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |
