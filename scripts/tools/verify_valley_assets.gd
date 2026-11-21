@@ -116,7 +116,7 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 		animal.take_damage(12.0, leader, 0)
 		_check(is_equal_approx(float(animal.hp), 121.6) and animal._target_unit == leader,
 			"Slateback mitigates 3.6 damage with its plates and retaliates when struck")
-	if kind != "WOLF" and not _check(player != null, "%s spawns with imported Bite" % kind):
+	if not _check(player != null, "%s spawns with imported Bite" % kind):
 		return
 
 	leader.global_position = animal.global_position + Vector3(-1.60, 0, 0)
@@ -132,7 +132,8 @@ func _verify_animal(animal: Node, leader: CharacterBody3D) -> void:
 		"%s starts its attack with the expected damage timing" % kind)
 	_check(animal.serialize()["animal_type"] == kind, "%s retains its save ID" % kind)
 	if kind == "WOLF":
-		_check(player == null and animal._attack_anim_timer > 0.0, "Wolf still attacks with procedural art")
+		_check(player.current_animation == &"Bite" and player.has_animation(&"Run"),
+			"Wolf uses its imported bite and pursuit clips")
 		return
 
 	var clip := player.get_animation(&"Bite")

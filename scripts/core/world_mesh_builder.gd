@@ -5,6 +5,7 @@ const BUILDING_STAGE_NAMES := ["Stage_Intact", "Stage_Damaged", "Stage_Critical"
 const WILDLIFE_MODELS := {
 	"BOAR": "tusked_boar", "SLATEBACK_BOAR": "slateback_boar",
 	"SABERTOOTH": "sabertooth", "REEDJAW": "reedjaw",
+	"DEER": "deer", "WOLF": "dire_wolf",
 }
 const RESOURCE_MODELS := {"TREE": "windbent_pine", "STONE": "moss_limestone", "BERRY_BUSH": "berry_thicket"}
 
@@ -849,7 +850,7 @@ static func build_wildlife_mesh(mf: Node, animal_type: String) -> Node3D:
 		var model := _instantiate_model("res://assets/models/wildlife/%s.glb" % WILDLIFE_MODELS[animal_type])
 		if model != null:
 			var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-			if player != null and player.has_animation("Bite"):
+			if player != null and (player.has_animation(&"Bite") or player.has_animation(&"Idle")):
 				player.name = "BiteAnimation"
 				_apply_psx_glb_materials(model)
 				model.rotation.y = PI  # The existing procedural pivot turns +Z models around.

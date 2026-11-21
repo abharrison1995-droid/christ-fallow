@@ -29,6 +29,7 @@ const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 var _visual_root: Node3D = null
 var _animal_pivot: Node3D = null
 var _bite_player: AnimationPlayer = null
+var _attack_clip: StringName = &"Bite"
 var _hp_bg: MeshInstance3D = null
 var _anim_walk: float = 0.0
 var _attack_anim_timer: float = 0.0
@@ -93,6 +94,7 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	_attack_cooldown = float(data.get("attack_cooldown", 1.6 if is_boss else 1.25))
 	_attack_reach = float(data.get("attack_reach", 3.1 if is_boss else 1.9))
 	_attack_windup = float(data.get("attack_windup", 0.0))
+	_attack_clip = StringName(data.get("attack_clip", "Bite"))
 	_projectile_hit_height = float(data.get("projectile_hit_height", 0.9))
 	projectile_hit_radius = float(data.get("projectile_hit_radius", 1.8 if is_boss else 1.05))
 	_prey_scan_cd = 0.0
@@ -461,9 +463,19 @@ func _update_wildlife_animation(delta: float) -> void:
 
 	if _animal_pivot == null:
 		return
-	if _bite_player != null and _bite_player.is_playing():
-		_bite_player.advance(delta)
-		return
+	if _bite_player != null:
+		if _bite_player.is_playing() and _bite_player.current_animation == _attack_clip:
+			_bite_player.advance(delta)
+			return
+		if _bite_player.has_animation(&"Walk") and _bite_player.has_animation(&"Idle"):
+			var clip := &"Idle" if horiz_speed <= 0.3 else &"Walk"
+			if horiz_speed >= move_speed * 0.72 and _bite_player.has_animation(&"Run"):
+				clip = &"Run"
+			if _bite_player.current_animation != clip:
+				_bite_player.play(clip, 0.09)
+			_bite_player.speed_scale = 1.0 if clip == &"Idle" else clampf(horiz_speed / (move_speed * 0.75), 0.5, 1.5)
+			_bite_player.advance(delta)
+			return
 
 	if _attack_anim_timer > 0.0:
 		_attack_anim_timer = maxf(0.0, _attack_anim_timer - delta)
@@ -644,14 +656,15 @@ func _scan_for_prey(radius: float) -> Node:
 
 
 func _perform_attack(target: Node) -> void:
-	if _bite_player != null:
+	if _bite_player != null and _bite_player.has_animation(_attack_clip):
 		var aim: Vector3 = target.global_position
 		aim.y = global_position.y
 		if global_position.distance_squared_to(aim) > 0.001:
 			look_at(aim, Vector3.UP)
 		_animal_pivot.position = Vector3.ZERO
 		_animal_pivot.rotation_degrees = Vector3(0.0, 180.0, 0.0)
-		_bite_player.play(&"Bite")
+		_bite_player.speed_scale = 1.0
+		_bite_player.play(_attack_clip)
 		_bite_player.advance(0.0)
 	else:
 		_attack_anim_timer = 0.36

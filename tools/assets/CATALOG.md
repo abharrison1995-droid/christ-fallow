@@ -44,7 +44,7 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 Approved exports keep their existing model paths. New imports should follow the category directory, with a stable filename tied to the gameplay ID. The [asset pipeline](README.md) owns generation and preview. The [overhaul plan](OVERHAUL.md) owns sequencing and combat design.
 
-The building batches are complete. Four wildlife species are queued for imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
+The building batches are complete. Six of eight wildlife species have imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
 
 ## Skinned lineage bodies and gear
 
@@ -78,6 +78,8 @@ The building batches are complete. Four wildlife species are queued for imported
 | [Sabertooth](../../assets/models/wildlife/sabertooth.glb) | Existing `SABERTOOTH` population with an articulated jaw snap |
 | [Slateback Boar](../../assets/models/wildlife/slateback_boar.glb) | `SLATEBACK_BOAR` uses an armored hide and retaliates when struck |
 | [Reedjaw](../../assets/models/wildlife/reedjaw.glb) | `REEDJAW` hunts near the river and telegraphs a short-range bite |
+| [Deer](../../assets/models/wildlife/deer.glb) | `DEER` has antlers, bounding flight, and taming and herd support |
+| [Dire Wolf](../../assets/models/wildlife/dire_wolf.glb) | `WOLF` uses a pursuit gait and a skinned bite |
 
 [Scenery and bite poses](previews/valley-assets.png) · [Regenerate and verify](README.md#valley-scenery-and-wildlife)
 

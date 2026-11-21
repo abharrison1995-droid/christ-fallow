@@ -233,6 +233,18 @@ With isolated app data, `SETTLEMENT ASSET VERIFICATION PASSED` covers rotated pl
 
 Use `--batch warband` in the Blender command and `--batch=warband` in the verifier for Sacred Totem, Healing Shack, Weapon Rack, and Barracks. `warband-buildings.png` shows those models in that order. The Forward+ probe verified the Totem’s Faith bonus and captive enlightenment, lit Healing Shack rescue and recovery, stockpile equipment, and Barracks training. The diplomacy regression also passed.
 
+## Wildlife lineup
+
+The woodland batch adds a bounding Deer with antlers and a Dire Wolf with a dark shoulder ruff. Both use idle, walk, and run clips. The wolf plays a one-shot `Bite`. The same runtime IDs and rules control the imported rigs. [Wildlife generator](generate_wildlife_lineup.py) · [Wildlife runtime](../../scripts/entities/wildlife_entity.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_wildlife_lineup.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--batch', 'woodland')
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_wildlife_lineup.gd -- --batch=woodland "--out-dir=$review"
+```
+
+Use isolated app data. `WILDLIFE LINEUP VERIFICATION PASSED` covers both layouts, wild flight, deer taming and ownership, wolf pursuit and bite, torso projectile contact, hunting yields, and save/load. `woodland-wildlife.png` compares both animals. The valley asset and farming regressions also passed. [Wildlife verifier](../../scripts/tools/verify_wildlife_lineup.gd)
+
 ## Farm structures and rider review
 
 The Crop Field and Animal Pen use four imported damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The `Crops` child in the active stage follows growing, ripe, and fallow states. The mount reuses the Tusked Boar GLB. [Building stage loader](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)
