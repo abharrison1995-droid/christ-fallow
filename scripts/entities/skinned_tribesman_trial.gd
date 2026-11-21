@@ -14,6 +14,7 @@ var _base_emissions: Array[Dictionary] = []
 var _jitter_enabled := true
 var _idle_clip: StringName = &"Idle"
 var _walk_clip: StringName = &"Walk"
+var _attack_clip: StringName = &"Attack"
 var _current_clip: StringName = &""
 var _pending_restart_clip: StringName = &""
 var _oneshot_elapsed := 0.0
@@ -103,7 +104,7 @@ func _capture_base_emissions() -> void:
 
 
 func restart_clip(clip_name: StringName) -> void:
-	_pending_restart_clip = clip_name
+	_pending_restart_clip = _attack_clip if clip_name == &"Attack" else clip_name
 	_oneshot_elapsed = 0.0
 
 
@@ -144,7 +145,7 @@ func _resolve_clip(anim_state: String) -> StringName:
 		"SPEAR_THRUST", "DUAL_SLASH", "BOW_SHOT", "HEAVY_SMASH",
 		"JAVELIN_THROW", "LEADER_CLEAVE", "SHAMAN_CAST", "UNARMED_PUNCH"
 	]:
-		return &"Attack"
+		return _attack_clip
 	if anim_state.begins_with("DAMAGE_"):
 		return &"Hit"
 	if anim_state.begins_with("DEATH_"):
@@ -154,8 +155,8 @@ func _resolve_clip(anim_state: String) -> StringName:
 	return _idle_clip
 
 
-static func _is_oneshot_clip(clip: StringName) -> bool:
-	return clip == &"Attack" or clip == &"Hit" or clip == &"Death"
+func _is_oneshot_clip(clip: StringName) -> bool:
+	return clip == _attack_clip or clip == &"Hit" or clip == &"Death"
 
 
 func update_action(anim_state: String, speed: float, delta: float, jitter_enabled: bool, hit_flash: float = 0.0) -> void:

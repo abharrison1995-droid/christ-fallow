@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-All seven six-body lineups and the Cave-Kin kit are verified through Batch 4. Combat kits are next. The wildcard round follows the production batches. [Batch 4 review](../tools/assets/README.md#fen-tidal-and-cave-kin) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
+All seven six-body lineups, Cave-Kin, and all five warrior classes have verified gear through Batch 5. Workforce kits are next. The wildcard round follows the production batches. [Batch 5 review](../tools/assets/README.md#combat-kits) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

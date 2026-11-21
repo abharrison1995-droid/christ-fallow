@@ -315,6 +315,7 @@ func _rebuild_visual() -> void:
 				pilot.name = "CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig"
 				add_child(pilot)
 				_skinned_trial = pilot
+				pilot.sync_equipment(weapon_tier, has_armor)
 				pilot.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 				_set_trial_visible(true)
 			else:
@@ -424,6 +425,8 @@ func _refresh_gear_visual() -> void:
 		use_tool = true
 
 	MeshFactory.update_human_gear(_visual_root, w_str, weapon_tier, has_armor, use_tool, desired_key)
+	if _skinned_trial is CragBornTrial:
+		_skinned_trial.sync_equipment(weapon_tier, has_armor)
 
 
 func play_attack_animation(anim_name: String = "", duration: float = 0.40) -> void:

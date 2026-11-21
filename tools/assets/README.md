@@ -127,6 +127,18 @@ Fen-Tidal bodies use moss-teal skin, gold eyes, ear fins, and variant-specific d
 
 Use the same isolated import and Forward+ commands as for Goliath and Swift-Kin. The lineage verifier adds `fen-tidal-six-variants.png`, `caveman-six-variants.png`, and `cave-kin-kit.png`. It exercises both adult genders in a live nomadic pack, then capture, enlightenment, and reload of the convert and surviving nomads. [Import and test commands](#goliath-and-swift-kin) · [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)
 
+## Combat kits
+
+The Knife-Raider carries twin dirks and sheaths, the Archer carries a bow and quiver, the Brute carries a flint maul and trophy rack, and the Javelineer carries a barbed javelin, back bundle, and shared buckler. Their attack clips start at the combat event and animate follow-through. Armor visibility and weapon finishes follow equipped armor and weapon tier. [Gear and motion generator](generate_role_kits.py) · [Runtime mounts](../../scripts/entities/crag_born_trial.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_role_kits.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'))
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_role_kits.gd -- "--out-dir=$review"
+```
+
+Use isolated `APPDATA` for each run. `ROLE KIT VERIFICATION PASSED` confirms live class changes, both hands and back attachments, animation binding, equipment changes, and melee contact or ranged release. `combat-kits.png` shows Knife-Raider, Archer, Club Brute, and Javelineer from left to right. [Role kit probe](../../scripts/tools/verify_role_kits.gd)
+
 ## Valley scenery and wildlife
 
 The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)
