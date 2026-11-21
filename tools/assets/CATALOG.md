@@ -22,6 +22,8 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 ## Live assets by type
 
+[Standing-Stone Gate](../../assets/models/buildings/standing_stone_gate_stages.glb) is buildable under Defences and has separate pier collision and routing. [Gate review](README.md#standing-stone-gate)
+
 | Type | Current coverage | Where to work |
 | --- | --- | --- |
 | Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers use procedural workwear and tools. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |

@@ -11,7 +11,7 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | 1. Inventory and organize | Complete | The catalog and example generator use the grouped paths. The six samples imported with valid stages, colliders, and clips. |
 | 2. Establish the body and gear contract | Promoted (20 Nov 2026) | Two Crag-Born adult silhouettes and a child share the 17-bone rig and modular Spearman and Forager kits with full skeletal clips (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Attack`, `Hit`, `Death`, `Wounded`) and shader hit-flash. Supported Crag-Born Foragers and adult Spearmen run on the skinned rig by default with zero procedural fallback swap (`--procedural-roster` opts out). |
 | 3. Build out the lineages and roles | Seven lineages in production | All seven lineages have six bodies. Cave-Kin nomads have a dedicated kit. The Forward+ verifier checks body scale, gear, actions, capture, enlightenment, and save/load. Additional role kits are queued. |
-| 4. Refresh buildings and world props | Four buildings in production | Sleeping Hut, Palisade, Reed Granary, and Ridge Signal Tower support four stages. The new tower fires from its current deck. Standing-Stone Gate awaits traversal verification. |
+| 4. Refresh buildings and world props | Five buildings in production | Sleeping Hut, Palisade, Reed Granary, Ridge Signal Tower, and Standing-Stone Gate support four stages. The gate uses two separately routed piers. |
 | 5. Refresh wildlife and trial the enemies | Four wildlife rigs in production | Boar, Sabertooth, Reedjaw, and Slateback have articulated bites. Flintmask Scout remains a sample. |
 
 ## Production batches
@@ -29,7 +29,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 5 | Combat kits · Verified | Knife-Raider, Archer, Club Brute, and Javelineer have shared gear and class-specific one-shot clips. Forward+ checked attachment, weapon tiers, armor, melee contact, and projectile release. [Batch review](README.md#combat-kits) |
 | 6 | Work and specialist kits · Verified | Added six shared kits and a Shaman cast clip. Verified role changes, mounted tools, work and bow playback, and Farmer reuse of the Forager kit. [Batch review](README.md#workforce-kits) |
 | 7 | Leader kit · Verified | Adult player and rival leaders use a bone crown, split mantle, great-spear, back javelins, and cleave clip. Verified succession, naming, mounted pose and camera, and the original trial rig. [Batch review](README.md#leader-kit) |
-| 8 | Standing-Stone Gate | Finish the four-stage prototype. Verify that the leader and AI can traverse the opening at supported rotations, that both piers still block travel, and that damage stages, rubble, and reload update collision and navigation correctly. |
+| 8 | Standing-Stone Gate · Verified | Promoted the four-stage gate after capsule traversal and AI route checks at all eight rotations. Both piers block movement and release when the gate collapses. [Batch review](README.md#standing-stone-gate) |
 | 9 | Flintmask Scout | Finish the prototype as its own enemy archetype. Complete the action clips and attach the hooked club. Verify live spawn, attack contact, hit and death playback, and persistence before promotion. |
 | 10 | Settlement economy | Tribal Campfire, Forager & Hunter Lodge, and Flint-Knapping & Crafting Pit. |
 | 11 | Faith and warband | Sacred Totem, Shaman’s Healing Shack, Weapon & Armor Rack, and Tribal Barracks. |
@@ -140,7 +140,7 @@ The Stalker gets additional reach with bows and javelins. Humans receive `max(2,
 
 ## Encounter and building playtests
 
-Slateback Boar, Reedjaw, Reed Granary, and Ridge Signal Tower use the listed values in live campaigns. Flintmask Scout and Standing-Stone Gate are samples.
+Slateback Boar, Reedjaw, Reed Granary, Ridge Signal Tower, and Standing-Stone Gate are live in campaigns. Flintmask Scout is a sample.
 
 | Asset | First test values | What should read in play |
 | --- | --- | --- |
@@ -149,4 +149,4 @@ Slateback Boar, Reedjaw, Reed Granary, and Ridge Signal Tower use the listed val
 | Reedjaw | 135 HP, 6.6 m/s, 18 raw damage, 1.45 s between attacks | A low silhouette and clear crouch signal its short lunge. |
 | Reed Granary | Storage Mound behavior, 320 HP, 12 wood and 10 stone | Damage reads through a missing lid, spilled grain, and a collapsed deck. |
 | Ridge Signal Tower | Watchtower behavior, 380 HP, current build cost | The brazier and raised deck read at range. The arrow origin should line up with the platform. |
-| Standing-Stone Gate | Hold balance until passage works through both intact piers | Its silhouette signals a passage. Verify choke points and AI travel before considering a defensive bonus. |
+| Standing-Stone Gate | 430 HP, 18 stone and 4 wood | Two piers block movement. The gap stays open for the leader and AI through all standing stages. |

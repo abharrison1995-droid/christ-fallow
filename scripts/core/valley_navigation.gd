@@ -6,6 +6,7 @@ const CELL_SIZE := 4.0
 const FOOTPRINT_MARGIN := 0.0
 const WorldLayout = preload("res://scripts/core/world_layout.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
+const Gate = preload("res://scripts/core/standing_stone_gate.gd")
 
 var _grid: AStarGrid2D = null
 var _origin := Vector2.ZERO # world XZ of grid cell (0,0) min corner
@@ -18,6 +19,7 @@ var _fords: Array = []
 var _river_solid: Dictionary = {} # Vector2i -> true (deep, non-ford river cells)
 var _block_count: Dictionary = {} # Vector2i -> int (building refs)
 var _obstacles: Dictionary = {} # instance_id -> Array[Vector2i]
+var _gates: Dictionary = {} # instance_id -> gate with two exact pier bounds
 var revision := 0
 
 func configure_from_layout(layout: WorldLayout) -> void:
@@ -66,6 +68,7 @@ func clear() -> void:
 	_river_solid.clear()
 	_block_count.clear()
 	_obstacles.clear()
+	_gates.clear()
 	_fords.clear()
 
 func is_ready() -> bool:
@@ -130,6 +133,10 @@ func register_building_obstacle(building: Node3D, building_type: String, footpri
 	if _grid == null or building == null or not is_instance_valid(building) or building_type in Farming.WALKABLE_BUILDINGS:
 		return
 	var id: int = building.get_instance_id()
+	if building_type == Gate.TYPE:
+		_gates[id] = building
+		revision += 1
+		return
 	if _obstacles.has(id):
 		unregister_building_obstacle(building)
 	var r: float = maxf(footprint_radius + FOOTPRINT_MARGIN, 0.0)
@@ -161,6 +168,9 @@ func prune_freed_obstacles() -> void:
 			_release_id(int(id))
 
 func _release_id(id: int) -> void:
+	if _gates.erase(id):
+		revision += 1
+		return
 	if _grid == null or not _obstacles.has(id):
 		return
 	for c in (_obstacles[id] as Array):
@@ -180,6 +190,9 @@ func _clear_buildings() -> void:
 		_release_id(int(id))
 	_obstacles.clear()
 	_block_count.clear()
+	if not _gates.is_empty():
+		_gates.clear()
+		revision += 1
 
 # ---------- pathing ----------
 func _nearest_passable(c: Vector2i) -> Vector2i:
@@ -238,6 +251,20 @@ func has_line_of_sight(a: Vector2i, b: Vector2i) -> bool:
 
 ## World-space XZ waypoints (y = 0), excluding the start, ending exactly at to_world.
 func find_path(from_world: Vector3, to_world: Vector3) -> PackedVector3Array:
+	var base := _find_grid_path(from_world, to_world)
+	if _gates.is_empty():
+		return base
+	var path := PackedVector3Array()
+	var previous := from_world
+	for waypoint in base:
+		if not has_gate_clearance(previous, waypoint):
+			path.append_array(_gate_detour(previous, waypoint))
+		path.append(waypoint)
+		previous = waypoint
+	return path
+
+
+func _find_grid_path(from_world: Vector3, to_world: Vector3) -> PackedVector3Array:
 	var out := PackedVector3Array()
 	var goal := Vector3(to_world.x, 0.0, to_world.z)
 	if _grid == null:
@@ -261,3 +288,43 @@ func find_path(from_world: Vector3, to_world: Vector3) -> PackedVector3Array:
 		out.append(cell_to_world(ids[i]))
 	out.append(goal)
 	return out
+
+
+func has_gate_clearance(a: Vector3, b: Vector3) -> bool:
+	if _gates.is_empty():
+		return true
+	for gate in _gates.values():
+		if is_instance_valid(gate) and Gate.crosses_pier(gate, a, b):
+			return false
+	return true
+
+
+func _gate_detour(from_world: Vector3, goal: Vector3) -> PackedVector3Array:
+	var a := Vector2(from_world.x, from_world.z)
+	var b := Vector2(goal.x, goal.z)
+	var graph := AStar2D.new()
+	graph.add_point(0, a)
+	graph.add_point(1, b)
+	for gate in _gates.values():
+		if not is_instance_valid(gate):
+			continue
+		var center := Vector2(gate.global_position.x, gate.global_position.z)
+		if Geometry2D.get_closest_point_to_segment(center, a, b).distance_squared_to(center) > 25.0:
+			continue
+		for corner in Gate.detour_corners(gate):
+			if not is_cell_blocked(world_to_cell(corner)):
+				graph.add_point(graph.get_available_point_id(), Vector2(corner.x, corner.z))
+	var ids := graph.get_point_ids()
+	for i in range(ids.size()):
+		var p := graph.get_point_position(ids[i])
+		var start := Vector3(p.x, 0.0, p.y)
+		for j in range(i + 1, ids.size()):
+			var q := graph.get_point_position(ids[j])
+			var end := Vector3(q.x, 0.0, q.y)
+			if has_gate_clearance(start, end) and has_line_of_sight(world_to_cell(start), world_to_cell(end)):
+				graph.connect_points(ids[i], ids[j])
+	var route := graph.get_point_path(0, 1)
+	var points := PackedVector3Array()
+	for i in range(1, route.size() - 1):
+		points.append(Vector3(route[i].x, 0.0, route[i].y))
+	return points

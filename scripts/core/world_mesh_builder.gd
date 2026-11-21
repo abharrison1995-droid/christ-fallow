@@ -218,6 +218,16 @@ static func _build_stage_geometry(root: Node3D, mf: Node, building_type: String,
 	var hd_mat: StandardMaterial3D = char_mat if stage == 2 else hide_mat
 
 	match building_type:
+		"STANDING_STONE_GATE":
+			var height: float = [2.51, 2.10, 1.42, 0.23][stage]
+			for side in [-1.0, 1.0]:
+				var pier := BoxMesh.new()
+				pier.size = Vector3(1.04, height, 1.05)
+				mf.add_mesh(root, pier, Vector3(side * 1.25, height * 0.5, 0.0), stone_mat)
+			if stage == 0:
+				var lintel := BoxMesh.new()
+				lintel.size = Vector3(4.05, 0.65, 1.15)
+				mf.add_mesh(root, lintel, Vector3(0, 2.63, 0), stone_mat)
 		"CAMPFIRE":
 			if stage == 3:
 				var ash := CylinderMesh.new()

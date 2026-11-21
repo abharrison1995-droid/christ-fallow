@@ -1537,7 +1537,9 @@ func _nav_waypoint(target_pos: Vector3) -> Vector3:
 		var wp: Vector3 = _nav_path[_nav_idx]
 		var dx: float = wp.x - global_position.x
 		var dz: float = wp.z - global_position.z
-		if dx * dx + dz * dz > NAV_WAYPOINT_REACH * NAV_WAYPOINT_REACH:
+		var can_skip: bool = nav.has_gate_clearance(global_position, _nav_path[_nav_idx + 1])
+		var reach := NAV_WAYPOINT_REACH if can_skip else 0.11
+		if dx * dx + dz * dz > reach * reach:
 			break
 		_nav_idx += 1
 	if _nav_idx < _nav_path.size() - 1:
@@ -1549,11 +1551,12 @@ func _steer_toward(target_pos: Vector3, spd: float) -> void:
 	var goal := target_pos
 	var raw := target_pos - global_position
 	raw.y = 0.0
-	if raw.length_squared() > NAV_DIRECT_RANGE * NAV_DIRECT_RANGE:
+	var gate_clear: bool = GameState.valley_nav.has_gate_clearance(global_position, target_pos)
+	if raw.length_squared() > NAV_DIRECT_RANGE * NAV_DIRECT_RANGE or not gate_clear:
 		goal = _nav_waypoint(target_pos)
 	var diff := goal - global_position
 	diff.y = 0.0
-	if diff.length() > 0.2:
+	if diff.length() > (0.2 if gate_clear else 0.09):
 		var dir := diff.normalized()
 		velocity.x = dir.x * spd
 		velocity.z = dir.z * spd

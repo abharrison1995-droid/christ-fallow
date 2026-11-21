@@ -6,7 +6,7 @@ const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 const BUILD_GROUPS := {
 	"Settlement": ["CAMPFIRE", "SLEEPING_HUT", "FORAGER_LODGE", "STORAGE_PIT", "CROP_FIELD", "ANIMAL_PEN"],
 	"Craft & faith": ["CRAFTING_PIT", "WEAPON_RACK", "SACRED_TOTEM", "SHAMAN_SHACK"],
-	"Defences": ["PALISADE_WALL", "WATCHTOWER", "BARRACKS"],
+	"Defences": ["PALISADE_WALL", "STANDING_STONE_GATE", "WATCHTOWER", "BARRACKS"],
 }
 
 var _selected_building := "CAMPFIRE"

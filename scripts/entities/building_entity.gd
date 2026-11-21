@@ -4,6 +4,7 @@ const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
+const Gate = preload("res://scripts/core/standing_stone_gate.gd")
 
 var building_type: String = "CAMPFIRE"
 var faction_id: int = 0:
@@ -30,6 +31,7 @@ var _pen_clock := 0.0
 var _visual_root: Node3D = null
 var _status_bar_mesh: MeshInstance3D = null
 var _col_shape: CollisionShape3D = null
+var _other_pier: CollisionShape3D
 var _critical_particles: GPUParticles3D = null
 
 var _watchtower_cd: float = 0.0
@@ -118,7 +120,16 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 
 	var col_shape := CollisionShape3D.new()
 	var collider_size: Vector3 = b_info.get("collider_size", Vector3.ZERO)
-	if collider_size != Vector3.ZERO:
+	if building_type == Gate.TYPE:
+		var pier := BoxShape3D.new()
+		pier.size = Gate.PIER_SIZE
+		col_shape.shape = pier
+		col_shape.position = Vector3(-Gate.PIER_OFFSET, pier.size.y * 0.5, 0.0)
+		_other_pier = CollisionShape3D.new()
+		_other_pier.shape = pier
+		_other_pier.position = Vector3(Gate.PIER_OFFSET, pier.size.y * 0.5, 0.0)
+		add_child(_other_pier)
+	elif collider_size != Vector3.ZERO:
 		var box := BoxShape3D.new()
 		box.size = collider_size
 		col_shape.shape = box
@@ -158,6 +169,13 @@ func _nav_footprint_radius() -> float:
 	if building_type == "PALISADE_WALL":
 		return 2.0
 	return float(info["radius"]) + 0.4
+
+
+func _disable_collision() -> void:
+	if _col_shape != null:
+		_col_shape.set_deferred("disabled", true)
+	if _other_pier != null:
+		_other_pier.set_deferred("disabled", true)
 
 
 func _exit_tree() -> void:
@@ -490,8 +508,7 @@ func _destroy(attacker_faction: int) -> void:
 		GameState.spatial_index.unregister_building(self)
 	_apply_damage_stage()
 
-	if _col_shape != null:
-		_col_shape.set_deferred("disabled", true)
+	_disable_collision()
 
 	if _critical_particles != null:
 		_critical_particles.emitting = false
@@ -840,8 +857,7 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 		if _index_registered:
 			_index_registered = false
 			GameState.spatial_index.unregister_building(self)
-		if _col_shape != null:
-			_col_shape.set_deferred("disabled", true)
+		_disable_collision()
 		if _status_bar_mesh != null:
 			_status_bar_mesh.visible = false
 		_sink_timer = 8.0

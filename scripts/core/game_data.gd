@@ -741,6 +741,15 @@ const BUILDINGS := {
 		"radius": 2.2,
 		"collider_size": Vector3(3.2, 2.2, 0.5),
 	},
+	"STANDING_STONE_GATE": {
+		"name": "Standing-Stone Gate",
+		"desc": "Two standing stones define a walkable opening in your defences.",
+		"costs": {"stone": 18, "wood": 4},
+		"build_time": 11.0,
+		"max_hp": 430.0,
+		"housing": 0,
+		"radius": 2.1,
+	},
 	"WATCHTOWER": {
 		"name": "Lookout Watchtower",
 		"desc": "Elevated wooden tower that automatically fires Stone Age arrows at nearby enemies.",

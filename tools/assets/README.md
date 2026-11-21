@@ -195,6 +195,18 @@ After staging the project as above, use fresh isolated `APPDATA` and `CHRIST_FAL
 
 Check `VALLEY ASSETS PASSED` and inspect `valley-assets.png` and `valley-buildings.png`. The verifier exercises blueprint completion, damage stages, arrow origin and rubble clearance, plus Slateback armor, Reedjaw’s dodge window and projectile hit volume. [Valley verifier](../../scripts/tools/verify_valley_assets.gd) · [Damage and save fixtures](../../scripts/tools/verify_campaign_save.gd)
 
+## Standing-Stone Gate
+
+The gate appears in Build → Defences. It uses the four-stage prototype with faction carvings. The building entity has two physical pier boxes. Valley navigation checks those pier bounds precisely so the 4 m grid keeps the opening usable. [Gate dimensions](../../scripts/core/standing_stone_gate.gd) · [Route checks](../../scripts/core/valley_navigation.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_standing_gate.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'))
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_standing_gate.gd -- "--out-dir=$review"
+```
+
+Use isolated app data. The Forward+ probe places a blueprint, checks leader and AI routes at all eight rotations, walks a colonist through the opening, and reloads the critical gate before testing rubble. It writes `standing-stone-gate.png`. [Gate verifier](../../scripts/tools/verify_standing_gate.gd)
+
 ## Farm structures and rider review
 
 The Crop Field and Animal Pen use four procedural damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The mount reuses the Tusked Boar GLB. The rider pose follows the same saddle height on the procedural leader and the trial skinned leader. [Procedural building stages](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)
