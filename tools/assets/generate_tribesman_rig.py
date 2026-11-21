@@ -243,7 +243,15 @@ def pose_rotation(pose_bone, pitch=0.0, lean=0.0, twist=0.0):
     pose_bone.rotation_quaternion = rest.inverted() @ rotation @ rest
 
 
-def animate(armature, name, frames, walking=False, guard=False):
+def _apply_spine_hunch(armature, hunch):
+    if hunch:
+        spine = armature.pose.bones["Spine"]
+        pose = spine.rotation_quaternion.copy()
+        pose_rotation(spine, pitch=hunch)
+        spine.rotation_quaternion = spine.rotation_quaternion @ pose
+
+
+def animate(armature, name, frames, walking=False, guard=False, hunch=0.0):
     data = armature.animation_data
     action = bpy.data.actions.new(f"{name}-loop")
     action.use_cyclic = True
@@ -287,6 +295,7 @@ def animate(armature, name, frames, walking=False, guard=False):
             pose_rotation(armature.pose.bones["LowerArm.R"], pitch=0.56)
         hips.location = hips.bone.matrix_local.to_quaternion().inverted() @ Vector((shift, 0, bob))
         hips.keyframe_insert(data_path="location", frame=frame)
+        _apply_spine_hunch(armature, hunch)
         for pose_bone in armature.pose.bones:
             pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
 
@@ -323,14 +332,15 @@ def _finalize_action(armature, action):
     strip.action_slot = slot
 
 
-def _insert_frame(armature, hips, shift, y_offset, bob, frame):
+def _insert_frame(armature, hips, shift, y_offset, bob, frame, hunch=0.0):
     hips.location = hips.bone.matrix_local.to_quaternion().inverted() @ Vector((shift, y_offset, bob))
     hips.keyframe_insert(data_path="location", frame=frame)
+    _apply_spine_hunch(armature, hunch)
     for pose_bone in armature.pose.bones:
         pose_bone.keyframe_insert(data_path="rotation_quaternion", frame=frame)
 
 
-def animate_action_clips(armature):
+def animate_action_clips(armature, hunch=0.0):
     """Add gameplay action clips (Attack, Work, Hit, Death, Wounded) to the 17-bone rig."""
     data = armature.animation_data
     hips = armature.pose.bones["Hips"]
@@ -386,7 +396,7 @@ def animate_action_clips(armature):
             pose_rotation(bones["LowerLeg.L"], pitch=_lerp(-0.45, 0.0, r))
             pose_rotation(bones["UpperLeg.R"], pitch=_lerp(-0.42, 0.0, r))
             pose_rotation(bones["LowerLeg.R"], pitch=_lerp(-0.12, 0.0, r))
-        _insert_frame(armature, hips, shift, y_off, bob, i + 1)
+        _insert_frame(armature, hips, shift, y_off, bob, i + 1, hunch)
     _finalize_action(armature, attack)
 
     # 2. Work (looping, 26 frames = 0.867 s)
@@ -415,7 +425,7 @@ def animate_action_clips(armature):
         pose_rotation(bones["UpperLeg.R"], pitch=-0.20)
         pose_rotation(bones["LowerLeg.R"], pitch=-0.24)
         pose_rotation(bones["Foot.R"], pitch=0.24)
-        _insert_frame(armature, hips, shift, 0.0, bob, i + 1)
+        _insert_frame(armature, hips, shift, 0.0, bob, i + 1, hunch)
     _finalize_action(armature, work)
 
     # 3. Hit (one-shot, 11 frames = 0.367 s)
@@ -439,7 +449,7 @@ def animate_action_clips(armature):
         pose_rotation(bones["LowerLeg.L"], pitch=-0.38 * env)
         pose_rotation(bones["UpperLeg.R"], pitch=0.16 * env)
         pose_rotation(bones["LowerLeg.R"], pitch=-0.30 * env)
-        _insert_frame(armature, hips, 0.0, -0.09 * env, -0.05 * env, i + 1)
+        _insert_frame(armature, hips, 0.0, -0.09 * env, -0.05 * env, i + 1, hunch)
     _finalize_action(armature, hit)
 
     # 4. Death (one-shot, 21 frames = 0.70 s, holds fallen pose cleanly)
@@ -464,7 +474,7 @@ def animate_action_clips(armature):
         pose_rotation(bones["LowerLeg.L"], pitch=-0.24 * b)
         pose_rotation(bones["UpperLeg.R"], pitch=-0.08 * c, lean=-0.14 * c)
         pose_rotation(bones["LowerLeg.R"], pitch=-0.18 * b)
-        _insert_frame(armature, hips, 0.0, -0.18 * c, -0.80 * c, i + 1)
+        _insert_frame(armature, hips, 0.0, -0.18 * c, -0.80 * c, i + 1, hunch)
     _finalize_action(armature, death)
 
     # 5. Wounded (looping, 36 frames = 1.20 s)
@@ -490,7 +500,7 @@ def animate_action_clips(armature):
         pose_rotation(bones["UpperLeg.R"], pitch=0.38)
         pose_rotation(bones["LowerLeg.R"], pitch=-1.52)
         pose_rotation(bones["Foot.R"], pitch=0.82)
-        _insert_frame(armature, hips, 0.012 * breath, 0.0, -0.34 + 0.010 * breath, i + 1)
+        _insert_frame(armature, hips, 0.012 * breath, 0.0, -0.34 + 0.010 * breath, i + 1, hunch)
     _finalize_action(armature, wounded)
 
 

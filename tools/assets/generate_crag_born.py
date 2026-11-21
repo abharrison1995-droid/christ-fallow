@@ -11,7 +11,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_tribesman_rig import SkinnedMesh, animate, animate_action_clips, joint, make_armature, material
 
-LINEAGES = ("crag_born", "goliath", "swift_kin", "stalker", "ash_walker")
+LINEAGES = ("crag_born", "goliath", "swift_kin", "stalker", "ash_walker", "fen_tidal", "caveman")
 BODY_VARIANTS = ("broad", "braided", "child", "cropped", "twin_knots", "boy")
 
 
@@ -42,6 +42,15 @@ class PilotMesh(SkinnedMesh):
             shader.inputs["Emission Color"].default_value = (1.0, 0.21, 0.035, 1.0)
             shader.inputs["Emission Strength"].default_value = 0.42
             self.materials["ember"] = ember
+        elif lineage == "fen_tidal":
+            self.materials["skin"] = material("Mat_FenSkin", (0.19, 0.34, 0.27), 0.92)
+            self.materials["hair"] = material("Mat_KelpHair", (0.033, 0.130, 0.084), 0.96)
+            self.materials["auburn"] = material("Mat_DeepKelpHair", (0.049, 0.19, 0.12), 0.94)
+            self.materials["fin"] = material("Mat_FinSkin", (0.18, 0.45, 0.33), 0.89)
+            self.materials["gold"] = material("Mat_GoldEye", (0.77, 0.47, 0.085), 0.89)
+        elif lineage == "caveman":
+            self.materials["skin"] = material("Mat_CaveSkin", (0.37, 0.216, 0.13), 0.92)
+            self.materials["hair"] = material("Mat_ShagHair", (0.084, 0.045, 0.024), 0.98)
 
     def bar(self, start, end, radius, surface, bone="Chest", sides=6):
         self.tube([(start, radius, radius, bone), (end, radius, radius, bone)],
@@ -276,6 +285,58 @@ def ash_walker_locks(mesh, variant, crown):
         braid(mesh, (0.103, -0.031, crown - 0.058), (0.164, -0.073, 1.510), 0.057, "auburn")
 
 
+def fen_tidal_fins(mesh, variant, width, crown):
+    for side in (-1, 1):
+        mesh.tube([
+            (joint(side, width * 0.76, 0.014, 1.685), 0.030, 0.039, "Head"),
+            (joint(side, width * 1.17, -0.027, 1.744), 0.042, 0.051, "Head"),
+            (joint(side, width * 1.67, -0.105, 1.820), 0.003, 0.005, "Head"),
+        ], ["skin", "fin"], sides=5)
+        mesh.bar(joint(side, width * 0.93, 0.057, 1.649), joint(side, width * 0.96, 0.069, 1.672),
+                 0.019, "bone", "Head")
+    lateral, height, sweep = {
+        "broad": (0.000, 0.157, -0.172), "cropped": (-0.081, 0.105, -0.243),
+        "braided": (0.050, 0.134, -0.165), "twin_knots": (-0.033, 0.166, -0.126),
+        "boy": (0.053, 0.116, -0.091), "child": (-0.070, 0.074, -0.164),
+    }[variant]
+    mesh.tube([
+        ((0.0, 0.016, crown - 0.104), 0.071, 0.052, "Head"),
+        ((lateral * 0.45, -0.051, crown + height * 0.30), 0.062, 0.069, "Head"),
+        ((lateral, sweep, crown + height), 0.006, 0.010, "Head"),
+    ], ["hair", "fin"], sides=6)
+    if variant in ("braided", "twin_knots", "child"):
+        sides = (-1, 1) if variant == "twin_knots" else (1,)
+        for side in sides:
+            braid(mesh, joint(side, 0.087, -0.048, crown - 0.082),
+                  joint(side, 0.151, -0.097, 1.609 if variant == "braided" else 1.739), 0.041, "auburn")
+
+
+def cave_kin_mane(mesh, variant, crown):
+    jaw_depth = 0.167 if variant in ("broad", "cropped") else 0.149
+    for side in (-1, 1):
+        mesh.tube([
+            (joint(side, 0.066, jaw_depth - 0.030, 1.587), 0.025, 0.026, "Head"),
+            (joint(side, 0.073, jaw_depth + 0.011, 1.634), 0.020, 0.020, "Head"),
+            (joint(side, 0.080, jaw_depth, 1.664), 0.004, 0.005, "Head"),
+        ], ["bone", "bone"], sides=5)
+    for i, (tip_x, tip_z) in enumerate({
+        "broad": ((-0.166, 1.613), (0.014, 1.522), (0.183, 1.591)),
+        "cropped": ((-0.176, 1.737), (0.029, 1.652), (0.162, 1.712)),
+        "braided": ((-0.179, 1.563), (0.027, 1.635), (0.169, 1.523)),
+        "twin_knots": ((-0.195, 1.744), (0.020, 1.684), (0.192, 1.746)),
+        "boy": ((-0.136, 1.773), (0.024, 1.668), (0.147, 1.745)),
+        "child": ((-0.155, 1.672), (0.011, 1.734), (0.166, 1.655)),
+    }[variant]):
+        x = (i - 1) * 0.091
+        mesh.tube([
+            ((x, -0.066, crown - 0.035), 0.067, 0.063, "Head"),
+            ((tip_x * 0.79, -0.142, (crown + tip_z) * 0.5), 0.062, 0.057, "Head"),
+            ((tip_x, -0.156, tip_z), 0.012, 0.019, "Head"),
+        ], ["hair", "auburn"], sides=7)
+    if variant in ("braided", "twin_knots"):
+        braid(mesh, (0.113, -0.033, crown - 0.079), (0.167, -0.068, 1.508), 0.049, "auburn")
+
+
 def head(mesh, variant, lineage):
     broad = variant == "broad"
     child = variant in ("child", "boy")
@@ -289,6 +350,8 @@ def head(mesh, variant, lineage):
         width, jaw = 0.134, 0.091
     if lineage in ("stalker", "ash_walker"):
         jaw *= 0.90
+    elif lineage == "caveman":
+        jaw *= 1.30
     mesh.tube([
         ((0, 0.038, 1.566), jaw * 0.84, 0.091, "Head"),
         ((0, 0.061, 1.637), jaw, 0.112, "Head"),
@@ -308,7 +371,7 @@ def head(mesh, variant, lineage):
         ((0, 0.138, 1.734), 0.021, 0.017, "Head"),
     ], ["skin", "skin"], sides=5)
     brow = "obsidian" if lineage == "ash_walker" else hair
-    eye = "ember" if lineage == "ash_walker" else "hair"
+    eye = {"ash_walker": "ember", "fen_tidal": "gold"}.get(lineage, "hair")
     for side in (-1, 1):
         mesh.bar(joint(side, 0.045, 0.149, 1.728), joint(side, 0.105, 0.117, 1.737),
                  0.020 if broad else 0.015, brow, "Head")
@@ -324,6 +387,10 @@ def head(mesh, variant, lineage):
         stalker_headwear(mesh, variant, hair, width, crown)
     elif lineage == "ash_walker":
         ash_walker_locks(mesh, variant, crown)
+    elif lineage == "fen_tidal":
+        fen_tidal_fins(mesh, variant, width, crown)
+    elif lineage == "caveman":
+        cave_kin_mane(mesh, variant, crown)
     elif variant == "cropped":
         mesh.tube([
             ((0.005, -0.105, 1.745), 0.096, 0.078, "Head"),
@@ -496,6 +563,27 @@ def workwear(mesh):
     mesh.bar((-0.050, 0.177, -0.006), (-0.004, 0.182, 0.048), 0.047, "bone")
 
 
+def cave_club(mesh):
+    mesh.tube([
+        ((0, 0, -0.24), 0.041, 0.036, "Chest"), ((0, 0, 0.11), 0.048, 0.046, "Chest"),
+        ((0.039, 0, 0.48), 0.071, 0.061, "Chest"), ((0.061, 0, 0.74), 0.121, 0.100, "Chest"),
+        ((0.020, 0, 0.89), 0.074, 0.076, "Chest"),
+    ], ["leather", "wood", "wood", "wood"], sides=7)
+    for i in range(3):
+        x = 0.09 + 0.025 * i
+        z = 0.63 + 0.078 * i
+        mesh.bar((x, 0.038, z), (x + 0.102, 0.048, z + 0.026), 0.026, "bone")
+
+
+def cave_pelt(mesh):
+    mesh.plate([(-0.192, 0.15, -0.146), (0.058, 0.16, -0.215), (0.200, 0.12, 0.12),
+                (0.128, 0.08, 0.247), (-0.210, 0.10, 0.157)], 0.043, "fur", "leather")
+    mesh.bar((-0.167, 0.178, 0.132), (0.102, 0.191, -0.094), 0.039, "trim")
+    for i in range(4):
+        x = -0.128 + 0.068 * i
+        mesh.bar((x, 0.210, 0.083 - 0.031 * i), (x + 0.020, 0.221, 0.018 - 0.031 * i), 0.021, "bone")
+
+
 def export(path, skinned):
     path.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.export_scene.gltf(
@@ -517,22 +605,26 @@ def build_bodies(models, lineage):
         bpy.context.scene.render.fps = 30
         bpy.context.scene.frame_end = 61
         armature.animation_data_create()
-        animate(armature, "Idle", 60)
-        animate(armature, "Walk", 24, walking=True)
-        animate(armature, "GuardIdle", 60, guard=True)
-        animate(armature, "GuardWalk", 24, walking=True, guard=True)
-        animate_action_clips(armature)
+        hunch = math.radians(-16.0) if lineage == "caveman" else 0.0
+        animate(armature, "Idle", 60, hunch=hunch)
+        animate(armature, "Walk", 24, walking=True, hunch=hunch)
+        animate(armature, "GuardIdle", 60, guard=True, hunch=hunch)
+        animate(armature, "GuardWalk", 24, walking=True, guard=True, hunch=hunch)
+        animate_action_clips(armature, hunch=hunch)
         bpy.context.scene.frame_set(1)
         export(models / "characters" / "lineages" / lineage / f"{lineage}_{variant}.glb", True)
 
 
-def build_gear(models):
-    gear = {
-        "spearman": (("spear", spear), ("hide_buckler", buckler), ("bone_guard", guard_bib)),
-        "forager": (("flint_sickle", sickle), ("reed_basket", basket), ("workwear", workwear)),
-    }
-    for kit, parts in gear.items():
-        for name, build in parts:
+GEAR = {
+    "spearman": (("spear", spear), ("hide_buckler", buckler), ("bone_guard", guard_bib)),
+    "forager": (("flint_sickle", sickle), ("reed_basket", basket), ("workwear", workwear)),
+    "caveman": (("bone_club", cave_club), ("trophy_pelt", cave_pelt)),
+}
+
+
+def build_gear(models, kits):
+    for kit in kits:
+        for name, build in GEAR[kit]:
             bpy.ops.wm.read_factory_settings(use_empty=True)
             mesh = PilotMesh()
             build(mesh)
@@ -544,9 +636,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", required=True, type=Path, help="Root of the assets/models tree.")
     parser.add_argument("--lineage", choices=LINEAGES, action="append", help="Lineage to build; repeat for multiple lineages. Defaults to Crag-Born and shared gear.")
+    parser.add_argument("--kit", choices=GEAR, action="append", help="Export a gear kit; repeat to select multiple kits.")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     models = args.out_dir.resolve()
-    for lineage in args.lineage or ("crag_born",):
+    for lineage in args.lineage or (() if args.kit else ("crag_born",)):
         build_bodies(models, lineage)
-    if args.lineage is None:
-        build_gear(models)
+    build_gear(models, args.kit or (() if args.lineage else ("spearman", "forager")))

@@ -104,7 +104,7 @@ func enlighten_captured_caveman() -> bool:
 	if fc != null and fc.has_method("spawn_colonist"):
 		var pos: Vector3 = f0["camp_position"] + Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5))
 		var gender := GameData.Gender.MALE if randf() < 0.5 else GameData.Gender.FEMALE
-		var unit = fc.spawn_colonist(pos, GameData.Lineage.CRAG_BORN, gender, GameData.Role.FORAGER, false, false)
+		var unit = fc.spawn_colonist(pos, GameData.Lineage.CAVEMAN, gender, GameData.Role.FORAGER, false, false)
 		if unit != null and GameState.has_tenet(0, "KINSHIP"):
 			unit.weapon_tier = maxi(unit.weapon_tier, 2)
 			unit.recalculate_stats(true)

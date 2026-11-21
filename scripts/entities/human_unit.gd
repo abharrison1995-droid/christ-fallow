@@ -308,7 +308,7 @@ func _rebuild_visual() -> void:
 				trial.free()
 	elif not is_leader and not is_dead and CragBornTrial.supports_lineage(eff_lin) and CragBornTrial.enabled():
 		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
-		if trial_kit == "FORAGER" or (trial_kit == "SPEARMAN" and not is_child):
+		if CragBornTrial.supports_kit(trial_kit, is_child):
 			var pilot := CragBornTrial.new()
 			var variant := CragBornTrial.select_body_variant(gender, is_child, unit_id)
 			if pilot.setup_kit(MeshFactory, col, variant, trial_kit, eff_lin):

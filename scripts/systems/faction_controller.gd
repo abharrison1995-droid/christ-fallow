@@ -201,7 +201,8 @@ func _process_caveman_faction(delta: float) -> void:
 	var pack_size := randi_range(2, 3)
 	for i in range(pack_size):
 		var offset := Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-3.0, 3.0))
-		spawn_colonist(cave.global_position + offset, GameData.Lineage.CAVEMAN, GameData.Gender.MALE, GameData.Role.WARRIOR, false, false, true)
+		var gender := GameData.Gender.MALE if i % 2 == 0 else GameData.Gender.FEMALE
+		spawn_colonist(cave.global_position + offset, GameData.Lineage.CAVEMAN, gender, GameData.Role.WARRIOR, false, false, true)
 
 	if GameState.factions.has(0) and GameState.factions[0]["is_founded"]:
 		var msg := "Nomadic Cavemen emerged from a bone-cave and are prowling for a raid!"

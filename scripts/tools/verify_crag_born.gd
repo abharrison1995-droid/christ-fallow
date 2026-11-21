@@ -75,10 +75,10 @@ func _verify_gameplay() -> void:
 	var forager := unit.get_node_or_null("CragBornTrial") as Trial
 	var child_model := child.get_node_or_null("CragBornTrial") as Trial
 	var fen_tidal: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.FEN_TIDAL,
-		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Fen-Tidal Check")
+		_data.Gender.MALE, _data.Role.HUNTER, false, false, false, "Fen-Tidal Check")
 	fen_tidal.set_physics_process(false)
 	_check(fen_tidal._skinned_trial == null and fen_tidal._visual_root.visible,
-		"Unpromoted lineages continue to use procedural rigs")
+		"Unpromoted roles continue to use procedural gear")
 	var leader_trial_enabled := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
 	_check((leader.get_node_or_null("SkinnedTribesmanTrial") != null) == leader_trial_enabled,
 		"The leader still respects the --skinned-tribesman-trial flag")

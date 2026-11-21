@@ -9,6 +9,8 @@ const LINEAGE_KEYS := {
 	GameData.Lineage.SWIFT_KIN: "swift_kin",
 	GameData.Lineage.STALKER: "stalker",
 	GameData.Lineage.ASH_WALKER: "ash_walker",
+	GameData.Lineage.FEN_TIDAL: "fen_tidal",
+	GameData.Lineage.CAVEMAN: "caveman",
 }
 const GEAR := "res://assets/models/gear"
 const CHILD_SCALE := 0.68
@@ -22,6 +24,10 @@ static func enabled() -> bool:
 
 static func supports_lineage(lineage: int) -> bool:
 	return LINEAGE_KEYS.has(lineage)
+
+
+static func supports_kit(class_key: String, is_child: bool) -> bool:
+	return class_key == "FORAGER" or (not is_child and class_key in ["SPEARMAN", "CAVEMAN"])
 
 
 static func select_body_variant(gender: int, is_child: bool, unit_id: int) -> String:
@@ -38,7 +44,7 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		lineage: int = GameData.Lineage.CRAG_BORN) -> bool:
 	if not supports_lineage(lineage):
 		return false
-	var guard := class_key == "SPEARMAN"
+	var guard := class_key in ["SPEARMAN", "CAVEMAN"]
 	_idle_clip = &"GuardIdle" if guard else &"Idle"
 	_walk_clip = &"GuardWalk" if guard else &"Walk"
 	var key: String = LINEAGE_KEYS[lineage]
@@ -54,7 +60,12 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	if not _animation.has_animation(_idle_clip) or not _animation.has_animation(_walk_clip):
 		return false
 
-	if guard:
+	if class_key == "CAVEMAN":
+		if not _mount(skeleton, "Hand.R", "Weapon", "caveman/bone_club", GRIP_R, Basis(Vector3.RIGHT, -0.39)):
+			return false
+		if not _mount(skeleton, "Chest", "Chestwear", "caveman/trophy_pelt", Vector3.ZERO):
+			return false
+	elif guard:
 		if not _mount(skeleton, "Hand.R", "Weapon", "spearman/spear", GRIP_R,
 				Basis(Quaternion(Vector3.UP, Vector3(-0.085, 0.84, -0.54).normalized()))):
 			return false

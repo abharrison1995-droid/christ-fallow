@@ -117,6 +117,16 @@ The verifier adds `stalker-six-variants.png` and `ash-walker-six-variants.png`. 
 
 Batch 3 generated twelve new bodies with Blender 4.5.16. Godot 4.3 imported all twelve cleanly. The default and procedural five-lineage runs, Crag-Born default roster check, and campaign save regression passed in Forward+. Both new lineups were reviewed at the same gameplay camera distance.
 
+## Fen-Tidal and Cave-Kin
+
+Fen-Tidal bodies use moss-teal skin, gold eyes, ear fins, and variant-specific dorsal crests. Cave-Kin use a heavy jaw, tusks, shaggy hair, and a hunched spine baked into the shared clips. Nomads mount a bone club and trophy pelt. Enlightened captives retain Cave-Kin ancestry and use the Forager kit. [Shared rig loader](../../scripts/entities/crag_born_trial.gd) · [Enlightenment command](../../scripts/systems/combat_command_system.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_crag_born.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--lineage', 'fen_tidal', '--lineage', 'caveman', '--kit', 'caveman')
+```
+
+Use the same isolated import and Forward+ commands as for Goliath and Swift-Kin. The lineage verifier adds `fen-tidal-six-variants.png`, `caveman-six-variants.png`, and `cave-kin-kit.png`. It exercises both adult genders in a live nomadic pack, then capture, enlightenment, and reload of the convert and surviving nomads. [Import and test commands](#goliath-and-swift-kin) · [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)
+
 ## Valley scenery and wildlife
 
 The wind-bent pine, moss limestone, and berry thicket use the existing tree, stone, and berry resource slots. The reed beds follow both riverbanks in each layout. Tusked Boar and Sabertooth keep their wildlife IDs, roaming, and immediate attack damage. Their GLBs face Godot local `-Z` and export a one-shot `Bite`. The asset verifier runs on the classic layout to compare imported assets against the original terrain. [Layout definitions](../../scripts/core/world_layout.gd)

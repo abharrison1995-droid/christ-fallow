@@ -20,7 +20,7 @@ func _run() -> void:
 			return
 	var lineages: Array[int] = [
 		_data.Lineage.GOLIATH, _data.Lineage.CRAG_BORN, _data.Lineage.SWIFT_KIN,
-		_data.Lineage.STALKER, _data.Lineage.ASH_WALKER,
+		_data.Lineage.STALKER, _data.Lineage.ASH_WALKER, _data.Lineage.FEN_TIDAL, _data.Lineage.CAVEMAN,
 	]
 	await _verify_lineage_gameplay(lineages)
 	if Trial.enabled() and _check(out_dir.is_absolute_path() and DirAccess.make_dir_recursive_absolute(out_dir) == OK,
@@ -88,8 +88,15 @@ func _verify_lineage_gameplay(lineages: Array[int]) -> void:
 		if child._skinned_trial != null:
 			_check_action(child, child._skinned_trial, &"Wounded")
 		saved_bodies[guard.unit_id] = _body_file(guard)
+	var saved_raiders := _verify_cave_captives(faction, leader, saved_bodies)
 	if Trial.enabled():
 		_verify_body_reload(saved_bodies, lineages.size() * 2)
+		for raider in _state.get_faction_units(5):
+			if saved_raiders.has(raider.unit_id):
+				_check(_body_file(raider) == saved_raiders[raider.unit_id] and _wears_cave_kit(raider),
+					"Reload restores the nomad's body and kit")
+				saved_raiders.erase(raider.unit_id)
+		_check(saved_raiders.is_empty(), "All surviving nomads were restored")
 	main.free()
 	await process_frame
 
@@ -97,6 +104,55 @@ func _verify_lineage_gameplay(lineages: Array[int]) -> void:
 func _check_action(unit: Node, rig: Trial, clip: StringName) -> void:
 	_check(unit._skinned_trial == rig and rig.visible and not unit._visual_root.visible
 		and rig._animation.current_animation == clip, "Lineage %d plays %s on the skinned body" % [unit.lineage, clip])
+
+
+func _wears_cave_kit(unit: Node) -> bool:
+	var rig := unit._skinned_trial as Trial
+	if rig == null:
+		return false
+	var weapon := rig.find_child("Weapon", true, false)
+	var pelt := rig.find_child("Chestwear", true, false)
+	return weapon != null and weapon.get_child(0).scene_file_path.ends_with("/caveman/bone_club.glb") \
+		and pelt != null and pelt.get_child(0).scene_file_path.ends_with("/caveman/trophy_pelt.glb")
+
+
+func _verify_cave_captives(faction: Node, leader: Node3D, saved_bodies: Dictionary) -> Dictionary:
+	_state.bandit_grace_remaining = 0.0
+	_state.faction_controllers[5]._process_caveman_faction(60.0)
+	var pack: Array = _state.get_faction_units(5)
+	var raiders := {}
+	var genders := {}
+	for raider in pack:
+		genders[raider.gender] = true
+		_check(_wears_cave_kit(raider) == Trial.enabled(), "Nomadic spawn uses the selected roster mode")
+		if Trial.enabled():
+			raiders[raider.unit_id] = _body_file(raider)
+	if not _check(pack.size() >= 2 and genders.size() == 2, "Both adults spawn in the nomadic pack"):
+		return raiders
+	var captive: Node = pack[0]
+	if Trial.enabled() and captive._skinned_trial is Trial:
+		captive.play_attack_animation("HEAVY_SMASH", 0.5)
+		captive._update_procedural_animation(0.15)
+		_check_action(captive, captive._skinned_trial, &"Attack")
+	raiders.erase(captive.unit_id)
+	captive._die(leader, 0)
+	var player: Dictionary = _state.factions[0]
+	_check(int(player["captured_cavemen"]) == 1, "Defeating a nomad records a captive")
+	faction.spawn_building("CAMPFIRE", leader.global_position + Vector3(5, 0, 0))
+	_state.add_resource(0, "food", 8.0)
+	_state.add_resource(0, "faith", 5.0)
+	var count: int = _state.get_faction_units(0).size()
+	if _check(_state.combat_command_system.enlighten_captured_caveman(), "Enlighten the captive through the campaign command"):
+		var units: Array = _state.get_faction_units(0)
+		if _check(units.size() == count + 1, "The captive joins the settlement"):
+			var recruit: Node = units.back()
+			_check(not recruit.is_caveman and recruit.lineage == _data.Lineage.CAVEMAN and recruit.role == _data.Role.FORAGER,
+				"The converted Forager retains Cave-Kin ancestry")
+			if Trial.enabled():
+				var body := _body_file(recruit)
+				_check(body.begins_with("caveman_") and not _wears_cave_kit(recruit), "Converted Cave-Kin uses Forager gear")
+				saved_bodies[recruit.unit_id] = body
+	return raiders
 
 
 func _review_lineages(lineages: Array[int], out_dir: String) -> void:
@@ -150,6 +206,13 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 		"Goliath and Swift-Kin bracket Crag-Born in rendered height and width")
 	_check(stalker.y > crag.y and stalker.x < crag.x, "Stalkers retain a tall, narrow silhouette")
 	_check(sheet.save_png(out_dir.path_join("skinned-lineages.png")) == OK, "Save the lineage comparison PNG")
+	var nomad := Trial.new()
+	if _check(nomad.setup_kit(_factory, _data.FACTION_COLORS[5], "broad", "CAVEMAN", _data.Lineage.CAVEMAN),
+			"Cave-Kin club and pelt fit the shared skeleton"):
+		_stage.add_child(nomad)
+		var portrait := await _capture_model(nomad, true, 0.15, -30.0, LINEAGE_SNAPSHOT)
+		_check(portrait.save_png(out_dir.path_join("cave-kin-kit.png")) == OK, "Save a nomad kit preview")
+	nomad.free()
 	reference.free()
 
 
