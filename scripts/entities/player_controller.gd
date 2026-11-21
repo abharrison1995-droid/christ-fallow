@@ -1,6 +1,9 @@
 extends Node
 
 const Layout = preload("res://scripts/core/world_layout.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
+
+var _mounted_animal: Node3D
 
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
@@ -73,6 +76,8 @@ func setup(p_leader: CharacterBody3D) -> void:
 
 
 func attach_leader(p_leader: CharacterBody3D) -> void:
+	if is_instance_valid(_mounted_animal):
+		dismount_from(_mounted_animal)
 	reset_cooldowns()
 	_ensure_tutorial_beacon()
 	leader_unit = p_leader
@@ -291,6 +296,9 @@ func _physics_process(delta: float) -> void:
 	if leader_unit != null and is_instance_valid(leader_unit) and not leader_unit.is_dead:
 		if has_world_input:
 			_move_leader(delta)
+		if sim_running and is_instance_valid(_mounted_animal):
+			var gait := leader_unit.velocity if has_world_input else Vector3.ZERO
+			_mounted_animal.sync_ridden_transform(leader_unit, gait, delta)
 		_update_camera(delta)
 		if _leader_light != null:
 			var t_sec := float(Time.get_ticks_msec()) * 0.001
@@ -318,7 +326,9 @@ func _move_leader(delta: float) -> void:
 		move_dir = (forward * -input_vec.y + right * input_vec.x).normalized()
 
 	var spd: float = leader_unit.move_speed
-	if Input.is_key_pressed(KEY_SHIFT):
+	if is_mounted():
+		spd *= Farming.MOUNT_SPEED_MULT
+	elif Input.is_key_pressed(KEY_SHIFT):
 		spd *= 1.38
 
 	if _dash_timer > 0.0:
@@ -350,6 +360,8 @@ func _update_camera(delta: float) -> void:
 	var eff_pitch := lerpf(cam_pitch, 64.0, zoom_t * 0.72)
 
 	var target_pivot := leader_unit.global_position + Vector3(0.0, 1.4, 0.0)
+	if is_mounted():
+		target_pivot.y += 0.65
 	camera_pivot.global_position = camera_pivot.global_position.lerp(target_pivot, 14.0 * delta)
 
 	var yaw_r := deg_to_rad(cam_yaw)
@@ -441,7 +453,7 @@ func blueprint_placement_message() -> String:
 	return ""
 
 func _try_dash() -> void:
-	if _dash_cd > 0.0 or leader_unit == null:
+	if _dash_cd > 0.0 or leader_unit == null or is_mounted():
 		return
 	_dash_cd = 2.0
 	_dash_timer = 0.20
@@ -451,7 +463,7 @@ func _try_dash() -> void:
 
 
 func _try_melee_cleave() -> void:
-	if _attack_cd > 0.0 or leader_unit == null or leader_unit.is_dead:
+	if _attack_cd > 0.0 or leader_unit == null or leader_unit.is_dead or is_mounted():
 		return
 	_attack_cd = 0.48
 	GameState.tutorial_cleaved = true
@@ -490,7 +502,7 @@ func _try_melee_cleave() -> void:
 
 	if GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
-			if not is_instance_valid(w) or w.get("is_dead"):
+			if not is_instance_valid(w) or w.get("is_dead") or w.is_protected_from(0):
 				continue
 			var r := 3.6 if w.get("is_boss") else 2.8
 			if cleave_center.distance_to(w.global_position) <= r:
@@ -506,7 +518,7 @@ func _try_melee_cleave() -> void:
 
 
 func _try_throw_javelin() -> void:
-	if _javelin_cd > 0.0 or leader_unit == null or leader_unit.is_dead or GameState.projectiles_container == null:
+	if _javelin_cd > 0.0 or leader_unit == null or leader_unit.is_dead or GameState.projectiles_container == null or is_mounted():
 		return
 	_javelin_cd = 1.15
 	GameState.tutorial_thrown = true
@@ -563,7 +575,10 @@ func _try_inspect_clicked_unit() -> bool:
 
 
 func _try_interact_or_harvest() -> void:
-	if leader_unit == null:
+	if leader_unit == null or leader_unit.is_dead:
+		return
+	if is_mounted():
+		dismount_from(_mounted_animal)
 		return
 	var representative := GameState.nearby_rival_leader(leader_unit.global_position)
 	if representative != null and is_instance_valid(GameState.hud_controller):
@@ -605,6 +620,9 @@ func _try_interact_or_harvest() -> void:
 	if recruited > 0:
 		GameState.push_log("Recruited %d wandering tribesfolk!" % recruited, "success")
 		_notify_tutorial_progress()
+		return
+
+	if _try_livestock_interaction():
 		return
 
 	# 1.5 Direct assist on unfinished blueprint nearby
@@ -657,7 +675,71 @@ func _try_interact_or_harvest() -> void:
 			_notify_tutorial_progress()
 
 
+func _try_livestock_interaction() -> bool:
+	var nearest: Node = null
+	var best := Layout.SCAN_RANGE_LIVESTOCK
+	for animal in GameState.spatial_index.query_wildlife_in_radius(leader_unit.global_position, best):
+		if animal.can_interact(0):
+			var d: float = leader_unit.global_position.distance_to(animal.global_position)
+			if d < best:
+				nearest = animal
+				best = d
+	if nearest == null:
+		return false
+	if nearest.can_mount(0):
+		_mount_livestock(nearest)
+	else:
+		nearest.attempt_tame(leader_unit)
+	return true
+
+
+func is_mounted() -> bool:
+	return is_instance_valid(_mounted_animal) and not _mounted_animal.is_dead
+
+
+func _mount_livestock(animal: Node3D) -> void:
+	_mounted_animal = animal
+	_dash_timer = 0.0
+	animal.set_rider(leader_unit.unit_id)
+	leader_unit.set_mounted(true)
+	animal.sync_ridden_transform(leader_unit, Vector3.ZERO, 0.0)
+	GameState.push_log("Mounted %s. Press E to dismount." % animal.animal_name, "info")
+
+
+func dismount_from(animal: Node3D) -> void:
+	if animal != _mounted_animal:
+		return
+	_mounted_animal = null
+	animal.set_rider(0)
+	if is_instance_valid(leader_unit):
+		leader_unit.set_mounted(false)
+		var side := leader_unit.global_transform.basis.x * 1.4
+		for direction in [side, -side]:
+			var point: Vector3 = leader_unit.global_position + direction
+			var extent := GameState.valley_layout.unit_half_extent
+			if absf(point.x) > extent or absf(point.z) > extent:
+				continue
+			var nav: RefCounted = GameState.valley_nav
+			if not nav.is_ready() or not nav.is_cell_blocked(nav.world_to_cell(point)):
+				animal.global_position = point
+				break
+		GameState.spatial_index.update_wildlife(animal)
+
+
+func restore_mount_from_save() -> void:
+	if leader_unit == null or GameState.wildlife_container == null:
+		return
+	for animal in GameState.wildlife_container.get_children():
+		if animal.rider_unit_id == leader_unit.unit_id:
+			animal.set_rider(0)
+			if animal.can_mount(0):
+				_mount_livestock(animal)
+			return
+
+
 func _try_god_blessing() -> void:
+	if is_mounted():
+		return
 	if _blessing_cd > 0.0 or leader_unit == null:
 		if _blessing_cd > 0.0:
 			GameState.push_log("Divine Blessing recharging (%.0fs left)." % _blessing_cd, "warning")

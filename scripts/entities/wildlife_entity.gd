@@ -2,6 +2,8 @@ extends CharacterBody3D
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
+const Layout = preload("res://scripts/core/world_layout.gd")
 
 var animal_type: String = "DEER"
 var animal_name: String = "Deer"
@@ -16,6 +18,11 @@ var flees_when_hit: bool = true
 var is_boss: bool = false
 var is_dead: bool = false
 var home_pos: Vector3 = Vector3.ZERO
+var owner_faction := -1
+var pen_position: Variant = null
+var maturity_remaining := 0.0
+var training_feeds := 0
+var rider_unit_id := 0
 
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 
@@ -46,6 +53,14 @@ var _flee_dir: Vector3 = Vector3.ZERO
 var _index_registered: bool = false
 var _prey_scan_cd: float = 0.0
 var _last_move_idle: bool = false
+var _collider: CollisionShape3D
+var _interaction_label: Label3D
+var _tame_cooldown := 0.0
+var _pen_route := PackedVector3Array()
+var _pen_route_idx := 0
+var _pen_route_cd := 0.0
+var _pen_lookup_cd := 0.0
+var _pen: Node
 
 
 func _exit_tree() -> void:
@@ -92,6 +107,7 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	col.shape = cap
 	col.position = Vector3(0.0, cap.height * 0.5, 0.0)
 	add_child(col)
+	_collider = col
 
 	_visual_root = MeshFactory.build_wildlife_mesh(animal_type)
 	add_child(_visual_root)
@@ -100,6 +116,8 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	if _bite_player != null:
 		_bite_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_create_hp_bar()
+	if Farming.TAME_CHANCES.has(animal_type):
+		_create_interaction_label()
 
 
 func _create_hp_bar() -> void:
@@ -145,17 +163,171 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 	home_pos = snapshot["home_pos"]
 	hp = float(snapshot["hp"])
 	rotation.y = float(snapshot["rot_y"])
+	owner_faction = int(snapshot.get("owner_faction", -1))
+	pen_position = snapshot.get("pen_position")
+	maturity_remaining = float(snapshot.get("maturity_remaining", 0.0))
+	training_feeds = int(snapshot.get("training_feeds", 0))
+	_tame_cooldown = float(snapshot.get("tame_cooldown", 0.0))
+	if owner_faction >= 0:
+		is_aggro = false
+		flees_when_hit = false
+		_sync_livestock_size()
+	set_rider(int(snapshot.get("rider_unit_id", 0)))
 	_update_hp_bar()
 
 
 func serialize() -> Dictionary:
-	return {
+	var snapshot := {
 		"animal_type": animal_type,
 		"hp": hp,
 		"pos": CampaignSave.pack_position(global_position),
 		"home_pos": CampaignSave.pack_position(home_pos),
 		"rot_y": rotation.y,
 	}
+	if owner_faction >= 0:
+		snapshot.merge({"owner_faction": owner_faction, "maturity_remaining": maturity_remaining,
+			"training_feeds": training_feeds, "rider_unit_id": rider_unit_id})
+		if pen_position is Vector3:
+			snapshot["pen_position"] = CampaignSave.pack_position(pen_position)
+	elif _tame_cooldown > 0.0:
+		snapshot["tame_cooldown"] = _tame_cooldown
+	return snapshot
+
+
+func can_interact(faction_id: int) -> bool:
+	return not is_dead and (can_mount(faction_id) or (owner_faction < 0 and Farming.TAME_CHANCES.has(animal_type) \
+		and GameState.has_building(faction_id, "ANIMAL_PEN", true)))
+
+
+func can_mount(faction_id: int) -> bool:
+	return not is_dead and owner_faction == faction_id and animal_type == "BOAR" \
+		and training_feeds >= Farming.MOUNT_TRAINING and maturity_remaining <= 0.0 and rider_unit_id == 0
+
+
+func is_protected_from(faction_id: int) -> bool:
+	return owner_faction >= 0 and faction_id >= 0 \
+		and (GameState.is_treaty_ally(owner_faction, faction_id) or GameState.has_truce(owner_faction, faction_id))
+
+
+func attempt_tame(leader: Node3D) -> bool:
+	if leader == null or owner_faction >= 0 or is_dead or not Farming.TAME_CHANCES.has(animal_type) \
+			or not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
+		return false
+	if global_position.distance_to(leader.global_position) > Layout.SCAN_RANGE_LIVESTOCK:
+		return false
+	var faction: int = leader.faction_id
+	if _tame_cooldown > 0.0:
+		GameState.push_log("%s needs time to settle." % animal_name, "info")
+		return false
+	var pen := _nearest_available_pen(faction)
+	if pen == null:
+		GameState.push_log("Build an Animal Pen with room before taming wildlife.", "info")
+		return false
+	if not GameState.spend_resources(faction, {"food": Farming.TAME_COST}):
+		GameState.push_log("Taming needs %d Food." % Farming.TAME_COST, "warning")
+		return false
+	if randf() >= float(Farming.TAME_CHANCES[animal_type]):
+		_tame_cooldown = 6.0
+		if flees_when_hit:
+			_flee_timer = 4.0
+			_flee_dir = (global_position - leader.global_position).normalized()
+		else:
+			_target_unit = leader
+		GameState.push_log("%s rejected the food." % animal_name, "warning")
+		return false
+	domesticate(faction, pen.global_position)
+	_pen = pen
+	GameState.push_log("%s is tamed and heading to its pen." % animal_name, "success")
+	return true
+
+
+func domesticate(faction: int, destination: Vector3, young_for: float = 0.0) -> void:
+	owner_faction = faction
+	pen_position = destination
+	home_pos = destination
+	_roam_target = home_pos
+	is_aggro = false
+	flees_when_hit = false
+	_target_unit = null
+	_bite_target = null
+	_bite_remaining = 0.0
+	_flee_timer = 0.0
+	_tame_cooldown = 0.0
+	maturity_remaining = young_for
+	_sync_livestock_size()
+
+
+func feed_livestock() -> void:
+	if animal_type == "BOAR" and maturity_remaining <= 0.0:
+		training_feeds = mini(Farming.MOUNT_TRAINING, training_feeds + 1)
+
+
+func harvest_livestock() -> void:
+	hp = 0.0
+	_die(null, owner_faction)
+
+
+func set_rider(unit_id: int) -> void:
+	rider_unit_id = unit_id
+	_collider.set_deferred("disabled", unit_id > 0)
+	if unit_id > 0 and _interaction_label != null:
+		_interaction_label.hide()
+
+
+func sync_ridden_transform(leader: Node3D, move_velocity: Vector3, delta: float) -> void:
+	global_position = leader.global_position
+	rotation.y = leader.rotation.y
+	velocity = move_velocity
+	_knockback_vel = Vector3.ZERO
+	GameState.spatial_index.update_wildlife(self)
+	_update_wildlife_animation(delta)
+
+
+func _sync_livestock_size() -> void:
+	_visual_root.scale = Vector3.ONE * (0.68 if maturity_remaining > 0.0 else 1.0)
+
+
+func _nearest_available_pen(faction: int) -> Node:
+	var nearest: Node = null
+	var distance := INF
+	for building in GameState.get_faction_buildings(faction, "ANIMAL_PEN", true):
+		var d := global_position.distance_squared_to((building as Node3D).global_position)
+		if d < distance and building.get_herd().size() < Farming.PEN_CAPACITY:
+			nearest = building
+			distance = d
+	return nearest
+
+
+func _create_interaction_label() -> void:
+	var font := preload("res://scripts/ui/fallow_theme.gd").body_font()
+	_interaction_label = Label3D.new()
+	_interaction_label.font = font
+	_interaction_label.font_size = 21
+	_interaction_label.pixel_size = 0.012
+	_interaction_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_interaction_label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_interaction_label.position.y = 1.9
+	_interaction_label.hide()
+	add_child(_interaction_label)
+
+
+func _refresh_interaction_label() -> void:
+	if _interaction_label == null:
+		return
+	var leader := GameState.get_faction_leader(0) as Node3D
+	_interaction_label.visible = leader != null and rider_unit_id == 0 \
+		and global_position.distance_to(leader.global_position) <= Layout.SCAN_RANGE_LIVESTOCK
+	if not _interaction_label.visible:
+		return
+	var caption := animal_name
+	if owner_faction < 0:
+		caption += "  ·  [E] Tame" if GameState.has_building(0, "ANIMAL_PEN", true) else "  ·  Build an Animal Pen"
+	elif can_mount(0):
+		caption += "  ·  [E] Mount"
+	elif owner_faction == 0:
+		caption += "  ·  Young" if maturity_remaining > 0.0 else "  ·  Tamed"
+	if _interaction_label.text != caption:
+		_interaction_label.text = caption
 
 
 func projectile_hit_center() -> Vector3:
@@ -163,7 +335,7 @@ func projectile_hit_center() -> Vector3:
 
 
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
-	if is_dead:
+	if is_dead or is_protected_from(attacker_faction):
 		return
 	var applied := UnitStats.mitigated_damage(amount, armor) if armor > 0.0 else amount
 	hp -= applied
@@ -194,7 +366,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		var away: Vector3 = global_position - (attacker as Node3D).global_position
 		away.y = 0.0
 		_flee_dir = away.normalized() if away.length() > 0.1 else Vector3(1, 0, 0)
-	elif attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
+	elif owner_faction < 0 and attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
 		_target_unit = attacker
 
 	if hp <= 0.0:
@@ -203,6 +375,10 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 
 func _die(killer: Node, killer_faction: int) -> void:
 	is_dead = true
+	if rider_unit_id > 0 and is_instance_valid(GameState.player_controller):
+		GameState.player_controller.dismount_from(self)
+	if _interaction_label != null:
+		_interaction_label.hide()
 	var data: Dictionary = GameData.WILDLIFE_DATA.get(animal_type, {})
 	var yields: Dictionary = data.get("yield", {"food": 12, "hide": 4, "bone": 2})
 
@@ -316,6 +492,14 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		_process_dead_wildlife(delta)
 		return
+	if rider_unit_id > 0:
+		return
+	_tame_cooldown = maxf(0.0, _tame_cooldown - delta)
+	if maturity_remaining > 0.0:
+		maturity_remaining = maxf(0.0, maturity_remaining - delta)
+		if maturity_remaining <= 0.0:
+			_sync_livestock_size()
+	_refresh_interaction_label()
 	GameState.spatial_index.update_wildlife(self)
 	_update_wildlife_animation(delta)
 	if _bite_remaining > 0.0:
@@ -333,7 +517,9 @@ func _physics_process(delta: float) -> void:
 
 	var desired_vel := Vector3.ZERO
 
-	if _bite_remaining > 0.0:
+	if owner_faction >= 0:
+		desired_vel = _livestock_velocity(delta)
+	elif _bite_remaining > 0.0:
 		desired_vel = Vector3.ZERO
 	elif _flee_timer > 0.0:
 		_flee_timer -= delta
@@ -389,6 +575,49 @@ func _physics_process(delta: float) -> void:
 func _clamp_to_world_bounds() -> void:
 	global_position.x = clampf(global_position.x, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 	global_position.z = clampf(global_position.z, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
+
+
+func _livestock_velocity(delta: float) -> Vector3:
+	_pen_lookup_cd -= delta
+	if _pen_lookup_cd <= 0.0:
+		_pen_lookup_cd = 1.0
+		if not is_instance_valid(_pen) or _pen.is_destroyed or _pen.faction_id != owner_faction:
+			_pen = null
+			for candidate in GameState.get_faction_buildings(owner_faction, "ANIMAL_PEN", true):
+				if pen_position is Vector3 and candidate.global_position.is_equal_approx(pen_position):
+					_pen = candidate
+					break
+			if _pen == null:
+				_pen = _nearest_available_pen(owner_faction)
+			pen_position = _pen.global_position if _pen != null else null
+			home_pos = _pen.global_position if _pen != null else global_position
+			_roam_target = home_pos
+			_pen_route_cd = 0.0
+	if _pen == null or not is_instance_valid(_pen):
+		return Vector3.ZERO
+	var offset := home_pos - global_position
+	offset.y = 0.0
+	if offset.length() > Farming.PEN_RADIUS:
+		_pen_route_cd -= delta
+		if _pen_route_cd <= 0.0:
+			_pen_route_cd = 0.75
+			_pen_route = GameState.valley_nav.find_path(global_position, home_pos)
+			_pen_route_idx = 0
+		while _pen_route_idx < _pen_route.size() and global_position.distance_to(_pen_route[_pen_route_idx]) < 1.5:
+			_pen_route_idx += 1
+		if _pen_route_idx < _pen_route.size():
+			offset = _pen_route[_pen_route_idx] - global_position
+			offset.y = 0.0
+		return offset.normalized() * move_speed * 0.64
+	offset = _roam_target - global_position
+	offset.y = 0.0
+	if offset.length_squared() > 0.25:
+		return offset.normalized() * move_speed * 0.22
+	_roam_wait -= delta
+	if _roam_wait <= 0.0:
+		_roam_wait = randf_range(2.0, 5.0)
+		_roam_target = home_pos + Vector3(randf_range(-1.5, 1.5), 0, randf_range(-1.5, 1.5))
+	return Vector3.ZERO
 
 
 func _scan_for_prey(radius: float) -> Node:

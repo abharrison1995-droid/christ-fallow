@@ -55,13 +55,13 @@ The Forward+ probe covers `E` negotiation, gifts, alliance, truce expiry, stock-
 
 ## Taming, farming, and mounts
 
-- [ ] **Animal taming.** Let tribesfolk tame eligible wild animals and bring them back to the settlement. Define which species can be tamed and what happens if a taming attempt fails.
-- [ ] **Crop farming.** Let players place fields and assign workers to plant, tend, harvest, and haul crops to storage. Balance harvest yields and labour against hunting and foraging.
-- [ ] **Animal husbandry.** Let the tribe keep suitable tamed animals in pens or pastures, feed and breed them, and collect resources from the herd. Check whether a settlement can sustain livestock as it grows.
-- [ ] **Mounts.** Let the leader mount, ride, and dismount suitable tamed animals. Check movement, camera, and rider animations before expanding to other riders or mounted combat.
+Delivered 21 November 2026. Build both structures from `B` → Settlement and check their status in `C` → Fields & Herds.
 
-**Ready to ship when** a settlement can complete a crop cycle, sustain and grow a herd, and ride a trained animal. Save and load must restore crop growth, animal ownership, herd state, and rider assignments.
+- [x] **Animal taming.** With a completed Animal Pen, the leader can approach a Deer or Tusked Boar and spend eight Food with `E`. A successful tame walks to its pen. A failed attempt makes deer flee or the boar retaliate.
+- [x] **Crop farming.** Assign a Farmer from the Colony drawer. Farmers plant, tend, and harvest crops, then haul the food to storage. Tended fields ripen sooner and yield 24 Food. Untended fields yield 18.
+- [x] **Animal husbandry.** Each pen holds up to six animals. Feeding and breeding draw from tribal Food. Surplus adults can be harvested through the Colony drawer while leaving a breeding pair of each species.
+- [x] **Mounts.** Two feedings train an adult Tusked Boar. Use `E` to mount and dismount. Riding adjusts speed, camera framing, and the rider pose. Leader combat actions resume on foot.
 
-**Verification probe:** Run a `SceneTree` simulation + save/load probe covering taming success/failure, crop plant/tend/harvest/haul, pasture breeding, leader mount/dismount movement/camera, and round-trip persistence.
+The Forward+ probe covers crop work and hauling, taming success and failure, travel to the pen, feeding and breeding, mounting and dismounting on both leader rigs, and save/load of crops, herds, and a mounted rider. [Farming and taming verifier](../scripts/tools/verify_farming_taming.gd)
 
 [Wildlife behavior](../scripts/entities/wildlife_entity.gd) · [Worker routines](../scripts/entities/unit_ai_routines.gd) · [Leader controls](../scripts/entities/player_controller.gd) · [Save handling](../scripts/core/campaign_save.gd)

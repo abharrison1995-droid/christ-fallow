@@ -3,6 +3,7 @@ extends StaticBody3D
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
 
 var building_type: String = "CAMPFIRE"
 var faction_id: int = 0:
@@ -20,6 +21,11 @@ var hp: float = 200.0
 var max_hp: float = 200.0
 var damage_stage: int = 0 # 0=INTACT, 1=DAMAGED, 2=CRITICAL, 3=DESTROYED
 var is_destroyed: bool = false
+var crop_stage: int = Farming.CropStage.EMPTY
+var crop_progress := 0.0
+var crop_work := 0.0
+var crop_tended := false
+var _pen_clock := 0.0
 
 var _visual_root: Node3D = null
 var _status_bar_mesh: MeshInstance3D = null
@@ -123,6 +129,7 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 		cyl.height = 2.5
 		col_shape.shape = cyl
 		col_shape.position.y = cyl.height * 0.5
+	col_shape.disabled = building_type in Farming.WALKABLE_BUILDINGS
 	add_child(col_shape)
 	_col_shape = col_shape
 
@@ -137,7 +144,7 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 
 ## Constructed, intact buildings block pathing; blueprints and rubble do not.
 func _sync_nav_obstacle() -> void:
-	var should_block: bool = is_constructed and not is_destroyed and is_inside_tree()
+	var should_block: bool = is_constructed and not is_destroyed and is_inside_tree() and building_type not in Farming.WALKABLE_BUILDINGS
 	if should_block and not _obstacle_registered:
 		_obstacle_registered = true
 		GameState.valley_nav.register_building_obstacle(self, building_type, _nav_footprint_radius())
@@ -284,6 +291,7 @@ func _apply_damage_stage() -> void:
 		s_rubble.visible = (damage_stage == 3)
 
 	_sync_stage_lights()
+	_sync_crop_visual()
 
 	if damage_stage == 2 and not is_destroyed:
 		_ensure_critical_particles()
@@ -541,6 +549,13 @@ func _physics_process(delta: float) -> void:
 
 	if not is_constructed:
 		return
+	if building_type == "CROP_FIELD" and crop_stage == Farming.CropStage.GROWING:
+		_grow_crop(delta)
+	elif building_type == "ANIMAL_PEN":
+		_pen_clock += delta
+		if _pen_clock >= Farming.PEN_INTERVAL:
+			_pen_clock = fmod(_pen_clock, Farming.PEN_INTERVAL)
+			_feed_and_breed()
 
 	# Campfire Dusk & Hearth aura healing + organic ember flicker
 	if building_type == "CAMPFIRE":
@@ -584,6 +599,103 @@ func _physics_process(delta: float) -> void:
 			if target != null:
 				_fire_watchtower_arrow(target)
 				_watchtower_cd = 1.65
+
+
+func crop_needs_work() -> bool:
+	if building_type != "CROP_FIELD" or not is_constructed or is_destroyed:
+		return false
+	return crop_stage != Farming.CropStage.GROWING or (not crop_tended and crop_progress >= Farming.CROP_GROW_TIME * Farming.CROP_TEND_FRACTION)
+
+
+func work_crop(delta: float) -> float:
+	if not crop_needs_work() or not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
+		return 0.0
+	crop_work += maxf(0.0, delta)
+	if crop_work < Farming.CROP_WORK_TIMES[crop_stage]:
+		return 0.0
+	crop_work = 0.0
+	var harvested := 0.0
+	match crop_stage:
+		Farming.CropStage.EMPTY:
+			crop_stage = Farming.CropStage.GROWING
+		Farming.CropStage.GROWING:
+			crop_tended = true
+			_grow_crop(Farming.CROP_TEND_BOOST)
+		Farming.CropStage.RIPE:
+			harvested = 24.0 if crop_tended else 18.0
+			crop_stage = Farming.CropStage.EMPTY
+			crop_progress = 0.0
+			crop_tended = false
+	_sync_crop_visual()
+	return harvested
+
+
+func _grow_crop(delta: float) -> void:
+	crop_progress = minf(Farming.CROP_GROW_TIME, crop_progress + delta)
+	if crop_progress >= Farming.CROP_GROW_TIME:
+		crop_stage = Farming.CropStage.RIPE
+		crop_work = 0.0
+	_sync_crop_visual()
+
+
+func _sync_crop_visual() -> void:
+	if building_type != "CROP_FIELD":
+		return
+	var crops := _find_in_active_stage("Crops") as Node3D
+	if crops != null:
+		crops.visible = is_constructed and crop_stage != Farming.CropStage.EMPTY
+		crops.scale.y = lerpf(0.12, 1.0, crop_progress / Farming.CROP_GROW_TIME)
+
+
+func get_herd() -> Array[Node]:
+	var herd: Array[Node] = []
+	if building_type != "ANIMAL_PEN" or is_destroyed or not is_constructed or GameState.wildlife_container == null:
+		return herd
+	for animal in GameState.wildlife_container.get_children():
+		if not animal.is_dead and animal.owner_faction == faction_id and animal.pen_position is Vector3 \
+				and global_position.is_equal_approx(animal.pen_position):
+			herd.append(animal)
+	return herd
+
+
+func _feed_and_breed() -> void:
+	var herd := get_herd()
+	var fed_adults := {}
+	for animal in herd:
+		if animal.rider_unit_id != 0 or animal.global_position.distance_to(global_position) > Farming.PEN_RADIUS:
+			continue
+		if not GameState.spend_resources(faction_id, {"food": Farming.FEED_COST}):
+			break
+		animal.feed_livestock()
+		if animal.maturity_remaining <= 0.0:
+			var species: String = animal.animal_type
+			fed_adults[species] = int(fed_adults.get(species, 0)) + 1
+	if herd.size() >= Farming.PEN_CAPACITY:
+		return
+	for species in fed_adults:
+		if fed_adults[species] >= 2 and GameState.spend_resources(faction_id, {"food": Farming.BREED_COST}):
+			var offspring: Node = GameState.world_node._spawn_animal(species, global_position + Vector3(0.7, 0.0, 0.7))
+			offspring.domesticate(faction_id, global_position, Farming.MATURITY_TIME)
+			if faction_id == 0:
+				GameState.push_log("A young %s was born in the Animal Pen." % offspring.animal_name, "success")
+			break
+
+
+func harvest_surplus_livestock() -> bool:
+	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
+		return false
+	var adults := {}
+	for animal in get_herd():
+		if animal.maturity_remaining <= 0.0 and animal.rider_unit_id == 0 \
+				and animal.global_position.distance_to(global_position) <= Farming.PEN_RADIUS:
+			var species: String = animal.animal_type
+			var stock: Array = adults.get(species, [])
+			stock.append(animal)
+			adults[species] = stock
+			if stock.size() >= 3:
+				animal.harvest_livestock()
+				return true
+	return false
 
 
 func _try_reproduce() -> void:
@@ -716,6 +828,11 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 	setup(snapshot["building_type"], int(snapshot["faction_id"]), snapshot["pos"], float(snapshot["rot_y"]), snapshot["is_constructed"])
 	build_progress = clampf(float(snapshot["build_progress"]), 0.0, build_time)
 	hp = clampf(float(snapshot["hp"]), 0.0, max_hp)
+	crop_stage = int(snapshot.get("crop_stage", Farming.CropStage.EMPTY))
+	crop_progress = float(snapshot.get("crop_progress", 0.0))
+	crop_work = float(snapshot.get("crop_work", 0.0))
+	crop_tended = snapshot.get("crop_tended") == true
+	_pen_clock = float(snapshot.get("pen_clock", 0.0))
 	if hp <= 0.0:
 		is_destroyed = true
 		damage_stage = 3
@@ -732,7 +849,7 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 
 
 func serialize() -> Dictionary:
-	return {
+	var snapshot := {
 		"building_type": building_type,
 		"faction_id": faction_id,
 		"pos": [global_position.x, global_position.y, global_position.z],
@@ -741,3 +858,8 @@ func serialize() -> Dictionary:
 		"build_progress": build_progress,
 		"hp": hp,
 	}
+	if building_type == "CROP_FIELD":
+		snapshot.merge({"crop_stage": crop_stage, "crop_progress": crop_progress, "crop_work": crop_work, "crop_tended": crop_tended})
+	elif building_type == "ANIMAL_PEN":
+		snapshot["pen_clock"] = _pen_clock
+	return snapshot

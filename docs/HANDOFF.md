@@ -1,4 +1,4 @@
-# Christ Fallow — Engineering Handoff (20 November 2026)
+# Christ Fallow — Engineering Handoff (21 November 2026)
 
 > **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously (e.g., via Codex). Read this file first alongside [AGENTS.md](../AGENTS.md) and [docs/ROADMAP.md](ROADMAP.md).
 
@@ -26,6 +26,8 @@
   - `c225c07` — **Slice 2C-2.** Promoted Reed Granary, Ridge Signal Tower, Slateback Boar, and Reedjaw. Added golden damage fixtures.
   - `f2d2ff2` — **Slice 3A.** Added the expanded valley, classic-compatible v4 saves, and paired layout benchmarks.
   - `b5ac719` — **Slice 3B.** Added the World Map, waypoint projection, and updated controls.
+  - `6acd7fb` — **Phase 4.** Added named rival leaders, approach negotiation, truces, tribute, and succession.
+  - **Phase 5 baseline.** Added crop cycles, animal husbandry, mounting, and `v4` crop, herd, and rider persistence.
 
 ---
 
@@ -39,6 +41,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 | [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | Legacy and v4 saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
 | [verify_expanded_valley.gd](../scripts/tools/verify_expanded_valley.gd) | Camp spacing, ford routes, raids, hauling, distant construction, World Map projection and waypoint input, and v3/v4 terrain changes. |
 | [verify_diplomacy_leaders.gd](../scripts/tools/verify_diplomacy_leaders.gd) | Named leaders, approach negotiation, raid and attack truce guards, tribute, successor identity, and pending-conquest reload. |
+| [verify_farming_taming.gd](../scripts/tools/verify_farming_taming.gd) | Crop work and hauling, taming success and failure, pen travel, feeding, breeding, surplus harvest, mount movement and camera, and crop/herd/rider round trips. Runs with the default leader and `--skinned-tribesman-trial`. |
 | [verify_campaign_ui.gd](../scripts/tools/verify_campaign_ui.gd) | `1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`: title/awakening, focus release vs `Space`, non-overlap geometry, `Esc` vs `OptionButton` popup, Diplomacy opinion breakdown & faction-6 recovery, Colony Crafting refresh, UnitInspector, pause/conquest/quit. |
 | [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) | SpatialIndex parity across spawn/move/convert/death/rubble/save-load; palisade detour & rubble reopening; river ford crossing (`38/38`). |
 | [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
@@ -49,9 +52,9 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 ---
 
-## 3. Remaining Work (Ordered Execution Queue)
+## 3. Completed Execution Queue
 
-Execute sequentially in small, independently verified Git commits on `main`. Update [docs/ROADMAP.md](ROADMAP.md) and [AGENTS.md](../AGENTS.md) in the same commit whenever entry points, contracts, or phase status change.
+All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)
@@ -69,10 +72,8 @@ Completed. Each settled tribe has a live nameplate and title. `E` opens negotiat
 
 ### Track D — Phase 5: Taming, Crop Farming, Husbandry & Mounts
 Reference: [docs/FUTURE.md](FUTURE.md#taming-farming-and-mounts)
-1. **Crop Farming:** Buildable farm plot (`CROP_FIELD`), farmer schedule (plant → grow → harvest → haul to storage), balanced against foraging/hunting.
-2. **Animal Taming & Husbandry:** Eligible wild species (`DEER`, `BOAR`, etc.), taming attempt + failure/provocation rules, buildable pen/pasture (`ANIMAL_PEN`), feeding, breeding, and resource yield.
-3. **Mounts:** Leader mount/dismount on trained mounts with adjusted speed, camera framing, and rider pose before considering mounted combat.
-4. **Persistence & Verification:** Serialize crop growth stages, tamed/penned ownership, herd counts, and rider assignments in `CampaignSave`; add `scripts/tools/verify_farming_taming.gd`.
+
+Completed. Farmers use `CROP_FIELD` to plant, tend, harvest, and haul food. `ANIMAL_PEN` shelters tamed Deer and Tusked Boars, feeds them from the stockpile, and supports breeding and surplus harvest. `E` handles taming and mounting or dismounting a trained adult boar. Saves restore crops, ownership, herd and training state, and a mounted player leader. [Shared rules](../scripts/core/farming_rules.gd) · [Farming verifier](../scripts/tools/verify_farming_taming.gd)
 
 ---
 

@@ -58,7 +58,7 @@ static func aoe_damage(caster: Node, faction_id: int, radius: float, dmg: float,
 					candidates.append({"node": u, "dist_sq": d_sq})
 	if include_wildlife and GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
-			if is_instance_valid(w) and w.get("is_dead") != true:
+			if is_instance_valid(w) and w.get("is_dead") != true and not w.is_protected_from(faction_id):
 				var d_sq: float = c_pos.distance_squared_to((w as Node3D).global_position)
 				if d_sq <= radius_sq:
 					candidates.append({"node": w, "dist_sq": d_sq})

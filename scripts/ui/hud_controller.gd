@@ -987,7 +987,10 @@ func _update_squad_bar() -> void:
 
 	if GameState.player_controller != null:
 		var cd: float = GameState.player_controller._blessing_cd
-		_blessing_label.text = "[Q] Blessing Ready" if cd <= 0.0 else "[Q] Blessing (%.0fs)" % cd
+		if GameState.player_controller.is_mounted():
+			_blessing_label.text = "[E] Dismount"
+		else:
+			_blessing_label.text = "[Q] Blessing Ready" if cd <= 0.0 else "[Q] Blessing (%.0fs)" % cd
 
 	var all_w := 0
 	var sp_w := 0

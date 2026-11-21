@@ -3,6 +3,7 @@ extends CharacterBody3D
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 
@@ -83,6 +84,8 @@ var is_dead: bool = false
 var _visual_root: Node3D = null
 var _skinned_trial: SkinnedTribesmanTrial = null
 var _leader_nameplate: Label3D
+var _mounted := false
+var _rider_lift := 0.0
 var _body_pivot: Node3D = null
 var _animator: TribesmanAnimator = TribesmanAnimator.new()
 var _active_class_key: String = ""
@@ -316,6 +319,28 @@ func _rebuild_visual() -> void:
 				_set_trial_visible(true)
 			else:
 				pilot.free()
+	_sync_rider_visual()
+
+
+func set_mounted(value: bool) -> void:
+	_mounted = value
+	_sync_rider_visual()
+	_set_hand_mounts_visible(not value)
+	_update_hp_bar()
+
+
+func _sync_rider_visual() -> void:
+	_rider_lift = 0.0
+	if _mounted and _body_pivot != null:
+		var hips := _body_pivot.get_node_or_null("HipsPivot") as Node3D
+		if hips != null:
+			_rider_lift = Farming.SADDLE_HEIGHT - hips.position.y * _body_pivot.scale.y
+	if _mounted and _skinned_trial != null:
+		_rider_lift = _skinned_trial.riding_lift(Farming.SADDLE_HEIGHT)
+	if _visual_root != null:
+		_visual_root.position.y = _rider_lift
+	if _skinned_trial != null:
+		_skinned_trial.position.y = _rider_lift
 	_sync_leader_nameplate()
 
 
@@ -339,7 +364,7 @@ func _sync_leader_nameplate() -> void:
 		add_child(_leader_nameplate)
 	var lin: int = GameData.resolve_effective_lineage(lineage, is_caveman)
 	var height := float(GameData.LINEAGE_DATA[lin]["height_scale"])
-	_leader_nameplate.position.y = 2.35 * height + 0.6
+	_leader_nameplate.position.y = 2.35 * height + 0.6 + _rider_lift
 	var tint: Color = GameData.FACTION_COLORS.get(faction_id, Look.GOLD)
 	_leader_nameplate.modulate = tint.lightened(0.5)
 	_leader_nameplate.text = "%s %s\n%s" % [identity[0], unit_name, identity[1]]
@@ -525,7 +550,7 @@ func _update_hp_bar() -> void:
 	if _hp_bg == null or _hp_fill == null:
 		return
 	var visual_height := _skinned_trial.scale.y if _skinned_trial is CragBornTrial else 1.0
-	_hp_bg.position.y = 2.35 * visual_height
+	_hp_bg.position.y = 2.35 * visual_height + _rider_lift
 	_hp_fill.position.y = _hp_bg.position.y
 	var ratio := clampf(hp / maxf(max_hp, 1.0), 0.02, 1.0)
 	_hp_fill.scale.x = ratio
@@ -871,6 +896,7 @@ func _update_procedural_animation(delta: float) -> void:
 	var cdef := _get_class_def()
 	_animator.update(delta, {
 		"horiz_speed": horiz_speed,
+		"mounted": _mounted,
 		"is_working": _is_working_this_frame,
 		"idle_stance": str(cdef.get("idle_stance", "RELAXED")),
 		"work_anim": str(cdef.get("work_anim", "WORK_BUILD")),
@@ -884,9 +910,11 @@ func _update_procedural_animation(delta: float) -> void:
 			anim_state = _active_attack_anim if _active_attack_anim != "" else str(cdef.get("attack_anim", "TOOL_SWING"))
 		elif _is_working_this_frame:
 			anim_state = str(cdef.get("work_anim", "WORK_BUILD"))
-		elif horiz_speed > 0.25:
+		elif horiz_speed > 0.25 and not _mounted:
 			anim_state = "KITE" if _kiting_this_frame else "WALK"
 		_skinned_trial.update_action(anim_state, horiz_speed, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
+		if _mounted:
+			_skinned_trial.apply_riding_pose()
 
 
 func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> void:

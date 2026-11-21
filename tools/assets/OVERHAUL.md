@@ -1,6 +1,6 @@
 # Asset overhaul and combat design
 
-The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and kits, and consistent rules for how units and structures take damage. [The catalog](CATALOG.md) maps the current assets and sources. The larger valley and world map are on the [future roadmap](../../docs/FUTURE.md).
+The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and kits, and consistent rules for how units and structures take damage. [The catalog](CATALOG.md) maps the current assets and sources. The [development notes](../../docs/FUTURE.md) cover the expanded valley, World Map, and farm structures.
 
 **Reviewed 20 November 2026.** The [codebase refactor](../../docs/REFACTOR.md) covers behavior-preserving extraction and regression checks. See the [master roadmap](../../docs/ROADMAP.md) for cross-track sequencing and [Slice 0E](../../docs/ROADMAP.md#slice-0e--3d-asset-pipeline--trial-rig-parity) asset pipeline fixes.
 
@@ -17,6 +17,8 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 Author assets against scale and attachment contracts, and stage changes through Blender generation, clean Godot import, Forward+ captures, and a live test scene. Keep appearance choices out of balance calculations. When a visual needs different gameplay bounds, tune the collider and hit volume deliberately.
 
 Classic and expanded layouts share the imported scenery, building, and wildlife models. Both place reed beds and ford art through their active layout geometry. [Terrain definitions](../../scripts/core/world_layout.gd)
+
+Crop Fields and Animal Pens have four procedural damage stages and walkable footprints. Adult Tusked Boar reuses its imported model when trained. The procedural and trial skinned leader rigs each have a seated riding pose. [Farm structures and rider review](README.md#farm-structures-and-rider-review)
 
 Blender 4.5.16 regenerated all six samples with matching file hashes. A fresh Godot 4.3 Forward+ import verified the stages, colliders, and clips and rendered both comparison sheets.
 

@@ -1,9 +1,11 @@
 extends "res://scripts/ui/drawers/feature_drawer.gd"
 
 const Options = preload("res://scripts/ui/hud_drawers.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
 
 var _section := "Roster"
 var _queue_label: Label
+var _farm_label: Label
 var _roster_state: Array[Array] = []
 var _craft_state: Array = []
 var _roster_rows: Dictionary = {}
@@ -16,12 +18,13 @@ func _init() -> void:
 func build_content() -> void:
 	_roster_rows.clear()
 	_queue_label = null
+	_farm_label = null
 	var units := GameState.get_faction_units(0)
 	_roster_state = _roster_signature(units)
 	_craft_state = _craft_signature()
 	var tabs := HBoxContainer.new()
 	self.add_child(tabs)
-	for caption in ["Roster", "Workforce", "Crafting"]:
+	for caption in ["Roster", "Workforce", "Crafting", "Fields & Herds"]:
 		var select := Look.button(caption, func():
 			_section = caption
 			refresh()
@@ -35,6 +38,46 @@ func build_content() -> void:
 		"Roster": _populate_colony_roster(units)
 		"Workforce": _populate_colony_alloc_card(units)
 		"Crafting": _populate_colony_craft_card(GameState.factions[0])
+		"Fields & Herds": _populate_farms()
+
+
+func _populate_farms() -> void:
+	var card := _card(self)
+	var stack := VBoxContainer.new()
+	card.add_child(stack)
+	_farm_label = Look.label("")
+	_farm_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	stack.add_child(_farm_label)
+	var harvest := Look.button("Harvest surplus livestock", _harvest_livestock)
+	tag(harvest, "harvest-livestock")
+	stack.add_child(harvest)
+	_update_farm_status()
+
+
+func _update_farm_status() -> void:
+	var lines := PackedStringArray()
+	var fields := GameState.get_faction_buildings(0, "CROP_FIELD", true)
+	for i in range(fields.size()):
+		var field: Node = fields[i]
+		var status: String = ["Fallow", "Growing · %d%%" % roundi(field.crop_progress / Farming.CROP_GROW_TIME * 100.0), "Ripe"][field.crop_stage]
+		lines.append("Crop Field %d  ·  %s" % [i + 1, status])
+	var pens := GameState.get_faction_buildings(0, "ANIMAL_PEN", true)
+	for i in range(pens.size()):
+		var herd: Array = pens[i].get_herd()
+		var trained := 0
+		for animal in herd:
+			if animal.can_mount(0) or animal.rider_unit_id > 0:
+				trained += 1
+		lines.append("Animal Pen %d  ·  %d/%d animals  ·  %d trained mounts" % [i + 1, herd.size(), Farming.PEN_CAPACITY, trained])
+	_farm_label.text = "\n".join(lines) if not lines.is_empty() else "Build a Crop Field or Animal Pen in [B] Build."
+
+
+func _harvest_livestock() -> void:
+	for pen in GameState.get_faction_buildings(0, "ANIMAL_PEN", true):
+		if pen.harvest_surplus_livestock():
+			_update_farm_status()
+			return
+	GameState.push_log("Keep at least two adults of a species in the pen to breed.", "info")
 
 
 func _populate_colony_craft_card(f0: Dictionary) -> void:
@@ -159,7 +202,7 @@ func _populate_colony_alloc_card(units: Array) -> void:
 	var alloc_specs: Array = []
 	for r_id in [
 		GameData.Role.FORAGER, GameData.Role.HUNTER, GameData.Role.LUMBERJACK,
-		GameData.Role.STONEKNAPPER, GameData.Role.BUILDER_CRAFTER, GameData.Role.SHAMAN, GameData.Role.TRAINEE,
+		GameData.Role.STONEKNAPPER, GameData.Role.BUILDER_CRAFTER, GameData.Role.SHAMAN, GameData.Role.TRAINEE, GameData.Role.FARMER,
 	]:
 		alloc_specs.append({"name": GameData.ROLE_NAMES[r_id], "r": r_id, "wc": -1, "cnt": int(role_counts.get(r_id, 0))})
 	for c_id in [
@@ -252,6 +295,8 @@ func format_colonist_line(u: Node) -> String:
 
 
 func update_live_values() -> void:
+	if is_instance_valid(_farm_label):
+		_update_farm_status()
 	if _roster_signature(GameState.get_faction_units(0)) != _roster_state:
 		refresh()
 		return

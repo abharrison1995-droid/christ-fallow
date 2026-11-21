@@ -165,7 +165,15 @@ func update(delta: float, params: Dictionary) -> void:
 		_damage_timer = maxf(0.0, _damage_timer - delta)
 
 	var pose := _make_empty_pose()
-	if horiz_speed > 0.35:
+	if params.get("mounted") == true:
+		_apply_idle_layer(pose, "RELAXED", _idle_phase)
+		pose["hip_l_rot"] = Vector3(-67.0, 0.0, 17.0)
+		pose["hip_r_rot"] = Vector3(-67.0, 0.0, -17.0)
+		pose["knee_l_rot"] = Vector3(84.0, 0.0, 0.0)
+		pose["knee_r_rot"] = Vector3(84.0, 0.0, 0.0)
+		pose["sh_l_rot"] = Vector3(-28.0, -8.0, 0.0)
+		pose["sh_r_rot"] = Vector3(-28.0, 8.0, 0.0)
+	elif horiz_speed > 0.35:
 		_walk_phase += delta * clampf(horiz_speed, 2.0, 11.0) * 2.15
 		_apply_walk_layer(pose, _walk_phase, horiz_speed, idle_stance)
 	elif is_working:

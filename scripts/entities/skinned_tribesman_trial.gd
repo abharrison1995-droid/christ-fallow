@@ -8,6 +8,7 @@ const DEFAULT_SNAP_RESOLUTION := Vector2(560.0, 315.0)
 const DEFAULT_JITTER_INTENSITY := 0.13
 
 var _animation: AnimationPlayer
+var _skeleton: Skeleton3D
 var _body_materials: Array[ShaderMaterial] = []
 var _base_emissions: Array[Dictionary] = []
 var _jitter_enabled := true
@@ -29,6 +30,27 @@ func squash_corpse(height_ratio: float) -> void:
 	scale = _base_scale * Vector3(1.0, height_ratio, 1.0)
 
 
+func apply_riding_pose() -> void:
+	if _skeleton == null:
+		return
+	for side in ["L", "R"]:
+		for joint in ["UpperLeg", "LowerLeg"]:
+			var index := _skeleton.find_bone("%s.%s" % [joint, side])
+			if index < 0:
+				continue
+			var axis := _skeleton.get_bone_global_rest(index).basis.inverse() * Vector3.RIGHT
+			var rest := _skeleton.get_bone_rest(index).basis.get_rotation_quaternion()
+			var angle := deg_to_rad(67.0 if joint == "UpperLeg" else -84.0)
+			_skeleton.set_bone_pose_rotation(index, rest * Quaternion(axis.normalized(), angle))
+
+
+func riding_lift(saddle_height: float) -> float:
+	var hips := _skeleton.find_bone("Hips") if _skeleton != null else -1
+	if hips < 0:
+		return 0.0
+	return saddle_height - _skeleton.get_bone_global_rest(hips).origin.y * _base_scale.y
+
+
 func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> bool:
 	if spear_template == null or not ResourceLoader.exists(MODEL_PATH, "PackedScene"):
 		return false
@@ -42,6 +64,7 @@ func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> 
 	if skeletons.is_empty() or players.is_empty():
 		return false
 	var skeleton := skeletons[0] as Skeleton3D
+	_skeleton = skeleton
 	_animation = players[0] as AnimationPlayer
 	var hand_idx := skeleton.find_bone("Hand.R")
 	if hand_idx < 0 or not _animation.has_animation("Idle") or not _animation.has_animation("Walk"):

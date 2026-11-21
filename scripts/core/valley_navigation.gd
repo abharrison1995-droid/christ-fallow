@@ -4,10 +4,8 @@ extends RefCounted
 
 const CELL_SIZE := 4.0
 const FOOTPRINT_MARGIN := 0.0
-## Building types that never block movement.
-const NON_SOLID_TYPES: Array[String] = []
-
 const WorldLayout = preload("res://scripts/core/world_layout.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
 
 var _grid: AStarGrid2D = null
 var _origin := Vector2.ZERO # world XZ of grid cell (0,0) min corner
@@ -129,7 +127,7 @@ func is_cell_blocked(c: Vector2i) -> bool:
 
 # ---------- buildings ----------
 func register_building_obstacle(building: Node3D, building_type: String, footprint_radius: float) -> void:
-	if _grid == null or building == null or not is_instance_valid(building):
+	if _grid == null or building == null or not is_instance_valid(building) or building_type in Farming.WALKABLE_BUILDINGS:
 		return
 	var id: int = building.get_instance_id()
 	if _obstacles.has(id):

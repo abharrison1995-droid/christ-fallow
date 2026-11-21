@@ -92,6 +92,8 @@ static func run_day_work_routine(u, delta: float) -> void:
 		return
 	if u.role == GameData.Role.HUNTER and _try_hunter_work(u):
 		return
+	if u.role == GameData.Role.FARMER and _try_crop_work(u, delta):
+		return
 
 	_run_gatherer_work(u, camp, delta)
 
@@ -110,6 +112,30 @@ static func _nearest_building(origin: Vector3, buildings: Array) -> Node3D:
 			best_d = d
 			best = b3d
 	return best
+
+
+static func _try_crop_work(u, delta: float) -> bool:
+	var field: Node = null
+	var nearest := Layout.SCAN_RANGE_BLUEPRINT
+	for building in GameState.get_faction_buildings(u.faction_id, "CROP_FIELD", true):
+		var d: float = u.global_position.distance_to(building.global_position)
+		if d < nearest and building.crop_needs_work():
+			field = building
+			nearest = d
+	if field == null:
+		return false
+	if nearest > 2.7:
+		u._steer_toward(field.global_position, u.move_speed)
+	else:
+		u.velocity.x = 0.0
+		u.velocity.z = 0.0
+		u._is_working_this_frame = true
+		u._face_point(field.global_position)
+		var harvest: float = field.work_crop(delta)
+		if harvest > 0.0:
+			u._carry_type = "food"
+			u._carry_amount = harvest
+	return true
 
 
 static func _try_builder_crafter_work(u, delta: float) -> bool:
@@ -388,7 +414,7 @@ static func find_nearest_prey(u, max_dist: float) -> Node:
 		if not is_instance_valid(w) or w.get("is_dead"):
 			continue
 		var at: String = str(w.get("animal_type"))
-		if at == "DEER" or at == "BOAR":
+		if w.owner_faction < 0 and (at == "DEER" or at == "BOAR"):
 			var d: float = (u as Node3D).global_position.distance_to((w as Node3D).global_position)
 			if d < best_d:
 				best_d = d

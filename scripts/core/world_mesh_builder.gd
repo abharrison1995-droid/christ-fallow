@@ -512,6 +512,62 @@ static func _build_stage_geometry(root: Node3D, mf: Node, building_type: String,
 				var gem_pos := Vector3(0.0, 4.15, 0.0) if stage == 0 else (Vector3(0.2, 4.05, 0.0) if stage == 1 else Vector3(1.1, 3.4, 0.0))
 				mf.add_mesh(root, spirit_gem, gem_pos, glow_mat, Vector3.ZERO, "TotemSpirit")
 
+		"CROP_FIELD":
+			var soil := BoxMesh.new()
+			soil.size = Vector3(5.0, 0.08, 4.0)
+			var soil_mat: StandardMaterial3D = mf.make_mat(Color(0.32, 0.21, 0.13), 1.0, Color.BLACK, 0.0, 1.0, "ground")
+			mf.add_mesh(root, soil, Vector3(0, 0.045, 0), soil_mat)
+			var crop_rows := Node3D.new()
+			crop_rows.name = "Crops"
+			crop_rows.visible = false
+			crop_rows.position.y = 0.1
+			root.add_child(crop_rows)
+			var ridge := BoxMesh.new()
+			ridge.size = Vector3(0.52, 0.08, 3.64)
+			var stalk := PrismMesh.new()
+			stalk.size = Vector3(0.16, 0.64, 0.17)
+			var grain := CylinderMesh.new()
+			grain.top_radius = 0.035
+			grain.bottom_radius = 0.10
+			grain.height = 0.20
+			grain.radial_segments = 4
+			var crop_mat: StandardMaterial3D = mf.make_mat(Color(0.55, 0.67, 0.27))
+			for row in range(4 if stage < 2 else 2):
+				var x := -1.62 + float(row) * 1.08
+				mf.add_mesh(root, ridge, Vector3(x, 0.10, 0), ash_mat)
+				if stage < 3:
+					for patch in range(5):
+						var z := -1.5 + float(patch) * 0.75
+						mf.add_mesh(crop_rows, stalk, Vector3(x, 0.32, z), crop_mat)
+						mf.add_mesh(crop_rows, grain, Vector3(x, 0.67, z), thatch_mat)
+
+		"ANIMAL_PEN":
+			var floor := BoxMesh.new()
+			floor.size = Vector3(5.8, 0.07, 5.1)
+			mf.add_mesh(root, floor, Vector3(0, 0.045, 0), ash_mat)
+			var post := CylinderMesh.new()
+			post.top_radius = 0.09
+			post.bottom_radius = 0.16
+			post.height = 1.0
+			post.radial_segments = 5
+			var rail := BoxMesh.new()
+			rail.size = Vector3(5.5, 0.16, 0.20)
+			if stage == 3:
+				mf.add_mesh(root, rail, Vector3(0.3, 0.17, 0.6), char_mat, Vector3(0, 35, 0))
+			else:
+				for x in [-2.65, 2.65]:
+					for z in [-2.35, 0.0, 2.35]:
+						mf.add_mesh(root, post, Vector3(x, 0.5, z), dw_mat)
+					mf.add_mesh(root, rail, Vector3(x, 0.52, 0), w_mat, Vector3(0, 90, 0))
+				mf.add_mesh(root, rail, Vector3(0, 0.54, -2.35), w_mat)
+				var gate_rail := BoxMesh.new()
+				gate_rail.size = Vector3(1.35, 0.19, 0.18)
+				for x in [-1.96, 1.96]:
+					mf.add_mesh(root, gate_rail, Vector3(x, 0.52 if stage < 2 else 0.26, 2.35), w_mat)
+				var trough := BoxMesh.new()
+				trough.size = Vector3(1.46, 0.24, 0.55)
+				mf.add_mesh(root, trough, Vector3(-1.2, 0.17, -1.68), th_mat)
+
 		"STORAGE_PIT":
 			if stage == 3:
 				var mound := CylinderMesh.new()

@@ -113,7 +113,7 @@ func _physics_process(delta: float) -> void:
 	# Hit detection against wildlife
 	if true:
 		for w in wild_candidates:
-			if not is_instance_valid(w) or w.get("is_dead") == true:
+			if not is_instance_valid(w) or w.get("is_dead") == true or w.is_protected_from(faction_id):
 				continue
 			if _segment_distance_to_point(prev_pos, next_pos, w.projectile_hit_center()) < w.projectile_hit_radius:
 				w.take_damage(damage, attacker, faction_id)

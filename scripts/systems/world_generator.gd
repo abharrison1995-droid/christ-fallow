@@ -340,6 +340,8 @@ func _add_ground_patch(parent: Node3D, pos: Vector3, sz: Vector2, col: Color) ->
 
 func populate_new_world() -> void:
 	_ensure_layout_terrain()
+	if is_instance_valid(GameState.player_controller):
+		GameState.player_controller.attach_leader(null)
 	_clear_dynamic_world()
 	_create_faction_controllers()
 	_spawn_resources_and_caves()
@@ -583,3 +585,4 @@ func restore_from_save(save: Dictionary, starting_campaign: bool) -> void:
 			pc_data = {"blessing_cooldown": float(GameState.factions[0].get("blessing_cooldown", 0.0))}
 		if GameState.player_controller.has_method("restore_from_save"):
 			GameState.player_controller.restore_from_save(pc_data)
+		GameState.player_controller.restore_mount_from_save()

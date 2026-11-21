@@ -24,6 +24,7 @@ enum Role {
 	SHAMAN,
 	TRAINEE,
 	WARRIOR,
+	FARMER,
 }
 
 enum WarriorClass {
@@ -321,6 +322,7 @@ const ROLE_NAMES := {
 	Role.SHAMAN: "Shaman",
 	Role.TRAINEE: "Barracks Trainee",
 	Role.WARRIOR: "Warrior",
+	Role.FARMER: "Farmer",
 }
 
 const WARRIOR_CLASS_NAMES := {
@@ -710,6 +712,24 @@ const BUILDINGS := {
 		"housing": 0,
 		"radius": 2.0,
 		"collider_size": Vector3(3.10, 2.47, 1.83),
+	},
+	"CROP_FIELD": {
+		"name": "Crop Field",
+		"desc": "Farmers sow, tend, and harvest grain. Harvests are carried to the nearest food drop-off.",
+		"costs": {"wood": 10, "stone": 4},
+		"build_time": 6.5,
+		"max_hp": 180.0,
+		"housing": 0,
+		"radius": 2.6,
+	},
+	"ANIMAL_PEN": {
+		"name": "Animal Pen",
+		"desc": "Houses tamed deer and boars. Fed adults can breed, and fed boars train as mounts.",
+		"costs": {"wood": 20, "stone": 6},
+		"build_time": 8.0,
+		"max_hp": 260.0,
+		"housing": 0,
+		"radius": 3.2,
 	},
 	"PALISADE_WALL": {
 		"name": "Log Palisade",

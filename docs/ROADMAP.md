@@ -232,9 +232,10 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 
 ## Phase 5: Taming, Crop Farming, Husbandry & Mounts
 
-> **Queued** — ([FUTURE.md](FUTURE.md#taming-farming-and-mounts) · [HANDOFF.md](HANDOFF.md#track-d--phase-5-taming-crop-farming-husbandry--mounts))
+> **Completed 21 Nov 2026.** [Player flow](FUTURE.md#taming-farming-and-mounts) · [Handoff](HANDOFF.md#track-d--phase-5-taming-crop-farming-husbandry--mounts)
 
-- Deliver buildable `CROP_FIELD` farming cycles, wild animal taming + `ANIMAL_PEN` husbandry/breeding, leader mounting/dismounting, full save/load persistence for crops/herds/riders, and `scripts/tools/verify_farming_taming.gd`.
+- Crop Fields support planting, tending, ripening, harvesting, and delivery to storage by Farmers. Animal Pens accept tamed Deer and Tusked Boars, feed them from the faction stockpile, and breed juveniles when there is room. The Colony drawer shows field and herd progress and offers surplus harvest. [Economy rules](../scripts/core/farming_rules.gd) · [Colony drawer](../scripts/ui/drawers/colony_drawer.gd)
+- The leader uses `E` to tame, mount a trained adult boar, and dismount. The camera and both leader rigs adapt while mounted. `v4` saves retain crops, pen and wildlife state, and the rider link. The farming probe verifies the full cycle, a failed tame, and rejection of an invalid rider before the live world changes. [Campaign validator](../scripts/core/campaign_save.gd) · [Forward+ verifier](../scripts/tools/verify_farming_taming.gd)
 
 ---
 
@@ -246,7 +247,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** Continue with Phase 5. [Handoff](HANDOFF.md)
+1. **Pick one slice.** The ordered queue through Phase 5 is complete. The handoff records the verified baseline and outstanding asset work. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
@@ -280,7 +281,11 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_expanded_valley.gd
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_diplomacy_leaders.gd
 
-# 4. Asset & skinned rig gates (Forward+ display required)
+# 4. Farming, taming, husbandry and mounted saves
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_farming_taming.gd -- "--out-dir=$qa/captures"
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_farming_taming.gd -- "--out-dir=$qa/captures" --skinned-tribesman-trial
+
+# 5. Asset & skinned rig gates (Forward+ display required)
 & $godot --path $project --quit-after 600 -s res://scripts/tools/verify_glb_assets.gd -- "--out-dir=$qa/glb" --require-gameplay-rig
 & $godot --path $project --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- "--out-dir=$qa/crag"
 & $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --check-default-roster

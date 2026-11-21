@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Layout = preload("res://scripts/core/world_layout.gd")
+const Farming = preload("res://scripts/core/farming_rules.gd")
 const VERSION := 4
 
 const FACTION_FIELDS := {
@@ -117,6 +118,9 @@ static func unpack(parsed: Variant) -> Dictionary:
 		building["pos"] = _position(building.get("pos"))
 		if building["pos"] == null or not factions.has(int(building["faction_id"])):
 			return {}
+		if not _validate_farm_building(building):
+			return {}
+	var restored_rider := false
 	for animal in save.get("wildlife", []):
 		if not _matches(animal, {"animal_type": TYPE_STRING, "hp": TYPE_FLOAT, "rot_y": TYPE_FLOAT}):
 			return {}
@@ -124,7 +128,52 @@ static func unpack(parsed: Variant) -> Dictionary:
 		animal["home_pos"] = _position(animal.get("home_pos"))
 		if animal["pos"] == null or animal["home_pos"] == null or not GameData.WILDLIFE_DATA.has(animal["animal_type"]):
 			return {}
+		if not _unpack_livestock(animal, factions):
+			return {}
+		var rider := int(animal.get("rider_unit_id", 0))
+		if rider > 0:
+			if restored_rider or rider != expected_leader or not found_expected_leader \
+					or int(animal.get("owner_faction", -1)) != 0 or animal["animal_type"] != "BOAR" \
+					or float(animal.get("maturity_remaining", 0.0)) > 0.0 \
+					or int(animal.get("training_feeds", 0)) < Farming.MOUNT_TRAINING:
+				return {}
+			restored_rider = true
 	return save
+
+
+static func _validate_farm_building(building: Dictionary) -> bool:
+	if not _matches(building, {"crop_stage": TYPE_INT, "crop_progress": TYPE_FLOAT, "crop_work": TYPE_FLOAT,
+		"crop_tended": TYPE_BOOL, "pen_clock": TYPE_FLOAT}, false):
+		return false
+	var stage := int(building.get("crop_stage", Farming.CropStage.EMPTY))
+	return Farming.CropStage.values().has(stage) \
+		and float(building.get("crop_progress", 0.0)) >= 0.0 \
+		and float(building.get("crop_progress", 0.0)) <= Farming.CROP_GROW_TIME \
+		and float(building.get("crop_work", 0.0)) >= 0.0 \
+		and float(building.get("crop_work", 0.0)) <= Farming.CROP_WORK_TIMES[stage] \
+		and float(building.get("pen_clock", 0.0)) >= 0.0 \
+		and float(building.get("pen_clock", 0.0)) <= Farming.PEN_INTERVAL
+
+
+static func _unpack_livestock(animal: Dictionary, factions: Dictionary) -> bool:
+	if not _matches(animal, {"owner_faction": TYPE_INT, "maturity_remaining": TYPE_FLOAT,
+		"training_feeds": TYPE_INT, "rider_unit_id": TYPE_INT, "tame_cooldown": TYPE_FLOAT}, false):
+		return false
+	var owner := int(animal.get("owner_faction", -1))
+	var training := int(animal.get("training_feeds", 0))
+	var maturity := float(animal.get("maturity_remaining", 0.0))
+	var rider := int(animal.get("rider_unit_id", 0))
+	if owner != -1 and (not factions.has(owner) or not Farming.TAME_CHANCES.has(animal["animal_type"])):
+		return false
+	if training < 0 or training > Farming.MOUNT_TRAINING or maturity < 0.0 or maturity > Farming.MATURITY_TIME or rider < 0:
+		return false
+	if owner == -1 and (training != 0 or maturity > 0.0 or rider != 0 or animal.has("pen_position")):
+		return false
+	if animal.has("pen_position"):
+		animal["pen_position"] = _position(animal["pen_position"])
+		if animal["pen_position"] == null:
+			return false
+	return float(animal.get("tame_cooldown", 0.0)) >= 0.0
 
 
 static func _normalize_faction(faction: Dictionary, id: int) -> bool:
