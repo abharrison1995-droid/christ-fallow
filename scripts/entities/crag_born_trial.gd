@@ -22,12 +22,12 @@ static func supports_lineage(lineage: int) -> bool:
 	return LINEAGE_KEYS.has(lineage)
 
 
-static func select_body_variant(lineage: int, gender: int, is_child: bool, unit_id: int) -> String:
+static func select_body_variant(gender: int, is_child: bool, unit_id: int) -> String:
 	var male := gender == GameData.Gender.MALE
 	if is_child:
-		return "boy" if lineage == GameData.Lineage.CRAG_BORN and male else "child"
+		return "boy" if male else "child"
 	# Use the second ID bit so alternating male and female spawns can both vary.
-	if lineage == GameData.Lineage.CRAG_BORN and (unit_id & 2) != 0:
+	if (unit_id & 2) != 0:
 		return "cropped" if male else "twin_knots"
 	return "broad" if male else "braided"
 

@@ -85,7 +85,7 @@ func _verify_gameplay() -> void:
 	if not Trial.enabled():
 		_check(forager == null and child_model == null and unit._visual_root.visible and child._visual_root.visible,
 			"--procedural-roster opts out to the procedural Crag-Born roster")
-		_verify_body_variants(faction, base_pos + Vector3(12, 0, 6))
+		_spawn_body_variants(faction, base_pos + Vector3(12, 0, 6), _data.Lineage.CRAG_BORN)
 		main.free()
 		return
 	if _check(forager != null and child_model != null, "Default Crag-Born adults and children spawn the promoted skinned rig"):
@@ -239,16 +239,17 @@ func _verify_gameplay() -> void:
 						and restored.find_child("Offhand", true, false) == null,
 						"Colony roster returns to Forager and clears the old offhand")
 					_check(_body_file(unit) == initial_body, "Colony role change keeps the same adult body")
-	_verify_body_variants(faction, base_pos + Vector3(12, 0, 6))
+	var saved_bodies := _spawn_body_variants(faction, base_pos + Vector3(12, 0, 6), _data.Lineage.CRAG_BORN)
+	_verify_body_reload(saved_bodies, 2)
 	main.free()
 	await process_frame
 	print("Campaign path checked from Awakening through role selection, harvest, thrust and hit.")
 
 
-func _verify_body_variants(faction: Node, origin: Vector3) -> void:
+func _spawn_body_variants(faction: Node, origin: Vector3, lineage: int) -> Dictionary:
 	var saved_bodies := {}
 	var body_files := {}
-	var lineage: int = _data.Lineage.CRAG_BORN
+	var lineage_key: String = Trial.LINEAGE_KEYS[lineage]
 	for i in range(10):
 		var gender: int = _data.Gender.MALE if i % 2 == 0 else _data.Gender.FEMALE
 		var unit: Node = faction.spawn_colonist(origin + Vector3((i % 5) * 2.0, 0, floorf(i / 5.0) * 2.0),
@@ -256,36 +257,46 @@ func _verify_body_variants(faction: Node, origin: Vector3) -> void:
 		unit.set_physics_process(false)
 		var body_file := _body_file(unit)
 		if Trial.enabled():
-			var variant := Trial.select_body_variant(lineage, gender, unit.is_child, unit.unit_id)
-			_check(body_file == "crag_born_%s.glb" % variant, "The live roster loads %s" % variant)
+			var variant := Trial.select_body_variant(gender, unit.is_child, unit.unit_id)
+			var expected := "%s_%s.glb" % [lineage_key, variant]
+			_check(body_file == expected and not unit._visual_root.visible, "The live roster loads %s" % expected)
+			if not unit.is_child and not body_files.has(body_file):
+				_check(_state.assign_player_role(unit, _data.Role.WARRIOR, _data.WarriorClass.SPEARMAN)
+					and _body_file(unit) == body_file, "%s stays on the same body as a Spearman" % expected)
 			saved_bodies[unit.unit_id] = body_file
 			body_files[body_file] = true
 		else:
 			_check(body_file.is_empty() and unit._visual_root.visible, "Roster opt-out uses a procedural body")
-	if not Trial.enabled():
-		return
-	for variant in SIX_VARIANTS:
-		_check(body_files.has("crag_born_%s.glb" % variant), "Campaign spawns %s in the six-body lineup" % variant)
+	if Trial.enabled():
+		for variant in SIX_VARIANTS:
+			_check(body_files.has("%s_%s.glb" % [lineage_key, variant]),
+				"Campaign spawns %s %s in the six-body lineup" % [lineage_key, variant])
+	return saved_bodies
+
+
+func _verify_body_reload(saved_bodies: Dictionary, expected_children: int) -> void:
 	var scratch := OS.get_environment("CHRIST_FALLOW_QA_APPDATA").replace("\\", "/").rstrip("/")
 	if not _check(not scratch.is_empty() and OS.get_user_data_dir().replace("\\", "/").begins_with(scratch + "/"),
 			"Set APPDATA and CHRIST_FALLOW_QA_APPDATA to the same isolated directory"):
 		return
-	var path := OS.get_user_data_dir().path_join("crag-born-variants.json")
+	var path := OS.get_user_data_dir().path_join("lineage-body-variants.json")
 	if _check(_state.save_game(path) and _state.load_game(path), "The six-body roster saves and reloads"):
 		var grown := 0
 		for unit in _state.get_faction_units(0):
 			if not saved_bodies.has(unit.unit_id):
 				continue
-			_check(_body_file(unit) == saved_bodies[unit.unit_id], "Reload keeps the body for unit %d" % unit.unit_id)
+			_check(_body_file(unit) == saved_bodies[unit.unit_id] and not unit._visual_root.visible,
+				"Reload keeps the body for unit %d" % unit.unit_id)
 			saved_bodies.erase(unit.unit_id)
 			if unit.is_child:
-				var adult := Trial.select_body_variant(lineage, unit.gender, false, unit.unit_id)
+				var lineage_key: String = Trial.LINEAGE_KEYS[unit.lineage]
+				var adult := Trial.select_body_variant(unit.gender, false, unit.unit_id)
 				unit.growth_progress = 0.999
 				unit._physics_process(0.1)
-				_check(not unit.is_child and _body_file(unit) == "crag_born_%s.glb" % adult,
-					"Growing up selects the stable %s adult body" % adult)
+				_check(not unit.is_child and _body_file(unit) == "%s_%s.glb" % [lineage_key, adult],
+					"Growing up selects the stable %s %s body" % [lineage_key, adult])
 				grown += 1
-		_check(saved_bodies.is_empty() and grown == 2, "All roster variants return and both children grow up")
+		_check(saved_bodies.is_empty() and grown == expected_children, "All roster variants return and the children grow up")
 	DirAccess.remove_absolute(path)
 
 

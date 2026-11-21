@@ -6,7 +6,7 @@ Use this catalog to find the current asset or locate the right home for a replac
 
 Goliath, Crag-Born, and Swift-Kin Foragers and adult Spearmen use the [shared skinned lineup](#skinned-lineage-bodies-and-gear). Other units use [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) and the [procedural animator](../../scripts/entities/tribesman_animator.gd). The [base tribesman](../../assets/models/characters/tribesman_base.glb) supplies the opt-in player leader trial. Each row identifies a silhouette and its export directory under `assets/models/characters/lineages/`.
 
-The rollout targets six bodies per lineage. Crag-Born has all six in production, with Goliath and Swift-Kin next. [Production batches](OVERHAUL.md#production-batches)
+Crag-Born, Goliath, and Swift-Kin have all six bodies in production. Stalker and Ash-Walker are next. [Production batches](OVERHAUL.md#production-batches)
 
 | Stable lineage ID | Body cues to carry forward | Export directory |
 | --- | --- | --- |
@@ -41,8 +41,8 @@ The remaining nine building types and four wildlife species are queued for impor
 | Asset | GLBs |
 | --- | --- |
 | Shared-rig Crag-Born bodies | [Broad man](../../assets/models/characters/lineages/crag_born/crag_born_broad.glb), [cropped-hair man](../../assets/models/characters/lineages/crag_born/crag_born_cropped.glb), [braided woman](../../assets/models/characters/lineages/crag_born/crag_born_braided.glb), [twin-knot woman](../../assets/models/characters/lineages/crag_born/crag_born_twin_knots.glb), [boy](../../assets/models/characters/lineages/crag_born/crag_born_boy.glb), [girl](../../assets/models/characters/lineages/crag_born/crag_born_child.glb) |
-| Shared-rig Goliath bodies | [Broad adult](../../assets/models/characters/lineages/goliath/goliath_broad.glb), [braided adult](../../assets/models/characters/lineages/goliath/goliath_braided.glb), [child](../../assets/models/characters/lineages/goliath/goliath_child.glb) |
-| Shared-rig Swift-Kin bodies | [Broad adult](../../assets/models/characters/lineages/swift_kin/swift_kin_broad.glb), [braided adult](../../assets/models/characters/lineages/swift_kin/swift_kin_braided.glb), [child](../../assets/models/characters/lineages/swift_kin/swift_kin_child.glb) |
+| Shared-rig Goliath bodies | [Broad man](../../assets/models/characters/lineages/goliath/goliath_broad.glb), [crested man](../../assets/models/characters/lineages/goliath/goliath_cropped.glb), [braided woman](../../assets/models/characters/lineages/goliath/goliath_braided.glb), [high-knot woman](../../assets/models/characters/lineages/goliath/goliath_twin_knots.glb), [boy](../../assets/models/characters/lineages/goliath/goliath_boy.glb), [girl](../../assets/models/characters/lineages/goliath/goliath_child.glb) |
+| Shared-rig Swift-Kin bodies | [Broad man](../../assets/models/characters/lineages/swift_kin/swift_kin_broad.glb), [swept-hair man](../../assets/models/characters/lineages/swift_kin/swift_kin_cropped.glb), [braided woman](../../assets/models/characters/lineages/swift_kin/swift_kin_braided.glb), [twin-knot woman](../../assets/models/characters/lineages/swift_kin/swift_kin_twin_knots.glb), [boy](../../assets/models/characters/lineages/swift_kin/swift_kin_boy.glb), [girl](../../assets/models/characters/lineages/swift_kin/swift_kin_child.glb) |
 | Spearman kit | [Spear](../../assets/models/gear/spearman/spear.glb), [hide buckler](../../assets/models/gear/spearman/hide_buckler.glb), [bone guard](../../assets/models/gear/spearman/bone_guard.glb) |
 | Forager kit | [Flint sickle](../../assets/models/gear/forager/flint_sickle.glb), [reed basket](../../assets/models/gear/forager/reed_basket.glb), [light workwear](../../assets/models/gear/forager/workwear.glb) |
 

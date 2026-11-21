@@ -37,8 +37,9 @@ func _verify_lineage_gameplay(lineages: Array[int]) -> void:
 	var leader: Node3D = _state.get_faction_leader(0)
 	_check(not (leader._skinned_trial is Trial), "The roster leaves the player leader on its own visual path")
 	var spawn_pos := leader.global_position + Vector3(6, 0, 8)
-	var saved_ids: Array[int] = []
+	var saved_bodies := {}
 	for lineage in lineages:
+		saved_bodies.merge(_spawn_body_variants(faction, spawn_pos + Vector3(8, 0, 0), lineage))
 		var guard: Node = faction.spawn_colonist(spawn_pos, lineage, _data.Gender.MALE, _data.Role.WARRIOR)
 		var forager: Node = faction.spawn_colonist(spawn_pos + Vector3(2, 0, 0), lineage,
 			_data.Gender.FEMALE, _data.Role.FORAGER)
@@ -83,17 +84,9 @@ func _verify_lineage_gameplay(lineages: Array[int]) -> void:
 		_check(child._skinned_trial != null, "Wounding keeps the child on a skinned rig")
 		if child._skinned_trial != null:
 			_check_action(child, child._skinned_trial, &"Wounded")
-		saved_ids.append(guard.unit_id)
+		saved_bodies[guard.unit_id] = _body_file(guard)
 	if Trial.enabled():
-		var path := OS.get_user_data_dir().path_join("skinned-lineage-check.json")
-		if _check(_state.save_game(path) and _state.load_game(path), "Save and reload preserves the lineage roster"):
-			for unit in _state.get_faction_units(0):
-				if saved_ids.has(unit.unit_id):
-					_check(unit._skinned_trial is Trial and not unit._visual_root.visible,
-						"Reload reconstructs the skinned Spearman %d" % unit.unit_id)
-					saved_ids.erase(unit.unit_id)
-			_check(saved_ids.is_empty(), "Every saved Spearman still exists after reload")
-		DirAccess.remove_absolute(path)
+		_verify_body_reload(saved_bodies, lineages.size() * 2)
 	main.free()
 	await process_frame
 
@@ -111,8 +104,9 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 		false, Image.FORMAT_RGB8)
 	var body_sizes: Array[Vector3] = []
 	for i in range(lineages.size()):
-		for j in range(VARIANTS.size()):
-			var variant: String = VARIANTS[j]
+		var gallery := Image.create(LINEAGE_SNAPSHOT.x * 3, LINEAGE_SNAPSHOT.y * 2, false, Image.FORMAT_RGB8)
+		for j in range(SIX_VARIANTS.size()):
+			var variant: String = SIX_VARIANTS[j]
 			for kit in KITS:
 				var model := Trial.new()
 				var tint: Color = _data.FACTION_COLORS[0 if kit == "SPEARMAN" else 4]
@@ -124,16 +118,24 @@ func _review_lineages(lineages: Array[int], out_dir: String) -> void:
 				await process_frame
 				_verify_rig(model, tint, shared_rig)
 				await _verify_motion(model, kit)
-				if (kit == "SPEARMAN" and variant == "broad") or (kit == "FORAGER" and variant != "broad"):
+				if kit == "FORAGER" or variant == "broad":
 					var portrait := await _capture_model(model, true, 0.15, -30.0, LINEAGE_SNAPSHOT)
 					portrait.convert(Image.FORMAT_RGB8)
-					sheet.blit_rect(portrait, Rect2i(Vector2i.ZERO, LINEAGE_SNAPSHOT),
-						Vector2i(i * LINEAGE_SNAPSHOT.x, j * LINEAGE_SNAPSHOT.y))
+					if kit == "FORAGER":
+						gallery.blit_rect(portrait, Rect2i(Vector2i.ZERO, LINEAGE_SNAPSHOT),
+							Vector2i((j % 3) * LINEAGE_SNAPSHOT.x, (1 if j >= 3 else 0) * LINEAGE_SNAPSHOT.y))
+					var comparison_kit := "SPEARMAN" if variant == "broad" else "FORAGER"
+					if kit == comparison_kit and variant in VARIANTS:
+						sheet.blit_rect(portrait, Rect2i(Vector2i.ZERO, LINEAGE_SNAPSHOT),
+							Vector2i(i * LINEAGE_SNAPSHOT.x, VARIANTS.find(variant) * LINEAGE_SNAPSHOT.y))
 				if variant == "broad" and kit == "SPEARMAN":
 					for mesh_node in model.find_children("*", "MeshInstance3D", true, false):
 						if mesh_node.skin != null:
 							body_sizes.append(mesh_node.get_aabb().size * model.scale)
 				model.free()
+		var lineage_key: String = Trial.LINEAGE_KEYS[lineages[i]]
+		var path := out_dir.path_join("%s-six-variants.png" % lineage_key.replace("_", "-"))
+		_check(gallery.save_png(path) == OK, "Save the %s six-body comparison PNG" % lineage_key)
 	_check(body_sizes.size() == 3 and body_sizes[0].y > body_sizes[1].y * 1.3
 		and body_sizes[2].y < body_sizes[1].y * 0.85
 		and body_sizes[0].x > body_sizes[1].x and body_sizes[2].x < body_sizes[1].x,

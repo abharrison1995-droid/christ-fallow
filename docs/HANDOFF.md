@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-The six-body Crag-Born pilot is verified. Continue with Batch 2 for Goliath and Swift-Kin, then the remaining lineages and shared kits. Standing-Stone Gate and Flintmask Scout follow, then nine building types and four wildlife species round out the existing asset catalog. After those batches ship, generate a wildcard set of model prototypes and present it to the user for selection. [Crag-Born review](../tools/assets/README.md#crag-born-pilot) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
+The Crag-Born, Goliath, and Swift-Kin six-body lineups are verified. Continue with Batch 3 for Stalker and Ash-Walker. Remaining batches cover Fen-Tidal and Cave-Kin, shared kits, Standing-Stone Gate, Flintmask Scout, nine building types, and four wildlife species. After those batches ship, generate a wildcard set of model prototypes and present it to the user for selection. [Batch 2 review](../tools/assets/README.md#goliath-and-swift-kin) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

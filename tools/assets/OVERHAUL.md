@@ -18,12 +18,12 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 
 Apply the six-body lineup to all seven lineages, including the three already in production. Each lineup has two women, two men, one boy, and one girl. Give each adult pair distinct silhouettes, with visible differences in hair, face shape, or clothing at normal gameplay zoom. Keep the children age-appropriate with their own proportions and work gear fit. Preserve each lineage’s established body cues across all six variants. [Lineage art reference](CATALOG.md#lineage-bodies)
 
-The target is **42 lineage body GLBs**. The rollout starts from nine bodies and adds 33 slots. Batch 1 raises current coverage to 12 bodies, with 30 slots left. Gate and Scout are two separate prototype promotions. Gear kit counts below refer to shared kits, which can contain multiple GLBs. [Current body and gear inventory](CATALOG.md#skinned-lineage-bodies-and-gear)
+The target is **42 lineage body GLBs**. The rollout starts from nine bodies and adds 33 slots. Batch 2 raises current coverage to 18 bodies, with 24 slots left. Gate and Scout are two separate prototype promotions. Gear kit counts below refer to shared kits, which can contain multiple GLBs. [Current body and gear inventory](CATALOG.md#skinned-lineage-bodies-and-gear)
 
 | Order | Batch | Output and promotion gate |
 | --- | --- | --- |
 | 1 | Crag-Born pilot · Verified | Added the cropped-hair man, twin-knot woman, and boy. Verified all six bodies through spawn, role changes, gear fit, reload, and child growth. [Crag-Born review](README.md#crag-born-pilot) |
-| 2 | Goliath and Swift-Kin | Add six body slots across the two lineages. Verify gear and gait clearance at both size extremes and capture all six variants per lineage. |
+| 2 | Goliath and Swift-Kin · Verified | Added one man, one woman, and one boy to each lineage. Verified gear fit, gait clearance, live spawning, role changes, and reload for both six-body lineups. [Batch review](README.md#goliath-and-swift-kin) |
 | 3 | Stalker and Ash-Walker | Add twelve bodies. Carry over Stalker’s long limbs and hunter crest and Ash-Walker’s angular silhouette and ember markings. Verify each lineup in the shared Forager and adult Spearman kits. |
 | 4 | Fen-Tidal and Cave-Kin | Add twelve bodies. Keep Fen-Tidal’s finned silhouette and Cave-Kin’s hunch distinct. Build one shared Cave-Kin kit and verify the nomadic spawn, captive conversion, and save paths. |
 | 5 | Combat kits | Create four shared kits for Knife-Raider, Archer, Club Brute, and Javelineer. Reuse Spearman. Review both hands, carried gear, class-specific attack clips, release and contact timing, and equipment changes. |

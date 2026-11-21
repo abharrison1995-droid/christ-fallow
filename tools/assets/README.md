@@ -90,7 +90,7 @@ Check for `CRAG-BORN PILOT PASSED` and `DEFAULT ROSTER CHECK PASSED` and for cle
 
 ## Goliath and Swift-Kin
 
-The Goliath rigs add high knotted hair and the Swift-Kin rigs use pointed ears and swept tufts. The loader applies the existing lineage height, width relative to Crag-Born, and the shared child scale to the entire rig, including gear. Run the commands below after staging the project as in the Crag-Born review. Use a fresh isolated `APPDATA` for Godot and set `CHRIST_FALLOW_QA_APPDATA` to the same directory.
+Goliath and Swift-Kin each have two men, two women, a boy, and a girl. The new Goliath bodies use a broad crest and short beard, paired high knots, and an upright forelock. The new Swift-Kin bodies keep the pointed ears and use a rear sweep, paired low knots, and forward tufts. The loader applies the existing lineage height, width relative to Crag-Born, and the shared child scale to the entire rig, including gear. Run the commands below after staging the project as in the Crag-Born review. Give each Godot run a fresh, short `APPDATA` path and set `CHRIST_FALLOW_QA_APPDATA` to match.
 
 ```powershell
 .\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_crag_born.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--lineage', 'goliath', '--lineage', 'swift_kin')
@@ -99,7 +99,9 @@ The Goliath rigs add high knotted hair and the Swift-Kin rigs use pointed ears a
 & $godot --path $staged --quit-after 1800 -s res://scripts/tools/verify_skinned_lineages.gd -- --procedural-roster
 ```
 
-Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercises spawning, guard walk, thrust, gathering, hit flash, wounded and death playback, corpse scaling, and reload. The comparison image shows Goliath, Crag-Born, and Swift-Kin from left to right at a shared camera distance. [Verifier](../../scripts/tools/verify_skinned_lineages.gd)
+Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercises six-body spawning, role changes, child growth, save/load, guard walk, thrust, gathering, hit flash, wounded and death playback, and corpse scaling. The verifier checks all body and kit combinations and writes `goliath-six-variants.png`, `crag-born-six-variants.png`, and `swift-kin-six-variants.png` at a shared camera distance. The first row of each sheet shows both men and the boy. The second shows both women and the girl. `skinned-lineages.png` compares the lineages side by side. [Verifier](../../scripts/tools/verify_skinned_lineages.gd)
+
+Batch 2 reproduced the six original body GLBs byte for byte in Blender 4.5.16 and added six new bodies. Godot 4.3 imported the stage cleanly. The default and procedural multi-lineage runs, Crag-Born default roster check, and campaign save regression passed in Forward+. Both new comparison sheets were reviewed at the same camera distance.
 
 ## Valley scenery and wildlife
 

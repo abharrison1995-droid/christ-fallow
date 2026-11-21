@@ -310,7 +310,7 @@ func _rebuild_visual() -> void:
 		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
 		if trial_kit == "FORAGER" or (trial_kit == "SPEARMAN" and not is_child):
 			var pilot := CragBornTrial.new()
-			var variant := CragBornTrial.select_body_variant(eff_lin, gender, is_child, unit_id)
+			var variant := CragBornTrial.select_body_variant(gender, is_child, unit_id)
 			if pilot.setup_kit(MeshFactory, col, variant, trial_kit, eff_lin):
 				pilot.name = "CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig"
 				add_child(pilot)
