@@ -25,7 +25,7 @@
 
 ---
 
-## 2. Verified Baseline (All Passing as of `92ae7d0`)
+## 2. Verified Baseline
 
 Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, and `0` `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines using isolated temp `APPDATA` / `CHRIST_FALLOW_QA_APPDATA`:
 
@@ -38,6 +38,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 | [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
 | [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) | Building 4-stage + collider contracts; `tribesman_base.glb` 17-bone rig + `Idle`/`Walk`/`Work`/`Wounded`/`Attack`/`Hit`/`Death`. |
 | [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) | Default promoted Crag-Born roster + zero-swap action/hit/death playback, `--check-default-roster`, and `--procedural-roster` opt-out. |
+| [verify_skinned_lineages.gd](../scripts/tools/verify_skinned_lineages.gd) | Goliath, Crag-Born, and Swift-Kin body sizes, shared bone and clip contract, gear fit and gait clearance, combat states, save/load, and roster opt-out. |
 | [verify_valley_assets.gd](../scripts/tools/verify_valley_assets.gd) | 4 scenery GLBs + Boar/Sabertooth GLBs, resource interaction, bite timing. |
 
 ---
@@ -48,12 +49,9 @@ Execute sequentially in small, independently verified Git commits on `main`. Upd
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)
-1. **Slice 2C-1 (Lineage Scale Extremes — Goliath & Swift-Kin):**
-   - Generate 17-bone skinned rigs (broad/braided/child variants with `Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Wounded`, `Attack`, `Hit`, `Death`) for **Goliath** (`assets/models/characters/lineages/goliath/`) and **Swift-Kin** (`assets/models/characters/lineages/swift_kin/`) using Blender 4.5 LTS, sharing the Crag-Born contract and gear kits.
-   - Generalize [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) (or extract a shared `SkinnedLineageRig` helper while preserving `CragBornTrial` compatibility) so supported lineages (`CRAG_BORN`, `GOLIATH`, `SWIFT_KIN`) load cleanly by lineage key with `--procedural-roster` opt-out.
-   - Verify scale extremes, gear mount fit, zero-swap combat/death, and `verify_crag_born.gd` + a new lineage check.
-2. **Slice 2C-2 (Pass 4 Buildings & Pass 5 Wildlife + Damage Review):**
-   - Promote production 4-stage GLBs (`Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble`, `Collider-convcolonly`, plus named light/flame nodes where needed) for **Reed Granary** (`STORAGE_MOUND` visual/stages GLB) and **Ridge Signal Tower** (`WATCHTOWER` stages GLB, aligning arrow origin to platform). Defer **Standing-Stone Gate** until passage/nav checks confirm clean gate traversal through `ValleyNavigation`.
+1. **Slice 2C-1 completed.** Goliath and Swift-Kin share the 17-bone Crag-Born rig and gear kits for Foragers and adult Spearmen. [Runtime loader](../scripts/entities/crag_born_trial.gd) · [Generation and review](../tools/assets/README.md#goliath-and-swift-kin)
+2. **Slice 2C-2 (Pass 4 Buildings & Pass 5 Wildlife + Damage Review), next:**
+   - Promote production 4-stage GLBs (`Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble`, `Collider-convcolonly`, plus named light/flame nodes where needed) for **Reed Granary** (Storage Mound, `STORAGE_PIT`) and **Ridge Signal Tower** (`WATCHTOWER`, with arrow origin aligned to the platform). Defer **Standing-Stone Gate** until passage/nav checks confirm clean gate traversal through `ValleyNavigation`.
    - Promote **Reedjaw** (riverbank predator) and **Slateback Boar** (armored wildlife trial) — add golden damage regression cases in `verify_campaign_save.gd` before introducing wildlife armor mitigation per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
    - Update `tools/assets/CATALOG.md` and `verify_valley_assets.gd`.
 
@@ -73,7 +71,7 @@ Reference: [docs/FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map)
 Reference: [docs/FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy)
 1. Give every settled rival tribe a clearly readable named leader (distinct title/banner/crest at gameplay distance, strongest fighter in tribe) and show the live leader's name & location in `DiplomacyDrawer`.
 2. Add in-world diplomatic approach/negotiation with a village's leader (gifts, peace/truce, alliance) alongside `DiplomacyDrawer`.
-3. Complete the stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd#L73)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd#L265,L300-L302)) mechanics (periodic tribute delivery, truce expiry blocking war declarations until timer reaches `0`).
+3. Complete the stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd)) mechanics (periodic tribute delivery, truce expiry blocking war declarations until timer reaches `0`).
 4. Unify rival succession vs conquest trigger rules cleanly across combat and save/load; add `scripts/tools/verify_diplomacy_leaders.gd`.
 
 ### Track D — Phase 5: Taming, Crop Farming, Husbandry & Mounts

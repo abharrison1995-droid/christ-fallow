@@ -2,7 +2,12 @@ extends "res://scripts/entities/skinned_tribesman_trial.gd"
 
 const PILOT_FLAG := "--crag-born-trial"
 const PROCEDURAL_ROSTER_FLAG := "--procedural-roster"
-const BODIES := "res://assets/models/characters/lineages/crag_born"
+const BODIES := "res://assets/models/characters/lineages"
+const LINEAGE_KEYS := {
+	GameData.Lineage.CRAG_BORN: "crag_born",
+	GameData.Lineage.GOLIATH: "goliath",
+	GameData.Lineage.SWIFT_KIN: "swift_kin",
+}
 const GEAR := "res://assets/models/gear"
 const CHILD_SCALE := 0.68
 const GRIP_R := Vector3(-0.012, -0.054, -0.006)
@@ -13,12 +18,19 @@ static func enabled() -> bool:
 	return not (PROCEDURAL_ROSTER_FLAG in OS.get_cmdline_user_args())
 
 
-func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_key: String) -> bool:
+static func supports_lineage(lineage: int) -> bool:
+	return LINEAGE_KEYS.has(lineage)
+
+
+func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_key: String,
+		lineage: int = GameData.Lineage.CRAG_BORN) -> bool:
+	if not supports_lineage(lineage):
+		return false
 	var guard := class_key == "SPEARMAN"
-	if guard:
-		_idle_clip = &"GuardIdle"
-		_walk_clip = &"GuardWalk"
-	var body_path := "%s/crag_born_%s.glb" % [BODIES, variant]
+	_idle_clip = &"GuardIdle" if guard else &"Idle"
+	_walk_clip = &"GuardWalk" if guard else &"Walk"
+	var key: String = LINEAGE_KEYS[lineage]
+	var body_path := "%s/%s/%s_%s.glb" % [BODIES, key, key, variant]
 	var model := _instantiate_model(body_path)
 	if model == null:
 		return false
@@ -52,9 +64,12 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	if _body_materials.is_empty():
 		return false
 	_capture_base_emissions()
-	if variant == "child":
-		_base_scale = Vector3.ONE * CHILD_SCALE
-		scale = _base_scale
+	# Bodies and kit grip origins share Crag-Born rest dimensions. Scale them together.
+	var profile: Dictionary = GameData.LINEAGE_DATA[lineage]
+	var reference: Dictionary = GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]
+	var relative_width := float(profile["width_scale"]) / float(reference["width_scale"])
+	var age_scale := CHILD_SCALE if variant == "child" else 1.0
+	set_rig_scale(Vector3(relative_width, float(profile["height_scale"]), relative_width) * age_scale)
 	_animation.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	return true
 

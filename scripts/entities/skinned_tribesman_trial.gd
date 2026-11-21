@@ -20,6 +20,15 @@ var _last_hit_flash := -1.0
 var _base_scale := Vector3.ONE
 
 
+func set_rig_scale(rig_scale: Vector3) -> void:
+	_base_scale = rig_scale
+	scale = rig_scale
+
+
+func squash_corpse(height_ratio: float) -> void:
+	scale = _base_scale * Vector3(1.0, height_ratio, 1.0)
+
+
 func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> bool:
 	if spear_template == null or not ResourceLoader.exists(MODEL_PATH, "PackedScene"):
 		return false

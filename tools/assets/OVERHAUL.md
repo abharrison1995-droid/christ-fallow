@@ -10,7 +10,7 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | --- | --- | --- |
 | 1. Inventory and organize | Complete | The catalog and example generator use the grouped paths. The six samples imported with valid stages, colliders, and clips. |
 | 2. Establish the body and gear contract | Promoted (20 Nov 2026) | Two Crag-Born adult silhouettes and a child share the 17-bone rig and modular Spearman and Forager kits with full skeletal clips (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Attack`, `Hit`, `Death`, `Wounded`) and shader hit-flash. Supported Crag-Born Foragers and adult Spearmen run on the skinned rig by default with zero procedural fallback swap (`--procedural-roster` opts out). |
-| 3. Build out the lineages and roles | Proposed | Test Goliath and Swift-Kin next for scale extremes, then Stalker, Ash-Walker, Fen-Tidal, and Cave-Kin. Compare bodies at gameplay zoom and check held items, projectile origins, movement clearance, and save/load. |
+| 3. Build out the lineages and roles | Three lineages in production | Goliath and Swift-Kin share the Crag-Born rig and kits. The Forward+ lineage verifier compares body scale, attachment motion, weapon clearance, action playback, and save/load. Stalker, Ash-Walker, Fen-Tidal, Cave-Kin, and additional role kits remain proposed. |
 | 4. Refresh buildings and world props | Partially delivered | Sleeping Hut and Palisade are production references. Four scenery GLBs are integrated. Trial Reed Granary as a Storage Mound variant, consider Signal Tower for Watchtower, and test the gate as a separate structure. Verify stages, yaw, collider fit, and rubble clearance before promotion. |
 | 5. Refresh wildlife and trial the enemies | Partially delivered | Boar and Sabertooth have live imported models and one-shot bites. Reedjaw, Slateback, and Flintmask Scout remain reviewed samples. Give each promoted concept a readable attack, hit or death response, and tested hit volume. |
 
@@ -82,4 +82,4 @@ These are trial targets. Measure time to kill and telegraph readability against 
 | Ridge Signal Tower | Watchtower behavior, 380 HP, current build cost | The brazier and raised deck read at range. The arrow origin should line up with the platform. |
 | Standing-Stone Gate | Hold balance until passage works through both intact piers | Its silhouette signals a passage. Verify choke points and AI travel before considering a defensive bonus. |
 
-The proposed next candidates are **Goliath and Swift-Kin** for shared-rig scale checks, **Reed Granary** for an existing-building variant, and **Reedjaw** for a standalone enemy encounter. These trials can proceed independently using the delivered Crag-Born and valley assets as references.
+Slice 2C-2 covers Reed Granary, Ridge Signal Tower, Reedjaw, and Slateback Boar alongside damage regression cases. [Execution order](../../docs/HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review)

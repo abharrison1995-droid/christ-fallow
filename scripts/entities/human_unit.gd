@@ -293,20 +293,20 @@ func _rebuild_visual() -> void:
 			var lineage_height := float(GameData.LINEAGE_DATA[eff_lin]["height_scale"])
 			if trial.setup(MeshFactory, col, spear):
 				trial.name = "SkinnedTribesmanTrial"
-				trial.scale = Vector3.ONE * lineage_height
+				trial.set_rig_scale(Vector3.ONE * lineage_height)
 				add_child(trial)
 				_skinned_trial = trial
 				_skinned_trial.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 				_set_trial_visible(true)
 			else:
 				trial.free()
-	elif CragBornTrial.enabled() and eff_lin == GameData.Lineage.CRAG_BORN and not is_leader and not is_dead:
+	elif not is_leader and not is_dead and CragBornTrial.supports_lineage(eff_lin) and CragBornTrial.enabled():
 		var trial_kit := "FORAGER" if (role == GameData.Role.FORAGER and militia) else _active_class_key
 		if trial_kit == "FORAGER" or (trial_kit == "SPEARMAN" and not is_child):
 			var pilot := CragBornTrial.new()
 			var variant := "child" if is_child else ("broad" if gender == GameData.Gender.MALE else "braided")
-			if pilot.setup_kit(MeshFactory, col, variant, trial_kit):
-				pilot.name = "CragBornTrial"
+			if pilot.setup_kit(MeshFactory, col, variant, trial_kit, eff_lin):
+				pilot.name = "CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig"
 				add_child(pilot)
 				_skinned_trial = pilot
 				pilot.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
@@ -479,6 +479,9 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 func _update_hp_bar() -> void:
 	if _hp_bg == null or _hp_fill == null:
 		return
+	var visual_height := _skinned_trial.scale.y if _skinned_trial is CragBornTrial else 1.0
+	_hp_bg.position.y = 2.35 * visual_height
+	_hp_fill.position.y = _hp_bg.position.y
 	var ratio := clampf(hp / maxf(max_hp, 1.0), 0.02, 1.0)
 	_hp_fill.scale.x = ratio
 	var show := is_leader or hp < max_hp * 0.99 or faction_id == 5 or is_revolting or is_wounded
@@ -506,12 +509,12 @@ func _update_hp_bar() -> void:
 			_state_label.modulate = Color(1.0, 0.72, 0.22)
 		elif is_revolting or faction_id == -2:
 			_state_label.visible = true
-			_state_label.position = Vector3(0.0, 2.70, 0.0)
+			_state_label.position.y = 2.70 * visual_height
 			_state_label.text = "Revolting"
 			_state_label.modulate = Look.DANGER
 		elif faction_id == -1:
 			_state_label.visible = true
-			_state_label.position = Vector3(0.0, 2.45, 0.0)
+			_state_label.position.y = 2.45 * visual_height
 			_state_label.text = "Wanderer  ·  E Recruit"
 			_state_label.modulate = Look.GOLD
 		else:
@@ -770,8 +773,7 @@ func _process_dead_corpse(delta: float) -> void:
 		if _visual_root != null:
 			_visual_root.scale = Vector3(1.0, s, 1.0)
 		if _skinned_trial != null:
-			var base_s := _skinned_trial.scale.x
-			_skinned_trial.scale = Vector3(base_s, base_s * s, base_s)
+			_skinned_trial.squash_corpse(s)
 	if _death_timer <= 0.0:
 		queue_free()
 

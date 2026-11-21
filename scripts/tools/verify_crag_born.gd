@@ -73,15 +73,11 @@ func _verify_gameplay() -> void:
 	child.set_physics_process(false)
 	var forager := unit.get_node_or_null("CragBornTrial") as Trial
 	var child_model := child.get_node_or_null("CragBornTrial") as Trial
-	var goliath: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.GOLIATH,
-		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Goliath Check")
-	var swift: Node = faction.spawn_colonist(base_pos + Vector3(9, 0, 0), _data.Lineage.SWIFT_KIN,
-		_data.Gender.FEMALE, _data.Role.WARRIOR, false, false, false, "Swift Check")
-	goliath.set_physics_process(false)
-	swift.set_physics_process(false)
-	_check(goliath.get_node_or_null("CragBornTrial") == null and goliath._visual_root.visible
-		and swift.get_node_or_null("CragBornTrial") == null and swift._visual_root.visible,
-		"Non-Crag-Born lineages continue to use procedural rigs cleanly")
+	var stalker: Node = faction.spawn_colonist(base_pos + Vector3(8, 0, 0), _data.Lineage.STALKER,
+		_data.Gender.MALE, _data.Role.FORAGER, false, false, false, "Stalker Check")
+	stalker.set_physics_process(false)
+	_check(stalker._skinned_trial == null and stalker._visual_root.visible,
+		"Unpromoted lineages continue to use procedural rigs")
 	var leader_trial_enabled := Trial.LAUNCH_FLAG in OS.get_cmdline_user_args()
 	_check((leader.get_node_or_null("SkinnedTribesmanTrial") != null) == leader_trial_enabled,
 		"The leader still respects the --skinned-tribesman-trial flag")
@@ -123,6 +119,7 @@ func _verify_gameplay() -> void:
 		var stock: Dictionary = _state.factions[0]["resources"]
 		var before_food := float(stock["food"])
 		unit.global_position = camp.global_position + Vector3(1.5, 0, 0)
+		_state.spatial_index.update_unit(unit)
 		unit._day_work_routine(0.1)
 		_check(float(stock["food"]) > before_food, "Gatherer deposits food at camp")
 		unit._is_working_this_frame = false
@@ -422,7 +419,7 @@ func _setup_stage() -> void:
 	psx.add_child(rect)
 
 
-func _capture_model(model: Trial, walking: bool, phase: float, yaw: float) -> Image:
+func _capture_model(model: Trial, walking: bool, phase: float, yaw: float, size := SNAPSHOT) -> Image:
 	model._animation.stop()
 	model.update_locomotion(4.3 if walking else 0.0, 0.0, true)
 	model._animation.seek(phase, true)
@@ -434,7 +431,7 @@ func _capture_model(model: Trial, walking: bool, phase: float, yaw: float) -> Im
 	await process_frame
 	await RenderingServer.frame_post_draw
 	var center := Vector2i(_camera.unproject_position(Vector3(0, 1.07, 0)))
-	return root.get_texture().get_image().get_region(Rect2i(center - Vector2i(144, 94), SNAPSHOT))
+	return root.get_texture().get_image().get_region(Rect2i(center - size / 2, size))
 
 
 func _write_sheet(portraits: Array[Image], back_views: Array[Image], path: String) -> void:

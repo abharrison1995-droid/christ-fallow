@@ -19,6 +19,10 @@ Build on the Awakening Guide with a hands-on tutorial at the start of **New Game
 
 [Awakening Guide rules](../scripts/core/awakening_guide.gd) · [Tutorial beacon](../scripts/core/tutorial_beacon.gd) · [HUD prompts](../scripts/ui/hud_controller.gd) · [Leader interactions](../scripts/entities/player_controller.gd) · [Opening tutorial verifier](../scripts/tools/verify_opening_tutorial.gd) · [Campaign UI verifier](../scripts/tools/verify_campaign_ui.gd)
 
+## Skinned roster expansion
+
+Goliath and Swift-Kin Foragers and adult Spearmen share the promoted Crag-Born rig and equipment kits. Stalker, Ash-Walker, Fen-Tidal, Cave-Kin, and additional roles are candidates for future asset passes. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout)
+
 ## Larger valley and accessible world map
 
 - [ ] **Give tribes more room.** Prototype a roughly 760 × 760 m playable valley. The existing ground is 380 × 380 m and the closest rival camp is about 83 m from the Awakening glade. Test at least 170 m between all starting camps, 170–240 m to the player's nearest rival, and a contiguous 55–70 m radius for settlement growth around each camp. Tune by travel time, resource access, and viable building space.

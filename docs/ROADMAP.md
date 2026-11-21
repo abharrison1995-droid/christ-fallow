@@ -21,7 +21,7 @@
 
 ### Partially delivered (3D assets)
 - **Buildings**: `2/11` GLBs (`sleeping_hut_stages.glb`, `palisade_wall_stages.glb`); remaining `9` types use procedural 4-stage meshes. Blueprints and placement ghosts clone and tint `Stage_Intact` from imported `*_stages.glb` files when available, falling back to procedural Stage 0 otherwise.
-- **Characters & gear**: `crag_born/{broad,braided,child}.glb` (`1/7` lineages, **default-enabled** for Crag-Born Foragers & adult Spearmen with full skeletal action clips and `--procedural-roster` opt-out), `tribesman_base.glb` (opt-in leader via `--skinned-tribesman-trial`), and `2/14` gear kits (`spearman/`, `forager/`). Other lineages and roles still render procedural `HumanMeshBuilder` meshes.
+- **Characters & gear**. Goliath, Crag-Born, and Swift-Kin (`3/7` lineages) use skinned bodies for Foragers and adult Spearmen, with two shared role kits. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
 - **Environment & wildlife**: `4` scenery GLBs (`windbent_pine`, `moss_limestone`, `berry_thicket`, `riverbank_reeds`), `2/6` wildlife GLBs (`tusked_boar`, `sabertooth`), plus `6` reviewed concept GLBs in `tools/assets/examples/`.
 
 ### Key architectural & hygiene bottlenecks
@@ -67,15 +67,15 @@
    - *Fix*: Fall back to `find_nearest_hostile_wildlife` in warrior target acquisition and scan hostile wildlife in Watchtower `_find_nearest_hostile()`.
 2. **Stoneknappers lock onto Stone or Flint forever (`High`)** — [unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd#L164-L201).
    - *Fix*: Alternate `FLINT` vs `STONE` target selection by unit parity or lowest faction resource stockpile, or clear `_target_node` after drop-off.
-3. **Warhorn arms children & gives militia Archers melee range (`High`)** — [human_unit.gd](../scripts/entities/human_unit.gd#L175,L259,L899), [unit_stats.gd](../scripts/entities/unit_stats.gd#L62-L75).
+3. **Warhorn arms children & gives militia Archers melee range (`High`)** — [human_unit.gd](../scripts/entities/human_unit.gd), [unit_stats.gd](../scripts/entities/unit_stats.gd#L62-L75).
    - *Fix*: Guard `_get_class_key()`, `_refresh_gear_visual()`, and `_process_tribal_ai()` with `not is_child`, and keep Warhorn militia stats aligned with their visual/weapon class (or enforce `SPEARMAN` militia).
 4. **Tech Tier upgrade grants free gear tiers to living units (`High`)** — [faction_controller.gd](../scripts/systems/faction_controller.gd#L131-L133), [human_unit.gd](../scripts/entities/human_unit.gd#L715).
    - *Fix*: Advance `fdata["tech_tier"]` for future crafts and let `try_equip_from_stockpile()` upgrade existing units when weapons/armor are actually crafted (optionally keeping Leader auto-scaled).
-5. **AI & Wildlife walk off `380×380 m` world edge (`High`)** — [human_unit.gd](../scripts/entities/human_unit.gd#L839), [wildlife_entity.gd](../scripts/entities/wildlife_entity.gd#L321), [world_generator.gd](../scripts/systems/world_generator.gd#L159-L165,L206-L227).
+5. **AI & Wildlife walk off `380×380 m` world edge (`High`)** — [human_unit.gd](../scripts/entities/human_unit.gd#L839), [wildlife_entity.gd](../scripts/entities/wildlife_entity.gd#L321), [world_generator.gd](../scripts/systems/world_generator.gd).
    - *Fix*: Clamp `HumanUnit` and `WildlifeEntity` XZ positions inside `Layout` bounds or add perimeter rim colliders.
 6. **Civilians attack post-truce targets; `ANCESTRAL_STONE` discount leaks (`Medium`)** — [unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd#L394), [game_state.gd](../scripts/core/game_state.gd#L552-L571).
    - *Fix*: Re-check `GameState.is_hostile()` on `_self_defense_target` before punching; scope `ANCESTRAL_STONE` `-20%` wood/stone discount to building placement only.
-7. **Projectile vertical `look_at` error & low-FPS tunneling (`Medium`)** — [projectile_3d.gd](../scripts/entities/projectile_3d.gd#L39-L45,L58-L59,L76).
+7. **Projectile vertical `look_at` error & low-FPS tunneling (`Medium`)** — [projectile_3d.gd](../scripts/entities/projectile_3d.gd).
    - *Fix*: Guard `look_at` against near-vertical velocity vectors and perform swept segment checks from `prev_pos` to `next_pos`.
 8. **Combat/economy formula & propagation mismatches (`Medium`–`Low`)**:
    - Leader javelin scales off melee `attack_damage` instead of `ranged_attack_damage` ([player_controller.gd](../scripts/entities/player_controller.gd#L449)) — decide explicitly per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
@@ -83,7 +83,7 @@
    - `VALK_TOR` omits spear knockback bonus ([human_unit.gd](../scripts/entities/human_unit.gd#L497)) and `aoe_damage` takes first 5 in tree order instead of nearest 5 ([blessing_effects.gd](../scripts/systems/blessing_effects.gd#L49-L66)).
    - `toggle_fire_at_will()` misses newly assigned warriors and `CHARGE`/`GUARD_BASE` ([combat_command_system.gd](../scripts/systems/combat_command_system.gd#L64-L70)); `preach_religion()` does not recalculate converted rival unit stats (`line 135`).
    - `Campfire` aura heals 24/7 and stacks across multiple campfires ([building_entity.gd](../scripts/entities/building_entity.gd#L484-L505)).
-   - Crafting hardcodes `3.2 s` ignoring `CRAFT_RECIPES[k]["craft_time"]` and builders/shamans/trainees always pick building index `[0]` instead of nearest ([unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd#L87,L96,L108,L121,L205)); warriors skip Dusk/Night eat & sleep routines ([human_unit.gd](../scripts/entities/human_unit.gd#L905-L922)); Cavemen march exclusively on player camp ([human_unit.gd](../scripts/entities/human_unit.gd#L865-L872)).
+   - Crafting hardcodes `3.2 s` ignoring `CRAFT_RECIPES[k]["craft_time"]` and builders/shamans/trainees always pick building index `[0]` instead of nearest ([unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd)); warriors skip Dusk/Night eat & sleep routines ([human_unit.gd](../scripts/entities/human_unit.gd#L905-L922)); Cavemen march exclusively on player camp ([human_unit.gd](../scripts/entities/human_unit.gd#L865-L872)).
 
 **Verification criteria (0B)**: Extend fixed-input combat/economy checks in `verify_campaign_save.gd` (or a dedicated simulation probe) for Watchtower/warrior wildlife defense, Stoneknapper Flint+Stone balance, Warhorn child exclusion, tech-tier stockpile consumption, and XZ boundary clamping.
 
@@ -91,7 +91,7 @@
 
 > **Completed (20 Nov 2026)**
 
-1. **Unserialized / un-reset cooldowns, buffs, carry & AI timers (`Medium`)** — [player_controller.gd](../scripts/entities/player_controller.gd#L24-L29,L47-L77), [human_unit.gd](../scripts/entities/human_unit.gd#L1261-L1298), [faction_controller.gd](../scripts/systems/faction_controller.gd#L4-L16).
+1. **Unserialized / un-reset cooldowns, buffs, carry & AI timers (`Medium`)** — [player_controller.gd](../scripts/entities/player_controller.gd), [human_unit.gd](../scripts/entities/human_unit.gd#L1261-L1298), [faction_controller.gd](../scripts/systems/faction_controller.gd#L4-L16).
    - *Fix*: Reset `PlayerController` cooldowns on `setup()`/`attach_leader()`, serialize remaining unit/faction/player cooldowns and daily flags (`_dusk_eaten_today`, `_night_morale_today`, `_buff_*`, `_carry_*`), and validate in [campaign_save.gd](../scripts/core/campaign_save.gd).
 2. **Legacy `v1`/`v2` in-session reload wildlife leak (`Medium`)** — [world_generator.gd](../scripts/systems/world_generator.gd#L471-L473).
    - *Root cause*: `wildlife_container` is not cleared on in-session load when `save` lacks `"wildlife"`.
@@ -108,19 +108,19 @@
 
 > **Completed (20 Nov 2026)**
 
-1. **Persistent HUD & Inspector controls steal `Space` (Dodge) & `Arrows` (`High`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L255,L309,L421,L486-L533), [unit_inspector.gd](../scripts/ui/unit_inspector.gd#L79-L115).
+1. **Persistent HUD & Inspector controls steal `Space` (Dodge) & `Arrows` (`High`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd), [unit_inspector.gd](../scripts/ui/unit_inspector.gd#L79-L115).
    - *Fix*: Call `release_focus()` on HUD/inspector click handlers while preserving `FOCUS_ALL` for keyboard navigation.
-2. **`DiplomacyDrawer` opinion breakdown mismatch, stale `_selected_faction` & double refresh (`High`/`Medium`)** — [diplomacy_drawer.gd](../scripts/ui/drawers/diplomacy_drawer.gd#L3,L20-L38,L57-L80,L97-L155), [game_state.gd](../scripts/core/game_state.gd#L342-L384).
+2. **`DiplomacyDrawer` opinion breakdown mismatch, stale `_selected_faction` & double refresh (`High`/`Medium`)** — [diplomacy_drawer.gd](../scripts/ui/drawers/diplomacy_drawer.gd), [game_state.gd](../scripts/core/game_state.gd#L342-L384).
    - *Fix*: Share an opinion-breakdown helper from `GameState` (including `PEACEFUL_OFFERING` `+15` and state clamps), reset/validate `_selected_faction` across reloads, remove redundant `refresh()` calls, and add inline ally-raid target feedback.
-3. **`_drawer_panel` overlaps `_minimap_panel` & `_squad_bar` at `ui_scale = 1.1` (`High`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L121,L371-L376,L446-L455,L536-L546).
+3. **`_drawer_panel` overlaps `_minimap_panel` & `_squad_bar` at `ui_scale = 1.1` (`High`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd).
    - *Fix*: Compute `_drawer_panel` horizontal and bottom offsets dynamically in `_align_upper_hud()` clear of `_minimap_panel` and `_squad_bar`.
 4. **`HUDController._input` intercepts `Esc` before open `OptionButton` popups (`Medium`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L124-L144).
    - *Fix*: Check for active popup menus (or move non-overlay `Esc` handling to `_unhandled_key_input()`).
 5. **`BuildDrawer` unbuffed costs/HP & procedural-only preview (`Medium`/`Low`)** — [build_drawer.gd](../scripts/ui/drawers/build_drawer.gd#L59-L89).
    - *Fix*: Display effective `ANCESTRAL_STONE` cost & `KRAG_UL` HP and preview `Stage_Intact` from `build_building_stages()`.
-6. **`ColonyDrawer` Crafting tab stale `captured_cavemen` / `CRAFTING_PIT` (`Medium`)** — [colony_drawer.gd](../scripts/ui/drawers/colony_drawer.gd#L98-L118,L246-L265).
+6. **`ColonyDrawer` Crafting tab stale `captured_cavemen` / `CRAFTING_PIT` (`Medium`)** — [colony_drawer.gd](../scripts/ui/drawers/colony_drawer.gd).
    - *Fix*: Include `captured_cavemen`, `tech_tier`, and `has_building(0, "CRAFTING_PIT", true)` in Crafting live refresh.
-7. **`_raid_panel` overlap/z-order & `UnitInspector` wildlife-cleave hijack (`Medium`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L335-L408,L536-L546), [player_controller.gd](../scripts/entities/player_controller.gd#L136-L138,L452-L476).
+7. **`_raid_panel` overlap/z-order & `UnitInspector` wildlife-cleave hijack (`Medium`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd), [player_controller.gd](../scripts/entities/player_controller.gd).
    - *Fix*: Reorder `_raid_panel` above `_drawer_panel` and clear of `_build_banner`; check `wildlife_container` in `_try_inspect_clicked_unit()`'s nearby-combat guard.
 8. **Silent `F10` pause failure & wheel zoom over non-scroll HUD (`Medium`)** — [hud_controller.gd](../scripts/ui/hud_controller.gd#L147-L148), [player_controller.gd](../scripts/entities/player_controller.gd#L112-L115).
    - *Fix*: Surface `F10` error to `_overlays._pause_status` when pause is visible; guard wheel zoom with `not _is_pointer_over_ui()`.
@@ -138,11 +138,11 @@
    - *Fix*: Add `"DUAL_SHEATH"` mesh geometry to `_build_class_kit()` for `KNIFE_RAIDER`.
 2. **Blueprint / ghost GLB parity (`Medium`)** — [world_mesh_builder.gd](../scripts/core/world_mesh_builder.gd#L20-L32), [player_controller.gd](../scripts/entities/player_controller.gd#L101).
    - *Fix*: Clone/tint `Stage_Intact` when an imported `*_stages.glb` exists so blueprints and placement ghosts match finished `SLEEPING_HUT` and `PALISADE_WALL` dimensions.
-3. **Scenery & wildlife GLBs bypass PSX material rules (`Low`)** — [world_mesh_builder.gd](../scripts/core/world_mesh_builder.gd#L16-L17,L710-L719,L835-L839).
+3. **Scenery & wildlife GLBs bypass PSX material rules (`Low`)** — [world_mesh_builder.gd](../scripts/core/world_mesh_builder.gd).
    - *Fix*: Enforce `TEXTURE_FILTER_NEAREST` and `SPECULAR_DISABLED` on imported scenery and wildlife materials.
-4. **`SkinnedTribesmanTrial` vs `CragBornTrial` shader/material parity (`Medium`)** — [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd#L32-L89), [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd#L50-L55), [human_unit.gd](../scripts/entities/human_unit.gd#L226,L230-L239), [psx_unit_skinned.gdshader](../scripts/shaders/psx_unit_skinned.gdshader#L10-L43).
+4. **`SkinnedTribesmanTrial` vs `CragBornTrial` shader/material parity (`Medium`)** — [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd#L32-L89), [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd#L50-L55), [human_unit.gd](../scripts/entities/human_unit.gd), [psx_unit_skinned.gdshader](../scripts/shaders/psx_unit_skinned.gdshader#L10-L43).
    - *Fix*: Align `snap_resolution` / `jitter_intensity`, respect `is_psx_filter_enabled()` on leader spawn (`human_unit.gd:226`), map `Mat_Wood`/`Mat_Flint`/`Mat_Hair` etc. to matching gritty textures, apply `psx_unit_skinned` (or consistent snapping) to `TrialSpear`, keep Crag-Born Foragers in Forager kit when Warhorn militia triggers (`human_unit.gd:230-231`), and audit unused uniforms / NDC snap scaling in `psx_unit_skinned.gdshader`.
-5. **Showcase & verifier hygiene (`Low`)** — [asset_showcase.gd](../scripts/tools/asset_showcase.gd#L3,L143), [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd#L173).
+5. **Showcase & verifier hygiene (`Low`)** — [asset_showcase.gd](../scripts/tools/asset_showcase.gd), [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd#L173).
    - *Fix*: Remove hardcoded personal UUID default path, add `remove_child(c)` before `queue_free()` in `_clear_stage()`, and replace positional `get_child(2)` lookup with a named or metadata lookup.
 
 **Verification criteria (0E)**: `verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd --crag-born-trial`, `verify_crag_born.gd --check-default-roster`, `verify_valley_assets.gd`, and `asset_showcase.tscn` (7 PNGs) all pass in Forward+ with 0 errors.
@@ -196,8 +196,8 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 > **Active next (before or alongside Phase 3)** — ([OVERHAUL.md](../tools/assets/OVERHAUL.md#asset-rollout) · [HANDOFF.md](HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review))
 
-- **Slice 2C-1 (Lineage scale extremes):** Generate 17-bone skinned rigs (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Wounded`, `Attack`, `Hit`, `Death`) for **Goliath** and **Swift-Kin**, generalize skinned lineage loading alongside `CragBornTrial` with `--procedural-roster` opt-out, and verify scale extremes + gear attachment fit.
-- **Slice 2C-2 (Buildings, wildlife & damage review):** Promote 4-stage production GLBs for **Reed Granary** (`STORAGE_MOUND`) and **Ridge Signal Tower** (`WATCHTOWER`), trial **Standing-Stone Gate** once `ValleyNavigation` gate traversal is verified, promote **Reedjaw** and **Slateback Boar**, and add golden damage cases in `verify_campaign_save.gd` per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
+- **Slice 2C-1 (Lineage scale extremes), completed 21 Nov 2026.** Six Goliath and Swift-Kin GLBs share the 17-bone Crag-Born rig, nine clips, and role kits. The shared loader applies lineage and age scale, including gear and corpse height. Verified live spawn, work and combat playback, save/load, gear fit and scale, and the roster opt-out. [Forward+ lineage verifier](../scripts/tools/verify_skinned_lineages.gd)
+- **Slice 2C-2 (Buildings, wildlife & damage review):** Promote 4-stage production GLBs for **Reed Granary** (Storage Mound, `STORAGE_PIT`) and **Ridge Signal Tower** (`WATCHTOWER`), trial **Standing-Stone Gate** once `ValleyNavigation` gate traversal is verified, promote **Reedjaw** and **Slateback Boar**, and add golden damage cases in `verify_campaign_save.gd` per [OVERHAUL.md](../tools/assets/OVERHAUL.md#proposed-damage-review).
 
 ---
 
@@ -214,7 +214,7 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 
 > **Queued** — ([FUTURE.md](FUTURE.md#tribal-leaders-and-diplomacy) · [HANDOFF.md](HANDOFF.md#track-c--phase-4-tribal-leaders-diplomacy--conquest-integration))
 
-- Make every settled village's named leader visually distinct and traceable in `DiplomacyDrawer`, enable in-world leader approach/negotiation, complete the stubbed `DiplomaticState.TRIBUTARY` ([game_data.gd](../scripts/core/game_data.gd#L73)) and `diplomacy[key]["truce_timer"]` ([game_state.gd](../scripts/core/game_state.gd#L265,L300-L302)) mechanics, unify succession vs conquest across save/load, and add `scripts/tools/verify_diplomacy_leaders.gd`.
+- Make every settled village's named leader visually distinct and traceable in `DiplomacyDrawer`, enable in-world leader approach/negotiation, complete `DiplomaticState.TRIBUTARY` and `diplomacy[key]["truce_timer"]`, unify succession and conquest across save/load, and add `scripts/tools/verify_diplomacy_leaders.gd`. [Campaign diplomacy rules](../scripts/core/game_state.gd)
 
 ---
 
@@ -234,13 +234,15 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice** (Phases `0`, `1`, and `2A–2B` are complete; continue with `Slice 2C-1 -> 2C-2`, then `Phase 3A -> 3B -> Phase 4 -> Phase 5` as detailed in [HANDOFF.md](HANDOFF.md)).
+1. **Pick one slice.** Continue with Slice 2C-2, then 3A, 3B, Phase 4, and Phase 5. [Handoff](HANDOFF.md)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
 5. **Update docs in the same change**: Mark completed items in `docs/ROADMAP.md`, update `AGENTS.md` if entry points or invariants changed, and commit/checkpoint cleanly.
 
 ### Verification gate commands (Windows PowerShell)
+
+Run each Godot command sequentially. Repeat the `$qa` setup before each invocation so it starts with fresh preferences and saves. The benchmark reports `SIMULATION BENCHMARK COMPLETE`, and the showcase gate requires seven PNGs with successful capture messages.
 
 ```powershell
 $godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
@@ -254,8 +256,10 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 & $godot --path $project --resolution 1600x900 --fixed-fps 60 --quit-after 1200 -s res://scripts/tools/verify_opening_tutorial.gd
 & $godot --path $project --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_save.gd
 
-# 2. Campaign UI baseline (repeat at 1280x720 without --large-ui, and 1920x810 with --large-ui)
+# 2. Campaign UI baseline
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_ui.gd -- "--out-dir=$qa/captures"
 & $godot --path $project --resolution 1600x900 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_ui.gd -- "--out-dir=$qa/captures" --large-ui
+& $godot --path $project --resolution 1920x810 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_ui.gd -- "--out-dir=$qa/captures" --large-ui
 
 # 3. Phase 1 spatial index, navigation and benchmark gates
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_phase1_nav.gd
@@ -266,6 +270,8 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 & $godot --path $project --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- "--out-dir=$qa/crag"
 & $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --check-default-roster
 & $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_crag_born.gd -- --check-default-roster --procedural-roster
+& $godot --path $project --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_skinned_lineages.gd -- "--out-dir=$qa/lineages"
+& $godot --path $project --quit-after 1800 -s res://scripts/tools/verify_skinned_lineages.gd -- --procedural-roster
 & $godot --path $project --resolution 1600x900 --quit-after 900 -s res://scripts/tools/verify_valley_assets.gd -- "--out-dir=$qa/valley"
 & $godot --path $project --quit-after 600 res://scenes/asset_showcase.tscn -- "--out-dir=$qa/showcase"
 ```

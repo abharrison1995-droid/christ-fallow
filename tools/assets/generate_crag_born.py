@@ -1,4 +1,4 @@
-"""Generate the Crag-Born body variants and shared Stone Age role gear."""
+"""Generate the shared skinned lineage bodies and Stone Age role gear."""
 
 import argparse
 import math
@@ -10,6 +10,8 @@ import bpy
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_tribesman_rig import SkinnedMesh, animate, animate_action_clips, joint, make_armature, material
+
+LINEAGES = ("crag_born", "goliath", "swift_kin")
 
 
 class PilotMesh(SkinnedMesh):
@@ -86,7 +88,7 @@ def braid(mesh, start, end, radius, dark):
              radius * 0.78, "bone", "Head")
 
 
-def head(mesh, variant):
+def head(mesh, variant, lineage):
     broad = variant == "broad"
     child = variant == "child"
     hair = "hair" if broad else "auburn"
@@ -118,7 +120,38 @@ def head(mesh, variant):
                  0.011, "hair", "Head", sides=5)
         mesh.bar(joint(side, width * 0.91, 0.023, 1.654),
                  joint(side, width, 0.026, 1.728), 0.027, "skin", "Head")
-    if broad:
+    if lineage == "goliath":
+        # High, tied hair and a heavy jaw silhouette for the tall lineage.
+        mesh.tube([
+            ((0, -0.059, crown - 0.01), 0.065, 0.061, "Head"),
+            ((0, -0.066, crown + 0.052), 0.045, 0.044, "Head"),
+            ((0, -0.090, crown + 0.093), 0.072, 0.058, "Head"),
+            ((0, -0.105, crown + 0.146), 0.040, 0.035, "Head"),
+        ], [hair, "leather", hair], sides=7)
+        if broad:
+            mesh.tube([
+                ((0, 0.126, 1.516), 0.079, 0.045, "Head"),
+                ((0, 0.119, 1.589), 0.119, 0.067, "Head"),
+                ((0, 0.108, 1.659), 0.105, 0.071, "Head"),
+            ], [hair, hair], sides=8)
+        elif not child:
+            braid(mesh, (0.092, -0.030, crown), (0.132, -0.157, 1.498), 0.056, "auburn")
+    elif lineage == "swift_kin":
+        # Swept ears and short, separated tufts read even on the compact child.
+        for side in (-1, 1):
+            mesh.tube([
+                (joint(side, width * 0.77, 0.029, 1.674), 0.032, 0.040, "Head"),
+                (joint(side, width * 1.12, 0.003, 1.742), 0.043, 0.031, "Head"),
+                (joint(side, width * 1.47, -0.043, 1.847), 0.004, 0.006, "Head"),
+            ], ["skin", "skin"], sides=5)
+        for index, x in enumerate((-0.086, 0.0, 0.079)):
+            mesh.tube([
+                ((x, -0.038, crown - 0.029), 0.054, 0.049, "Head"),
+                ((x * 1.15, -0.114, crown + 0.085 - 0.019 * index), 0.005, 0.005, "Head"),
+            ], [hair], sides=5)
+        if not broad and not child:
+            braid(mesh, (-0.073, -0.109, 1.823), (-0.117, -0.184, 1.578), 0.042, "auburn")
+    elif broad:
         mesh.tube([
             ((0, 0.128, 1.546), 0.079, 0.044, "Head"),
             ((0, 0.122, 1.603), 0.113, 0.066, "Head"),
@@ -263,13 +296,13 @@ def export(path, skinned):
     )
 
 
-def build_models(models):
+def build_bodies(models, lineage):
     for variant in ("broad", "braided", "child"):
         bpy.ops.wm.read_factory_settings(use_empty=True)
         armature = make_armature()
         mesh = PilotMesh()
         body(mesh, variant)
-        head(mesh, variant)
+        head(mesh, variant, lineage)
         limbs(mesh, variant)
         mesh.build(armature)
         bpy.context.scene.render.fps = 30
@@ -281,8 +314,10 @@ def build_models(models):
         animate(armature, "GuardWalk", 24, walking=True, guard=True)
         animate_action_clips(armature)
         bpy.context.scene.frame_set(1)
-        export(models / "characters" / "lineages" / "crag_born" / f"crag_born_{variant}.glb", True)
+        export(models / "characters" / "lineages" / lineage / f"{lineage}_{variant}.glb", True)
 
+
+def build_gear(models):
     gear = {
         "spearman": (("spear", spear), ("hide_buckler", buckler), ("bone_guard", guard_bib)),
         "forager": (("flint_sickle", sickle), ("reed_basket", basket), ("workwear", workwear)),
@@ -299,5 +334,10 @@ def build_models(models):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", required=True, type=Path, help="Root of the assets/models tree.")
+    parser.add_argument("--lineage", choices=LINEAGES, action="append", help="Lineage to build; repeat for multiple lineages. Defaults to Crag-Born and shared gear.")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
-    build_models(args.out_dir.resolve())
+    models = args.out_dir.resolve()
+    for lineage in args.lineage or ("crag_born",):
+        build_bodies(models, lineage)
+    if args.lineage is None:
+        build_gear(models)

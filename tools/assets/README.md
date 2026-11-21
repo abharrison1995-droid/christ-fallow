@@ -55,7 +55,7 @@ The launch flag selects the imported `tribesman_base.glb` model for the active p
 
 Crag-Born Foragers and adult Spearmen outside the leader slot now use the imported skinned rig **by default** (`--procedural-roster` opts back out to procedural meshes; `--crag-born-trial` is retained as a compatibility no-op). The child has a larger head, narrower limbs, and a smaller model scale on the same rig. The braided and broad adult bodies follow the existing gender field. Role and class select a kit at runtime using the existing unit state.
 
-Both kits fit the shared bone names and rest transforms. The rigid weapon and offhand GLBs use grip origins and mount on `Hand.R` and `Hand.L`. The spear and sickle point up in the source model. The chestwear and the basket follow `Chest`. Offsets and carry angles are defined in [the pilot loader](../../scripts/entities/crag_born_trial.gd) in model rest axes, with `-Z` forward in Godot. Tune those offsets for future lineage profiles. `FactionTrim` marks the shared belt and cloth, the buckler ring and chest guard trim, and the basket rim and workwear. The Spearman uses `GuardIdle` and `GuardWalk`, based on the original breathing and stride with raised arms.
+Both kits fit the shared bone names and rest transforms. The rigid weapon and offhand GLBs use grip origins and mount on `Hand.R` and `Hand.L`. The spear and sickle point up in the source model. The chestwear and the basket follow `Chest`. Offsets and carry angles use model rest axes, with `-Z` forward in Godot. `FactionTrim` marks the shared belt and cloth, the buckler ring and chest guard trim, and the basket rim and workwear. The Spearman uses `GuardIdle` and `GuardWalk`, based on the original breathing and stride with raised arms. [Shared loader](../../scripts/entities/crag_born_trial.gd)
 
 ### Reproduce the review
 
@@ -86,6 +86,19 @@ Check for `CRAG-BORN PILOT PASSED` and `DEFAULT ROSTER CHECK PASSED` and for cle
 - Both kits kept their hand, offhand, and back offsets through the sampled gait. Both weapons cleared the floor. At some side-on angles the spear shaft overlaps the shin in the image, and the rear braid can overlap the basket rim. Sun Gold and Moss Green trim remained visible with PSX enabled. The in-game filter toggle also toggled pilot vertex snapping.
 - The probe uses the shared campaign-start path, then approaches berries, harvests and deposits food, switches to Spearman in the unit inspector, walks in guard, performs a thrust, takes a directional hit with flash, and returns to Forager with the Colony roster opened via `C`. Starter equipment, human armor mitigation, the Awakening role flag, and the serialized unit ID follow the existing rules. The default roster and the original opt-in leader trial also passed separate launch checks.
 - All action states (`Work`, `Attack`, `Hit`, `Death`, and `Wounded`) now play natively on the skinned rig with shader hit-flash and zero procedural fallback swap; the shared walk remains in-place.
+
+## Goliath and Swift-Kin
+
+The Goliath rigs add high knotted hair and the Swift-Kin rigs use pointed ears and swept tufts. The loader applies the existing lineage height, width relative to Crag-Born, and the shared child scale to the entire rig, including gear. Run the commands below after staging the project as in the Crag-Born review. Use a fresh isolated `APPDATA` for Godot and set `CHRIST_FALLOW_QA_APPDATA` to the same directory.
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_crag_born.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--lineage', 'goliath', '--lineage', 'swift_kin')
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_skinned_lineages.gd -- "--out-dir=$review"
+& $godot --path $staged --quit-after 1800 -s res://scripts/tools/verify_skinned_lineages.gd -- --procedural-roster
+```
+
+Look for `SKINNED LINEAGES VERIFICATION PASSED`. The live campaign probe exercises spawning, guard walk, thrust, gathering, hit flash, wounded and death playback, corpse scaling, and reload. The comparison image shows Goliath, Crag-Born, and Swift-Kin from left to right at a shared camera distance. [Verifier](../../scripts/tools/verify_skinned_lineages.gd)
 
 ## Valley scenery and wildlife
 
