@@ -36,7 +36,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 12 | Farming and husbandry · Verified | Promoted Crop Field and Animal Pen. Verified walkable placement, dynamic crop appearance, damage and reload, and the live crop, taming, breeding, and riding cycle. [Batch review](README.md#farm-structures-and-rider-review) |
 | 13 | Deer and Dire Wolf · Verified | Promoted the two skinned rigs. Verified wildlife spawning and persistence in both layouts, deer flight and taming, and wolf pursuit, bite, projectile contact, and yields. [Batch review](README.md#wildlife-lineup) |
 | 14 | Megafauna · Verified | Promoted Woolly Mammoth and Giant Cave Bear. Verified territorial behavior, projectile contact, animated area attacks, rewards, and persistence in both layouts. [Batch review](README.md#wildlife-lineup) |
-| 15 | Wildcard model round | After Batches 1–14 ship, generate a series of exploratory Blender models and present them for the user to review and select. |
+| 15 | Wildcard model round · Verified and ready for selection | Exported six original GLBs and verified their imports and two PSX comparison sheets. [Models and proposed uses](examples/WILDCARD.md) |
 
 For Batches 1–4, use the shared 17-bone skeleton, compatible rest transforms, nine clips, and `FactionTrim`. Select the child body from age and gender and use a stable choice based on the saved unit ID for adults. Check that reload and role changes keep the same body, that growing up picks the expected adult body, and that older saves still load. Exercise the normal roster and `--procedural-roster`. Capture each lineup at a shared camera distance with the PSX filter enabled. [Generator](generate_crag_born.py) · [Runtime selection](../../scripts/entities/human_unit.gd) · [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)
 
@@ -75,9 +75,7 @@ Capture all four at the same gameplay camera distance. Check species spawning an
 
 ### Wildcard model round
 
-Once Batches 1–14 are complete, generate a first set of six original 3D prototypes in Blender. Use the finished roster and valley as reference. Explore a mix of wildlife, structures, scenery, character kits, and tools so the review offers distinct directions. [Existing model examples](examples/README.md)
-
-Export each prototype as a GLB and put it on a comparison sheet at gameplay scale with the PSX filter. Include a close view, a short description of where it might fit, and any animation or collision work it would need. Present the numbered set to the user for selection. The user’s picks become candidates for a future production batch. [Generation and review workflow](README.md)
+The round delivered Antler Beacon, River Fish Weir, Mossback Ibex, Obsidian Cache, Shell Courier Kit, and Mammoth-Bone Sled. Each has a Blender GLB, a proposed campaign use, and an outline of its animation, collision, or interaction work. The numbered PSX sheets show the models at gameplay scale and close range. The user’s selections become candidates for a later production batch. [Wildcard review](examples/WILDCARD.md)
 
 Author assets against scale and attachment contracts, and stage changes through Blender generation, clean Godot import, Forward+ captures, and a live test scene. Keep appearance choices out of balance calculations. When a visual needs different gameplay bounds, tune the collider and hit volume deliberately.
 

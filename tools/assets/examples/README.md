@@ -1,6 +1,6 @@
 # Christ Fallow asset samples
 
-Six standalone 3D assets generated in Blender. The examples live under `tools/`, which Godot ignores in the main project. See the [asset catalog](../CATALOG.md) and [overhaul plan](../OVERHAUL.md) for how the samples fit into the game.
+Six standalone 3D samples and six wildcard prototypes generated in Blender. The examples live under `tools/`, which Godot ignores in the main project. See the [asset catalog](../CATALOG.md) and [overhaul plan](../OVERHAUL.md) for how the samples fit into the game.
 
 ## Structures
 
@@ -37,3 +37,7 @@ For a render check, copy the `models` folder to the root of a scratch Godot 4.3 
 ```
 
 The verifier checks stage meshes and colliders, then samples both clips on every skinned enemy before writing the sheets.
+
+## Wildcard models
+
+The six review prototypes have individual GLBs and numbered Forward+ sheets. [Models and proposed campaign uses](WILDCARD.md)

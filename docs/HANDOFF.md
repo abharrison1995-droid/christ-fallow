@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-All seven lineups, fourteen kits, Flintmask Scout, fourteen buildings, and eight wildlife models are verified through Batch 14. The wildcard review follows production. [Wildlife review](../tools/assets/README.md#wildlife-lineup) · [Production batches](../tools/assets/OVERHAUL.md#production-batches)
+All fifteen asset batches are complete. Batches 1–14 delivered seven six-body lineups, fourteen kits, Flintmask Scout, fourteen buildings, and eight imported wildlife models. Batch 15 delivered six review GLBs with gameplay-scale and close Forward+ captures. The wildcard examples await selection before any campaign integration. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard review](../tools/assets/examples/WILDCARD.md)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

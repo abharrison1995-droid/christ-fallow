@@ -94,3 +94,4 @@ These models live under [the examples directory](examples/README.md) and can be 
 | `buildings/` | [Ridge Signal Tower](examples/models/buildings/ridge_signal_tower.glb), [Standing-Stone Gate](examples/models/buildings/standing_stone_gate.glb), [Reed Granary](examples/models/buildings/reed_granary.glb) | [Four-stage sheet](examples/previews/destruction-stages.png) |
 | `characters/archetypes/` | [Flintmask Scout](examples/models/characters/archetypes/flintmask_scout.glb) | [Idle and Walk sheet](examples/previews/enemy-concepts.png) |
 | `wildlife/` | [Slateback Boar](examples/models/wildlife/slateback_boar.glb), [Reedjaw](examples/models/wildlife/reedjaw.glb) | [Idle and Walk sheet](examples/previews/enemy-concepts.png) |
+| `wildcard/` | [Six GLBs and proposed uses](examples/WILDCARD.md) | [Gameplay-scale sheet](examples/previews/wildcard-gameplay.png) · [Close views](examples/previews/wildcard-close.png) |
