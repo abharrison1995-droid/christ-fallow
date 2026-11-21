@@ -1,6 +1,6 @@
 # Christ Fallow asset samples
 
-Six standalone 3D samples and six wildcard prototypes generated in Blender. The examples live under `tools/`, which Godot ignores in the main project. See the [asset catalog](../CATALOG.md) and [overhaul plan](../OVERHAUL.md) for how the samples fit into the game.
+Standalone 3D samples, six wildcard prototypes, and eighteen rigged dinosaur designs generated in Blender. The examples live under `tools/`, which Godot ignores in the main project. See the [asset catalog](../CATALOG.md) and [overhaul plan](../OVERHAUL.md) for how the samples fit into the game.
 
 ## Structures
 
@@ -41,3 +41,7 @@ The verifier checks stage meshes and colliders, then samples both clips on every
 ## Wildcard models
 
 The six review prototypes have individual GLBs and numbered Forward+ sheets. [Models and proposed campaign uses](WILDCARD.md)
+
+## Dinosaur lineup
+
+Six dinosaur types each have compact, standard and large variants with an idle loop, a walk loop, and a signature action. [Models, comparisons and animation list](DINOSAURS.md)

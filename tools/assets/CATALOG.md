@@ -95,3 +95,4 @@ These models live under [the examples directory](examples/README.md) and can be 
 | `characters/archetypes/` | [Flintmask Scout](examples/models/characters/archetypes/flintmask_scout.glb) | [Idle and Walk sheet](examples/previews/enemy-concepts.png) |
 | `wildlife/` | [Slateback Boar](examples/models/wildlife/slateback_boar.glb), [Reedjaw](examples/models/wildlife/reedjaw.glb) | [Idle and Walk sheet](examples/previews/enemy-concepts.png) |
 | `wildcard/` | [Six GLBs and proposed uses](examples/WILDCARD.md) | [Gameplay-scale sheet](examples/previews/wildcard-gameplay.png) · [Close views](examples/previews/wildcard-close.png) |
+| `dinosaurs/` | [Eighteen rigged GLBs and animation list](examples/DINOSAURS.md) | [Shared-scale comparison](examples/previews/dinosaurs-scale.png) · [First nine variants](examples/previews/dinosaurs-variants-1.png) · [Second nine variants](examples/previews/dinosaurs-variants-2.png) |
