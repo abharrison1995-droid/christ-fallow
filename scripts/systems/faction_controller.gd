@@ -33,7 +33,7 @@ func restore_from_save(data: Dictionary) -> void:
 		_diplomacy_event_cd = maxf(0.0, float(data["diplomacy_event_cd"]))
 
 
-func spawn_colonist(pos: Vector3, lineage: int, gender: int, role: int, is_leader: bool = false, is_child: bool = false, is_caveman: bool = false, custom_name: String = "") -> Node:
+func spawn_colonist(pos: Vector3, lineage: int, gender: int, role: int, is_leader: bool = false, is_child: bool = false, is_caveman: bool = false, custom_name: String = "", archetype: String = "") -> Node:
 	if GameState.units_container == null:
 		return null
 	var u_script := load("res://scripts/entities/human_unit.gd")
@@ -58,6 +58,7 @@ func spawn_colonist(pos: Vector3, lineage: int, gender: int, role: int, is_leade
 		"is_player_controlled": (faction_id == 0 and is_leader),
 		"is_child": is_child,
 		"is_caveman": is_caveman,
+		"archetype": archetype,
 		"weapon_tier": tier if (is_leader or is_caveman) else 1,
 		"has_equipped_weapon": (role == GameData.Role.WARRIOR or is_leader or is_caveman),
 		"has_armor": is_leader,
@@ -202,7 +203,10 @@ func _process_caveman_faction(delta: float) -> void:
 	for i in range(pack_size):
 		var offset := Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-3.0, 3.0))
 		var gender := GameData.Gender.MALE if i % 2 == 0 else GameData.Gender.FEMALE
-		spawn_colonist(cave.global_position + offset, GameData.Lineage.CAVEMAN, gender, GameData.Role.WARRIOR, false, false, true)
+		var archetype := GameData.FLINTMASK_SCOUT if i == pack_size - 1 else ""
+		var title := "Flintmask Scout" if not archetype.is_empty() else ""
+		spawn_colonist(cave.global_position + offset, GameData.Lineage.CAVEMAN, gender, GameData.Role.WARRIOR,
+			false, false, true, title, archetype)
 
 	if GameState.factions.has(0) and GameState.factions[0]["is_founded"]:
 		var msg := "Nomadic Cavemen emerged from a bone-cave and are prowling for a raid!"

@@ -81,6 +81,10 @@ const KIT_ITEMS := {
 		["Chest", "Back", "javelineer/javelin_bundle", Vector3(0.06, 0.05, 0.272), Vector3(0, 0, -0.18)],
 		["Head", "Crown", "leader/bone_crown", Vector3(0, 0.177, 0.005), Vector3.ZERO],
 	],
+	"FLINTMASK_SCOUT": [
+		["Hand.R", "Weapon", "flintmask_scout/hooked_club", GRIP_R, Vector3(-0.40, 0, 0.30)],
+		["Chest", "Chestwear", "caveman/trophy_pelt", Vector3.ZERO, Vector3.ZERO],
+	],
 }
 
 static var _move_libraries := {}
@@ -119,6 +123,8 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	_walk_clip = &"GuardWalk" if guard else &"Walk"
 	var key: String = LINEAGE_KEYS[lineage]
 	var body_path := "%s/%s/%s_%s.glb" % [BODIES, key, key, variant]
+	if class_key == GameData.FLINTMASK_SCOUT:
+		body_path = "res://assets/models/characters/archetypes/flintmask_scout.glb"
 	var model := _instantiate_model(body_path)
 	if model == null:
 		return false

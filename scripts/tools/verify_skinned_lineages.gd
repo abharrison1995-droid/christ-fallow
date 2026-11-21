@@ -125,9 +125,10 @@ func _verify_cave_captives(faction: Node, leader: Node3D, saved_bodies: Dictiona
 	var genders := {}
 	for raider in pack:
 		genders[raider.gender] = true
-		_check(_wears_cave_kit(raider) == Trial.enabled(), "Nomadic spawn uses the selected roster mode")
-		if Trial.enabled():
-			raiders[raider.unit_id] = _body_file(raider)
+		if raider.archetype.is_empty():
+			_check(_wears_cave_kit(raider) == Trial.enabled(), "Nomadic spawn uses the selected roster mode")
+			if Trial.enabled():
+				raiders[raider.unit_id] = _body_file(raider)
 	if not _check(pack.size() >= 2 and genders.size() == 2, "Both adults spawn in the nomadic pack"):
 		return raiders
 	var captive: Node = pack[0]

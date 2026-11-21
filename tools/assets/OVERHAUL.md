@@ -12,7 +12,7 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | 2. Establish the body and gear contract | Promoted (20 Nov 2026) | Two Crag-Born adult silhouettes and a child share the 17-bone rig and modular Spearman and Forager kits with full skeletal clips (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Attack`, `Hit`, `Death`, `Wounded`) and shader hit-flash. Supported Crag-Born Foragers and adult Spearmen run on the skinned rig by default with zero procedural fallback swap (`--procedural-roster` opts out). |
 | 3. Build out the lineages and roles | Seven lineages in production | All seven lineages have six bodies. Cave-Kin nomads have a dedicated kit. The Forward+ verifier checks body scale, gear, actions, capture, enlightenment, and save/load. Additional role kits are queued. |
 | 4. Refresh buildings and world props | Five buildings in production | Sleeping Hut, Palisade, Reed Granary, Ridge Signal Tower, and Standing-Stone Gate support four stages. The gate uses two separately routed piers. |
-| 5. Refresh wildlife and trial the enemies | Four wildlife rigs in production | Boar, Sabertooth, Reedjaw, and Slateback have articulated bites. Flintmask Scout remains a sample. |
+| 5. Refresh wildlife and trial the enemies | Four wildlife rigs and one enemy in production | Boar, Sabertooth, Reedjaw, and Slateback have articulated bites. Flintmask Scout leads the way for nomadic packs. |
 
 ## Production batches
 
@@ -30,7 +30,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 6 | Work and specialist kits · Verified | Added six shared kits and a Shaman cast clip. Verified role changes, mounted tools, work and bow playback, and Farmer reuse of the Forager kit. [Batch review](README.md#workforce-kits) |
 | 7 | Leader kit · Verified | Adult player and rival leaders use a bone crown, split mantle, great-spear, back javelins, and cleave clip. Verified succession, naming, mounted pose and camera, and the original trial rig. [Batch review](README.md#leader-kit) |
 | 8 | Standing-Stone Gate · Verified | Promoted the four-stage gate after capsule traversal and AI route checks at all eight rotations. Both piers block movement and release when the gate collapses. [Batch review](README.md#standing-stone-gate) |
-| 9 | Flintmask Scout | Finish the prototype as its own enemy archetype. Complete the action clips and attach the hooked club. Verify live spawn, attack contact, hit and death playback, and persistence before promotion. |
+| 9 | Flintmask Scout · Verified | Nomadic packs include a masked scout with a hooked club and complete skin animation. Verified contact, hit and death playback, and save validation. [Batch review](README.md#flintmask-scout) |
 | 10 | Settlement economy | Tribal Campfire, Forager & Hunter Lodge, and Flint-Knapping & Crafting Pit. |
 | 11 | Faith and warband | Sacred Totem, Shaman’s Healing Shack, Weapon & Armor Rack, and Tribal Barracks. |
 | 12 | Farming and husbandry | Crop Field and Animal Pen. |
@@ -140,7 +140,7 @@ The Stalker gets additional reach with bows and javelins. Humans receive `max(2,
 
 ## Encounter and building playtests
 
-Slateback Boar, Reedjaw, Reed Granary, Ridge Signal Tower, and Standing-Stone Gate are live in campaigns. Flintmask Scout is a sample.
+These assets are live in campaigns and retain their reviewed behavior.
 
 | Asset | First test values | What should read in play |
 | --- | --- | --- |

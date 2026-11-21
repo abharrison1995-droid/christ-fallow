@@ -207,6 +207,18 @@ The gate appears in Build → Defences. It uses the four-stage prototype with fa
 
 Use isolated app data. The Forward+ probe places a blueprint, checks leader and AI routes at all eight rotations, walks a colonist through the opening, and reloads the critical gate before testing rubble. It writes `standing-stone-gate.png`. [Gate verifier](../../scripts/tools/verify_standing_gate.gd)
 
+## Flintmask Scout
+
+Each new nomadic pack includes one Flintmask Scout. The carved mask and hooked club distinguish the light skirmisher. Campaign snapshots store its optional archetype so saves created before the rollout still load. [Scout generator](generate_flintmask_scout.py) · [Nomad spawning](../../scripts/systems/faction_controller.gd)
+
+```powershell
+.\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_flintmask_scout.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'))
+& $godot --headless --editor --path $staged --import
+& $godot --path $staged --resolution 1600x900 --quit-after 1800 -s res://scripts/tools/verify_flintmask_scout.gd -- "--out-dir=$review"
+```
+
+The Forward+ probe covers actual cave spawning, attack contact, the full skin lifecycle, reload, invalid archetypes, and `--procedural-roster`. It writes `flintmask-scout.png`. [Scout verifier](../../scripts/tools/verify_flintmask_scout.gd)
+
 ## Farm structures and rider review
 
 The Crop Field and Animal Pen use four procedural damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The mount reuses the Tusked Boar GLB. The rider pose follows the same saddle height on the procedural leader and the trial skinned leader. [Procedural building stages](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)

@@ -8,6 +8,7 @@ const Farming = preload("res://scripts/core/farming_rules.gd")
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 
 var unit_id: int = 0
+var archetype := ""
 var unit_name: String = "Tribesman"
 var faction_id: int = 0:
 	set(value):
@@ -160,6 +161,7 @@ func setup(p_params: Dictionary) -> void:
 	is_leader = bool(p_params.get("is_leader", false))
 	is_player_controlled = bool(p_params.get("is_player_controlled", false))
 	is_caveman = bool(p_params.get("is_caveman", false))
+	archetype = str(p_params.get("archetype", ""))
 	is_child = bool(p_params.get("is_child", false))
 	growth_progress = float(p_params.get("growth_progress", 0.0))
 	base_hp_stat = float(p_params.get("base_hp_stat", randf_range(88.0, 114.0)))
@@ -250,6 +252,8 @@ func _get_effective_warrior_class() -> int:
 
 
 func _get_class_key() -> String:
+	if is_caveman and archetype == GameData.FLINTMASK_SCOUT:
+		return archetype
 	var militia := _is_warhorn_militia()
 	return GameData.resolve_class_key(role, _get_effective_warrior_class(), is_leader, is_caveman, militia)
 
@@ -520,6 +524,7 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 	var patron: int = GameState.factions.get(effective_faction, {}).get("patron_god", GameData.PatronGod.NONE)
 	var stats := UnitStats.derive({
 		"lineage": lineage,
+		"archetype": archetype,
 		"is_caveman": is_caveman,
 		"role": role,
 		"warrior_class": warrior_class,
@@ -926,6 +931,7 @@ func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> v
 	is_leader = false
 	is_player_controlled = false
 	is_caveman = false
+	archetype = ""
 	is_revolting = false
 	is_wounded = false
 	is_healing_in_shack = false
@@ -1713,6 +1719,7 @@ func serialize() -> Dictionary:
 		"is_leader": is_leader,
 		"is_player_controlled": is_player_controlled,
 		"is_caveman": is_caveman,
+		"archetype": archetype,
 		"is_child": is_child,
 		"growth_progress": growth_progress,
 		"original_faction_id": original_faction_id,

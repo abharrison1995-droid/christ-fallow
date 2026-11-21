@@ -220,6 +220,10 @@ static func _unpack_unit(unit: Dictionary) -> bool:
 		return false
 	if not GameData.SQUAD_ORDER_NAMES.has(int(unit.get("squad_order", GameData.SquadOrder.FOLLOW))):
 		return false
+	var archetype: Variant = unit.get("archetype", "")
+	if typeof(archetype) != TYPE_STRING or (archetype != "" and (archetype != GameData.FLINTMASK_SCOUT
+			or int(unit["faction_id"]) != 5 or unit.get("is_caveman") != true or unit.get("is_child") == true)):
+		return false
 	unit["pos"] = _position(unit.get("pos"))
 	unit["hold_position"] = _position(unit.get("hold_position", unit["pos"]))
 	unit["raid_target_pos"] = _position(unit.get("raid_target_pos", Vector3.ZERO))

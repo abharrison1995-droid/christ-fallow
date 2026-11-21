@@ -84,6 +84,13 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 	var armor := float(l_data["armor_bonus"]) + (8.0 + float(weapon_tier - 1) * 4.0 if has_armor else 0.0)
 	if warrior_class == GameData.WarriorClass.SPEARMAN and role == GameData.Role.WARRIOR:
 		armor += 3.0
+	if input.get("archetype", "") == GameData.FLINTMASK_SCOUT:
+		max_hp = GameData.FLINTMASK_STATS["hp"]
+		move_speed = GameData.FLINTMASK_STATS["speed"]
+		attack_damage = GameData.FLINTMASK_STATS["damage"]
+		attack_range = GameData.FLINTMASK_STATS["reach"]
+		attack_cooldown_max = GameData.FLINTMASK_STATS["cooldown"]
+		armor = GameData.FLINTMASK_STATS["armor"]
 
 	if patron == GameData.PatronGod.FEN_ROR:
 		move_speed *= 1.20

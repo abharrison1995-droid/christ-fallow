@@ -79,7 +79,7 @@
 
 ### Simulation & UI Systems
 - [scripts/systems/world_generator.gd](scripts/systems/world_generator.gd) — Terrain, sky/daylight cycle, initial awakening cluster & wanderers at `(0, 0, 52)`, rival colonies & bone caves, PSX shader controls, and save restoration (`restore_from_save`).
-- [scripts/systems/faction_controller.gd](scripts/systems/faction_controller.gd) — Per-faction spawning, crafting, tier upgrades, Tribal Succession, and rival colony and raid logic. The Peace Buffer gates cave spawns and autonomous raids. Rival colony development continues during the buffer.
+- [scripts/systems/faction_controller.gd](scripts/systems/faction_controller.gd) — Per-faction spawning, crafting, tier upgrades, Tribal Succession, and rival colony and raid logic. The Peace Buffer gates cave spawns and autonomous raids. A new nomadic pack includes one Flintmask Scout. Rival colony development continues during the buffer.
 - [scripts/systems/combat_command_system.gd](scripts/systems/combat_command_system.gd) — Squad selection (`1..6`), tactical orders (`F1..F6`), Fire-at-Will toggle, Tribal Warhorn (`H`), captive enlightenment, diplomacy actions, and role count allocator (`adjust_role_count`).
 - [scripts/systems/blessing_effects.gd](scripts/systems/blessing_effects.gd) — Shared Patron God blessing & AoE damage/heal implementation used by both Player Leader (`PlayerController`) and Rival Leaders (`HumanUnit`).
 - [scripts/ui/hud_controller.gd](scripts/ui/hud_controller.gd) — Resource strip, objectives, guide display, placement banner, event log, combat controls, campaign shortcuts, and view coordination.

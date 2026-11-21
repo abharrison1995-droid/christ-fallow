@@ -333,6 +333,9 @@ const WARRIOR_CLASS_NAMES := {
 	WarriorClass.JAVELINEER: "Javelineer",
 }
 
+const FLINTMASK_SCOUT := "FLINTMASK_SCOUT"
+const FLINTMASK_STATS := {"hp": 100.0, "speed": 7.4, "damage": 13.0, "cooldown": 0.85, "reach": 1.9, "armor": 4.0}
+
 const CLASS_DEFINITIONS := {
 	"LEADER": {
 		"name": "Tribal Warchief",
@@ -509,6 +512,18 @@ const CLASS_DEFINITIONS := {
 		"attack_anim": "HEAVY_SMASH",
 		"idle_stance": "HEAVY_STANCE",
 		"summary": "Gnarled mammoth-bone club, shaggy shoulder fur pelt, tusk belt & hunched primal silhouette.",
+	},
+	"FLINTMASK_SCOUT": {
+		"name": "Flintmask Scout",
+		"category": "Feral",
+		"weapon": "BONE_CLUB",
+		"offhand": "NONE",
+		"headgear": "NONE",
+		"back_gear": "FUR_PELT",
+		"has_cape": false,
+		"attack_anim": "HEAVY_SMASH",
+		"idle_stance": "HEAVY_STANCE",
+		"summary": "A light cave scout with a carved flint mask and hooked club.",
 	},
 }
 
