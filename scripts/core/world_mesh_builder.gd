@@ -6,6 +6,7 @@ const WILDLIFE_MODELS := {
 	"BOAR": "tusked_boar", "SLATEBACK_BOAR": "slateback_boar",
 	"SABERTOOTH": "sabertooth", "REEDJAW": "reedjaw",
 	"DEER": "deer", "WOLF": "dire_wolf",
+	"MAMMOTH": "mammoth", "CAVE_BEAR": "cave_bear",
 }
 const RESOURCE_MODELS := {"TREE": "windbent_pine", "STONE": "moss_limestone", "BERRY_BUSH": "berry_thicket"}
 

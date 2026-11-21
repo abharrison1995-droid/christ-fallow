@@ -10,9 +10,9 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | --- | --- | --- |
 | 1. Inventory and organize | Complete | The catalog and example generator use the grouped paths. The six samples imported with valid stages, colliders, and clips. |
 | 2. Establish the body and gear contract | Promoted (20 Nov 2026) | Two Crag-Born adult silhouettes and a child share the 17-bone rig and modular Spearman and Forager kits with full skeletal clips (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Attack`, `Hit`, `Death`, `Wounded`) and shader hit-flash. Supported Crag-Born Foragers and adult Spearmen run on the skinned rig by default with zero procedural fallback swap (`--procedural-roster` opts out). |
-| 3. Build out the lineages and roles | Seven lineages in production | All seven lineages have six bodies. Cave-Kin nomads have a dedicated kit. The Forward+ verifier checks body scale, gear, actions, capture, enlightenment, and save/load. Additional role kits are queued. |
+| 3. Build out the lineages and roles | Seven lineages and fourteen kits in production | All seven lineages have six bodies. Forward+ checks cover body scale, gear, actions, capture, enlightenment, and save/load. |
 | 4. Refresh buildings and world props | Fourteen buildings in production | All buildable types use imported four-stage models, including Standing-Stone Gate. Crop Field and Animal Pen remain walkable. |
-| 5. Refresh wildlife and trial the enemies | Six wildlife rigs and one enemy in production | Deer and Dire Wolf now use animated rigs alongside Boar, Sabertooth, Reedjaw, and Slateback. Flintmask Scout joins nomadic packs. |
+| 5. Refresh wildlife and trial the enemies | Eight wildlife rigs and one enemy in production | All eight wildlife species use imported rigs, including Mammoth and Cave Bear. Flintmask Scout joins nomadic packs. |
 
 ## Production batches
 
@@ -35,7 +35,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 11 | Faith and warband · Verified | Promoted Sacred Totem, Healing Shack, Weapon Rack, and Barracks. Verified Faith, enlightenment, rescue, equipment, training, damage, and reload. [Batch review](README.md#settlement-building-batches) |
 | 12 | Farming and husbandry · Verified | Promoted Crop Field and Animal Pen. Verified walkable placement, dynamic crop appearance, damage and reload, and the live crop, taming, breeding, and riding cycle. [Batch review](README.md#farm-structures-and-rider-review) |
 | 13 | Deer and Dire Wolf · Verified | Promoted the two skinned rigs. Verified wildlife spawning and persistence in both layouts, deer flight and taming, and wolf pursuit, bite, projectile contact, and yields. [Batch review](README.md#wildlife-lineup) |
-| 14 | Megafauna | Woolly Mammoth and Giant Cave Bear. Verify their boss encounters, including area damage, hit volumes, and rewards. |
+| 14 | Megafauna · Verified | Promoted Woolly Mammoth and Giant Cave Bear. Verified territorial behavior, projectile contact, animated area attacks, rewards, and persistence in both layouts. [Batch review](README.md#wildlife-lineup) |
 | 15 | Wildcard model round | After Batches 1–14 ship, generate a series of exploratory Blender models and present them for the user to review and select. |
 
 For Batches 1–4, use the shared 17-bone skeleton, compatible rest transforms, nine clips, and `FactionTrim`. Select the child body from age and gender and use a stable choice based on the saved unit ID for adults. Check that reload and role changes keep the same body, that growing up picks the expected adult body, and that older saves still load. Exercise the normal roster and `--procedural-roster`. Capture each lineup at a shared camera distance with the PSX filter enabled. [Generator](generate_crag_born.py) · [Runtime selection](../../scripts/entities/human_unit.gd) · [Lineage verifier](../../scripts/tools/verify_skinned_lineages.gd)

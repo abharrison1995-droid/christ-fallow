@@ -183,7 +183,7 @@ Check for `VALLEY ASSETS PASSED` and clean logs. The campaign probe covers impor
 
 ## Reed Granary, Ridge Signal Tower, and new wildlife
 
-The Storage Mound (`STORAGE_PIT`) and Watchtower (`WATCHTOWER`) use the promoted four-stage GLBs. The tower’s standing stages include a brazier light, flame mesh, and an arrow marker above the remaining deck. The wildlife batch adds Slateback Boar’s plates and Reedjaw’s low profile and timed bite. Standing-Stone Gate remains a sample until navigation can route through its opening.
+The Storage Mound (`STORAGE_PIT`) and Watchtower (`WATCHTOWER`) use the promoted four-stage GLBs. The tower’s standing stages include a brazier light, flame mesh, and an arrow marker above the remaining deck. The wildlife batch adds Slateback Boar’s plates and Reedjaw’s low profile and timed bite. Standing-Stone Gate was promoted in a later batch after its opening passed traversal checks. [Gate review](#standing-stone-gate)
 
 After staging the project as above, use fresh isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` for each Godot launch.
 
@@ -235,7 +235,7 @@ Use `--batch warband` in the Blender command and `--batch=warband` in the verifi
 
 ## Wildlife lineup
 
-The woodland batch adds a bounding Deer with antlers and a Dire Wolf with a dark shoulder ruff. Both use idle, walk, and run clips. The wolf plays a one-shot `Bite`. The same runtime IDs and rules control the imported rigs. [Wildlife generator](generate_wildlife_lineup.py) · [Wildlife runtime](../../scripts/entities/wildlife_entity.gd)
+The woodland batch adds a bounding Deer with antlers and a Dire Wolf with a dark shoulder ruff. Both use idle, walk, and run clips, and the wolf plays a one-shot `Bite`. The megafauna batch adds Woolly Mammoth and Giant Cave Bear with idle and walk loops and one-shot `Stomp` and `Swipe` clips. The bosses use their existing damage and rewards, with projectile heights matched to their new torsos. [Wildlife generator](generate_wildlife_lineup.py) · [Wildlife runtime](../../scripts/entities/wildlife_entity.gd)
 
 ```powershell
 .\tools\assets\run_blender.ps1 -ScriptPath .\tools\assets\generate_wildlife_lineup.py -ScriptArgs @('--out-dir', (Join-Path $staged 'assets/models'), '--batch', 'woodland')
@@ -244,6 +244,8 @@ The woodland batch adds a bounding Deer with antlers and a Dire Wolf with a dark
 ```
 
 Use isolated app data. `WILDLIFE LINEUP VERIFICATION PASSED` covers both layouts, wild flight, deer taming and ownership, wolf pursuit and bite, torso projectile contact, hunting yields, and save/load. `woodland-wildlife.png` compares both animals. The valley asset and farming regressions also passed. [Wildlife verifier](../../scripts/tools/verify_wildlife_lineup.gd)
+
+For Mammoth and Cave Bear, use `megafauna` for both batch arguments. The same success marker covers mammoth retaliation, bear pursuit, animated area attacks and cooldowns, projectile contact, boss markers, loot, and save/load in both layouts. Review `megafauna-wildlife.png` for the idle and attack silhouettes. The woodland and expanded-valley checks also passed after importing both bosses.
 
 ## Farm structures and rider review
 

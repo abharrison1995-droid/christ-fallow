@@ -54,14 +54,14 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 ## 3. Completed Execution Queue
 
-All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
+All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-All seven lineups, fourteen kits, Flintmask Scout, fourteen buildings, Deer, and Dire Wolf are verified through Batch 13. Woolly Mammoth and Giant Cave Bear are next, followed by the wildcard review. [Wildlife review](../tools/assets/README.md#wildlife-lineup) · [Production batches](../tools/assets/OVERHAUL.md#production-batches)
+All seven lineups, fourteen kits, Flintmask Scout, fourteen buildings, and eight wildlife models are verified through Batch 14. The wildcard review follows production. [Wildlife review](../tools/assets/README.md#wildlife-lineup) · [Production batches](../tools/assets/OVERHAUL.md#production-batches)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)
 1. **Slice 2C-1 completed.** Goliath and Swift-Kin share the 17-bone Crag-Born rig and gear kits for Foragers and adult Spearmen. [Runtime loader](../scripts/entities/crag_born_trial.gd) · [Generation and review](../tools/assets/README.md#goliath-and-swift-kin)
-2. **Slice 2C-2 completed.** Reed Granary, Ridge Signal Tower, Reedjaw, and Slateback Boar are live. Golden damage fixtures passed before the Slateback armor rule was enabled. Standing-Stone Gate remains a sample pending navigation traversal verification. [Generation and verification](../tools/assets/README.md#reed-granary-ridge-signal-tower-and-new-wildlife)
+2. **Slice 2C-2 completed.** Reed Granary, Ridge Signal Tower, Reedjaw, and Slateback Boar are live. Golden damage fixtures passed before the Slateback armor rule was enabled. Standing-Stone Gate passed navigation traversal in the later asset rollout. [Generation and verification](../tools/assets/README.md#reed-granary-ridge-signal-tower-and-new-wildlife)
 
 ### Track B — Phase 3: Larger `760×760 m` Valley & Full-Screen World Map
 Reference: [docs/FUTURE.md](FUTURE.md#larger-valley-and-accessible-world-map)

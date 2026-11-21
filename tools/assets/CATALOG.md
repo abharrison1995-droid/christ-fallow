@@ -34,7 +34,7 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 | Type | Current coverage | Where to work |
 | --- | --- | --- |
-| Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers use procedural workwear and tools. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |
+| Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers share the Forager kit. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |
 | Gear and tools | Spears, knives, bows, clubs, javelins, armor, shields, work tools, clothing and packs. Three tech tiers for crafted gear. | [Craft recipes](../../scripts/core/game_data.gd) and [gear mounts](../../scripts/core/human_mesh_builder.gd) |
 | Buildings | All 14 types use imported four-stage models. | [Sleeping Hut](../../assets/models/buildings/sleeping_hut_stages.glb), [Palisade](../../assets/models/buildings/palisade_wall_stages.glb), [Reed Granary](../../assets/models/buildings/storage_pit_stages.glb), and [Ridge Signal Tower](../../assets/models/buildings/watchtower_stages.glb), plus the buildings above. [Building definitions](../../scripts/core/game_data.gd) · [Loader and procedural fallback](../../scripts/core/world_mesh_builder.gd) |
 | Wildlife | Deer, Tusked Boar, Slateback Boar, Dire Wolf, Sabertooth, Reedjaw, Woolly Mammoth, Giant Cave Bear. | [Wildlife definitions](../../scripts/core/game_data.gd), [wildlife entity](../../scripts/entities/wildlife_entity.gd) and [WorldMeshBuilder](../../scripts/core/world_mesh_builder.gd) |
@@ -44,7 +44,7 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 Approved exports keep their existing model paths. New imports should follow the category directory, with a stable filename tied to the gameplay ID. The [asset pipeline](README.md) owns generation and preview. The [overhaul plan](OVERHAUL.md) owns sequencing and combat design.
 
-The building batches are complete. Six of eight wildlife species have imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
+All fourteen buildable types and all eight wildlife species have imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
 
 ## Skinned lineage bodies and gear
 
@@ -80,6 +80,8 @@ The building batches are complete. Six of eight wildlife species have imported m
 | [Reedjaw](../../assets/models/wildlife/reedjaw.glb) | `REEDJAW` hunts near the river and telegraphs a short-range bite |
 | [Deer](../../assets/models/wildlife/deer.glb) | `DEER` has antlers, bounding flight, and taming and herd support |
 | [Dire Wolf](../../assets/models/wildlife/dire_wolf.glb) | `WOLF` uses a pursuit gait and a skinned bite |
+| [Woolly Mammoth](../../assets/models/wildlife/mammoth.glb) | `MAMMOTH` roams until provoked and uses an animated area stomp |
+| [Giant Cave Bear](../../assets/models/wildlife/cave_bear.glb) | `CAVE_BEAR` pursues intruders and uses an animated area swipe |
 
 [Scenery and bite poses](previews/valley-assets.png) · [Regenerate and verify](README.md#valley-scenery-and-wildlife)
 
