@@ -231,6 +231,8 @@ The economy batch imports the Campfire, Forager Lodge, and Crafting Pit at the e
 
 With isolated app data, `SETTLEMENT ASSET VERIFICATION PASSED` covers rotated placement, building behavior, hostile damage stages, reload, and rubble. `settlement-buildings.png` shows Campfire, Lodge, and Pit across all four stages. The opening tutorial and campaign save suites also passed. [Settlement verifier](../../scripts/tools/verify_settlement_assets.gd)
 
+Use `--batch warband` in the Blender command and `--batch=warband` in the verifier for Sacred Totem, Healing Shack, Weapon Rack, and Barracks. `warband-buildings.png` shows those models in that order. The Forward+ probe verified the Totem’s Faith bonus and captive enlightenment, lit Healing Shack rescue and recovery, stockpile equipment, and Barracks training. The diplomacy regression also passed.
+
 ## Farm structures and rider review
 
 The Crop Field and Animal Pen use four procedural damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The mount reuses the Tusked Boar GLB. The rider pose follows the same saddle height on the procedural leader and the trial skinned leader. [Procedural building stages](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)

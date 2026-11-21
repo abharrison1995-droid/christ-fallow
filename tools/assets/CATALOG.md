@@ -28,6 +28,8 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 [Campfire](../../assets/models/buildings/campfire_stages.glb), [Forager Lodge](../../assets/models/buildings/forager_lodge_stages.glb), and [Crafting Pit](../../assets/models/buildings/crafting_pit_stages.glb) use imported damage stages. [Settlement review](README.md#settlement-building-batches)
 
+[Sacred Totem](../../assets/models/buildings/sacred_totem_stages.glb), [Healing Shack](../../assets/models/buildings/shaman_shack_stages.glb), [Weapon Rack](../../assets/models/buildings/weapon_rack_stages.glb), and [Barracks](../../assets/models/buildings/barracks_stages.glb) use imported damage stages. [Faith and warband review](README.md#settlement-building-batches)
+
 | Type | Current coverage | Where to work |
 | --- | --- | --- |
 | Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers use procedural workwear and tools. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |
