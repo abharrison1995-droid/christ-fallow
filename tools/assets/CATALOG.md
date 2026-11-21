@@ -30,11 +30,13 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 [Sacred Totem](../../assets/models/buildings/sacred_totem_stages.glb), [Healing Shack](../../assets/models/buildings/shaman_shack_stages.glb), [Weapon Rack](../../assets/models/buildings/weapon_rack_stages.glb), and [Barracks](../../assets/models/buildings/barracks_stages.glb) use imported damage stages. [Faith and warband review](README.md#settlement-building-batches)
 
+[Crop Field](../../assets/models/buildings/crop_field_stages.glb) and [Animal Pen](../../assets/models/buildings/animal_pen_stages.glb) have imported stages and shared walkable ground. [Farm review](README.md#farm-structures-and-rider-review)
+
 | Type | Current coverage | Where to work |
 | --- | --- | --- |
 | Humanoid kits | Leader, Spearman, Knife-Raider, Archer, Club Brute, Javelineer, Forager, Hunter, Woodcutter, Stoneknapper, Builder/Crafter, Shaman, Trainee, and Cave-Kin. Farmers use procedural workwear and tools. Settled leaders pair their lineage silhouette with a faction crest and titled nameplate. | [Class and leader definitions](../../scripts/core/game_data.gd) and [HumanMeshBuilder](../../scripts/core/human_mesh_builder.gd) |
 | Gear and tools | Spears, knives, bows, clubs, javelins, armor, shields, work tools, clothing and packs. Three tech tiers for crafted gear. | [Craft recipes](../../scripts/core/game_data.gd) and [gear mounts](../../scripts/core/human_mesh_builder.gd) |
-| Buildings | Campfire, Sleeping Hut, Forager Lodge, Crafting Pit, Weapon Rack, Sacred Totem, Storage Mound, Palisade, Watchtower, Barracks, Healing Shack, Crop Field, Animal Pen. | Imported stages for [Sleeping Hut](../../assets/models/buildings/sleeping_hut_stages.glb), [Palisade](../../assets/models/buildings/palisade_wall_stages.glb), [Reed Granary](../../assets/models/buildings/storage_pit_stages.glb), and [Ridge Signal Tower](../../assets/models/buildings/watchtower_stages.glb). Fields and pens use four procedural stages. [Building definitions](../../scripts/core/game_data.gd) · [Procedural stages](../../scripts/core/world_mesh_builder.gd) |
+| Buildings | All 14 types use imported four-stage models. | [Sleeping Hut](../../assets/models/buildings/sleeping_hut_stages.glb), [Palisade](../../assets/models/buildings/palisade_wall_stages.glb), [Reed Granary](../../assets/models/buildings/storage_pit_stages.glb), and [Ridge Signal Tower](../../assets/models/buildings/watchtower_stages.glb), plus the buildings above. [Building definitions](../../scripts/core/game_data.gd) · [Loader and procedural fallback](../../scripts/core/world_mesh_builder.gd) |
 | Wildlife | Deer, Tusked Boar, Slateback Boar, Dire Wolf, Sabertooth, Reedjaw, Woolly Mammoth, Giant Cave Bear. | [Wildlife definitions](../../scripts/core/game_data.gd), [wildlife entity](../../scripts/entities/wildlife_entity.gd) and [WorldMeshBuilder](../../scripts/core/world_mesh_builder.gd) |
 | Resources and landmarks | Trees, stone, flint, berry bushes, bone caves, valley terrain and river. The World Map marks caves and fords from the same layout data as the terrain. | [WorldMeshBuilder](../../scripts/core/world_mesh_builder.gd), [world generation](../../scripts/systems/world_generator.gd), and [World Map](../../scripts/ui/world_map_overlay.gd) |
 | Projectiles and effects | Arrow and javelin meshes, hit flash, slash arc, damage numbers, blood pools, smoke and building debris. | [WorldMeshBuilder](../../scripts/core/world_mesh_builder.gd), [CombatVFX](../../scripts/core/combat_vfx.gd), [buildings](../../scripts/entities/building_entity.gd) |
@@ -42,7 +44,7 @@ Store shared weapon, offhand, head, back, and armor assets under `assets/models/
 
 Approved exports keep their existing model paths. New imports should follow the category directory, with a stable filename tied to the gameplay ID. The [asset pipeline](README.md) owns generation and preview. The [overhaul plan](OVERHAUL.md) owns sequencing and combat design.
 
-The remaining nine building types and four wildlife species are queued for imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
+The building batches are complete. Four wildlife species are queued for imported models. [Building batches](OVERHAUL.md#building-batches) · [Wildlife batches](OVERHAUL.md#wildlife-batches)
 
 ## Skinned lineage bodies and gear
 

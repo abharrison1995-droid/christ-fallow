@@ -235,6 +235,8 @@ Use `--batch warband` in the Blender command and `--batch=warband` in the verifi
 
 ## Farm structures and rider review
 
-The Crop Field and Animal Pen use four procedural damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The mount reuses the Tusked Boar GLB. The rider pose follows the same saddle height on the procedural leader and the trial skinned leader. [Procedural building stages](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)
+The Crop Field and Animal Pen use four imported damage stages. Field rows and pen fencing stay walkable so Farmers, animals, and the rider can pass through. The `Crops` child in the active stage follows growing, ripe, and fallow states. The mount reuses the Tusked Boar GLB. [Building stage loader](../../scripts/core/world_mesh_builder.gd) · [Saddle height](../../scripts/core/farming_rules.gd)
+
+Use `--batch farm` in the Blender settlement command and `--batch=farm` in the settlement verifier. It writes `farm-buildings.png`. The farming verifier checks the same models during planting, harvest, husbandry, riding, and reload. [Settlement commands](#settlement-building-batches)
 
 Run the farming verifier with `--out-dir` to capture `mounted-leader.png`. Run it again with `--skinned-tribesman-trial` in a fresh scratch directory to inspect the skinned rider. [Commands](../../docs/ROADMAP.md#verification-gate-commands-windows-powershell) · [Farming verifier](../../scripts/tools/verify_farming_taming.gd)

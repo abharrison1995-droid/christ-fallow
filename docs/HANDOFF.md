@@ -56,7 +56,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. Standing-Stone Gate remains a sample pending traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
-All seven lineups, fourteen kits, Standing-Stone Gate, Flintmask Scout, and seven economy and warband buildings are verified through Batch 11. Crop Field and Animal Pen are next. [Building review](../tools/assets/README.md#settlement-building-batches) · [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)
+All seven lineups, fourteen kits, Flintmask Scout, and all fourteen buildings are verified through Batch 12. Deer and Dire Wolf are next, followed by Woolly Mammoth and Giant Cave Bear and the wildcard review. [Farm review](../tools/assets/README.md#farm-structures-and-rider-review) · [Production batches](../tools/assets/OVERHAUL.md#production-batches)
 
 ### Track A — Slice 2C: Pass 3–5 Expansion Assets & Damage Review
 Reference: [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) · [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) · [tools/assets/README.md](../tools/assets/README.md)

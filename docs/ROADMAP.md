@@ -20,7 +20,7 @@
   - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (default promoted mode, `--check-default-roster`, and `--procedural-roster` opt-out), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
 
 ### Partially delivered (3D assets)
-- **Buildings**. Four of thirteen types use imported four-stage models, including the Reed Granary (`STORAGE_PIT`) and Ridge Signal Tower (`WATCHTOWER`). Blueprints and placement ghosts use a tinted intact stage.
+- **Buildings**. All fourteen buildable types use imported four-stage models. Blueprints and placement ghosts use a tinted intact stage. Standing-Stone Gate has separate pier collision and verified traversal. [Asset catalog](../tools/assets/CATALOG.md#live-assets-by-type)
 - **Characters & gear**. All seven lineages have six skinned bodies for Foragers and adult Spearmen. Nomads mount the Cave-Kin kit. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
 - **Environment & wildlife**. Four scenery GLBs and four of eight wildlife species use imported models, including Slateback Boar and Reedjaw. [Asset catalog](../tools/assets/CATALOG.md#valley-scenery-and-wildlife)
 - **Asset rollout in progress**. All seven six-body lineages are verified in Forward+. Combat kits follow, then workforce and leader kits, Gate and Scout prototype promotions, and imported models for the remaining buildings and wildlife. The wildcard round follows production. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard round](../tools/assets/OVERHAUL.md#wildcard-model-round)

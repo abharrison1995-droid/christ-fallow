@@ -11,7 +11,7 @@ The goal is recognizable silhouettes at normal gameplay zoom, reusable rigs and 
 | 1. Inventory and organize | Complete | The catalog and example generator use the grouped paths. The six samples imported with valid stages, colliders, and clips. |
 | 2. Establish the body and gear contract | Promoted (20 Nov 2026) | Two Crag-Born adult silhouettes and a child share the 17-bone rig and modular Spearman and Forager kits with full skeletal clips (`Idle`, `Walk`, `GuardIdle`, `GuardWalk`, `Work`, `Attack`, `Hit`, `Death`, `Wounded`) and shader hit-flash. Supported Crag-Born Foragers and adult Spearmen run on the skinned rig by default with zero procedural fallback swap (`--procedural-roster` opts out). |
 | 3. Build out the lineages and roles | Seven lineages in production | All seven lineages have six bodies. Cave-Kin nomads have a dedicated kit. The Forward+ verifier checks body scale, gear, actions, capture, enlightenment, and save/load. Additional role kits are queued. |
-| 4. Refresh buildings and world props | Twelve buildings in production | The four original GLB buildings, Standing-Stone Gate, and the economy and warband buildings use imported stages. Crop Field and Animal Pen are next. |
+| 4. Refresh buildings and world props | Fourteen buildings in production | All buildable types use imported four-stage models, including Standing-Stone Gate. Crop Field and Animal Pen remain walkable. |
 | 5. Refresh wildlife and trial the enemies | Four wildlife rigs and one enemy in production | Boar, Sabertooth, Reedjaw, and Slateback have articulated bites. Flintmask Scout leads the way for nomadic packs. |
 
 ## Production batches
@@ -33,7 +33,7 @@ Batch 4 completed all **42 lineage body GLBs**, up from nine before the rollout.
 | 9 | Flintmask Scout · Verified | Nomadic packs include a masked scout with a hooked club and complete skin animation. Verified contact, hit and death playback, and save validation. [Batch review](README.md#flintmask-scout) |
 | 10 | Settlement economy · Verified | Promoted the Campfire, Forager Lodge, and Crafting Pit. Verified founding, healing, hauling, the Lodge yield bonus, crafting and tier upgrades, damage, and reload. [Batch review](README.md#settlement-building-batches) |
 | 11 | Faith and warband · Verified | Promoted Sacred Totem, Healing Shack, Weapon Rack, and Barracks. Verified Faith, enlightenment, rescue, equipment, training, damage, and reload. [Batch review](README.md#settlement-building-batches) |
-| 12 | Farming and husbandry | Crop Field and Animal Pen. |
+| 12 | Farming and husbandry · Verified | Promoted Crop Field and Animal Pen. Verified walkable placement, dynamic crop appearance, damage and reload, and the live crop, taming, breeding, and riding cycle. [Batch review](README.md#farm-structures-and-rider-review) |
 | 13 | Deer and Dire Wolf | Two mid-sized wildlife rigs. Verify wild deer flight and taming, and wolf pursuit and attack. |
 | 14 | Megafauna | Woolly Mammoth and Giant Cave Bear. Verify their boss encounters, including area damage, hit volumes, and rewards. |
 | 15 | Wildcard model round | After Batches 1–14 ship, generate a series of exploratory Blender models and present them for the user to review and select. |
@@ -83,7 +83,7 @@ Author assets against scale and attachment contracts, and stage changes through 
 
 Classic and expanded layouts share the imported scenery, building, and wildlife models. Both place reed beds and ford art through their active layout geometry. [Terrain definitions](../../scripts/core/world_layout.gd)
 
-Crop Fields and Animal Pens have four procedural damage stages and walkable footprints. Adult Tusked Boar reuses its imported model when trained. The procedural and trial skinned leader rigs each have a seated riding pose. [Farm structures and rider review](README.md#farm-structures-and-rider-review)
+Crop Fields and Animal Pens have four imported damage stages and walkable footprints. Adult Tusked Boar reuses its imported model when trained. The player leader has a seated riding pose. [Farm structures and rider review](README.md#farm-structures-and-rider-review)
 
 Blender 4.5.16 regenerated all six samples with matching file hashes. A fresh Godot 4.3 Forward+ import verified the stages, colliders, and clips and rendered both comparison sheets.
 
