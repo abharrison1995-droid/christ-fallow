@@ -2,6 +2,7 @@ extends RefCounted
 ## Shared Patron God blessing and area-of-effect combat helpers for leaders.
 
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 
 static func trigger_leader_blessing(caster: Node, faction_id: int, hit_wildlife: bool = false) -> void:
@@ -46,8 +47,9 @@ static func trigger_leader_blessing(caster: Node, faction_id: int, hit_wildlife:
 
 static func _apply_allied_buff(caster: Node, faction_id: int, radius: float, duration: float, speed_mult: float, armor_bonus: float, heal_amount: float) -> void:
 	var c_pos: Vector3 = (caster as Node3D).global_position
+	var in_bout := ArenaRules.is_in_bout(caster)
 	for u in GameState.get_faction_units(faction_id, true):
-		if c_pos.distance_to((u as Node3D).global_position) <= radius:
+		if in_bout == ArenaRules.is_in_bout(u) and c_pos.distance_to((u as Node3D).global_position) <= radius:
 			u.apply_temporary_buff(duration, speed_mult, armor_bonus)
 			if heal_amount > 0.0:
 				u.heal(heal_amount)
@@ -59,13 +61,13 @@ static func aoe_damage(caster: Node, faction_id: int, radius: float, dmg: float,
 	var candidates: Array[Dictionary] = []
 	if GameState.units_container != null:
 		for u in GameState.units_container.get_children():
-			if is_instance_valid(u) and u.get("is_dead") != true and u.get("is_wounded") != true and GameState.is_hostile(faction_id, int(u.get("faction_id"))):
+			if is_instance_valid(u) and u.get("is_dead") != true and u.get("is_wounded") != true and ArenaRules.allows_attack(caster, u) and GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 				var d_sq: float = c_pos.distance_squared_to((u as Node3D).global_position)
 				if d_sq <= radius_sq:
 					candidates.append({"node": u, "dist_sq": d_sq})
 	if include_wildlife and GameState.wildlife_container != null:
 		for w in GameState.wildlife_container.get_children():
-			if is_instance_valid(w) and w.get("is_dead") != true and not w.is_protected_from(faction_id):
+			if is_instance_valid(w) and w.get("is_dead") != true and ArenaRules.allows_attack(caster, w) and not w.is_protected_from(faction_id):
 				var d_sq: float = c_pos.distance_squared_to((w as Node3D).global_position)
 				if d_sq <= radius_sq:
 					candidates.append({"node": w, "dist_sq": d_sq})
@@ -81,6 +83,7 @@ static func aoe_damage(caster: Node, faction_id: int, radius: float, dmg: float,
 
 static func aoe_heal(caster: Node, faction_id: int, radius: float, amount: float) -> void:
 	var c_pos: Vector3 = (caster as Node3D).global_position
+	var in_bout := ArenaRules.is_in_bout(caster)
 	for u in GameState.get_faction_units(faction_id, true):
-		if c_pos.distance_to((u as Node3D).global_position) <= radius:
+		if in_bout == ArenaRules.is_in_bout(u) and c_pos.distance_to((u as Node3D).global_position) <= radius:
 			u.heal(amount)

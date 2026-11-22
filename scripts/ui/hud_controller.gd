@@ -210,6 +210,8 @@ func _input(event: InputEvent) -> void:
 			GameState.player_controller.exit_build_mode()
 		elif _inspector_panel.visible:
 			_close_inspector()
+		elif is_instance_valid(GameState.player_controller) and GameState.player_controller.is_spectating_arena:
+			GameState.player_controller.set_arena_spectate(false)
 		else:
 			_overlays.toggle_pause()
 	elif key == KEY_F9:
@@ -555,6 +557,7 @@ func _on_progression_changed(fid: int) -> void:
 
 
 func _on_arena_state_changed() -> void:
+	_sync_leader_action_hint()
 	if _active_tab == "COLONY" and _drawer_views.has("COLONY"):
 		var view: Control = _drawer_views["COLONY"]
 		if is_instance_valid(view) and view.has_method("update_live_values"):

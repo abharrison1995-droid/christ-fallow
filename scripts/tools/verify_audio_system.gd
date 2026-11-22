@@ -176,14 +176,18 @@ func _run() -> void:
 	check(not _sound.play_sfx_3d("melee_swing", Vector3(2.0, 0.0, 3.0)), "play_sfx_3d throttles duplicate trigger inside cooldown")
 	check(_sound.get_cue_play_count("melee_swing") == 1, "throttled melee_swing does not increment telemetry")
 
-	# Rapid burst across all 16 cues to exercise pool stealing/recycling without creating orphan nodes.
+	# Fill the 3D pool with long cues before exercising recycling and per-cue throttling.
+	check(_sound._ui_pool.size() == 6 and _sound._sfx_3d_pool.size() == 16, "SoundManager builds six 2D and sixteen 3D players")
 	OS.delay_msec(105)
-	for i in range(expected_sfx.size()):
-		var c: String = expected_sfx[i]
-		if i < 6:
-			_sound.play_ui_sfx(c)
-		else:
-			_sound.play_sfx_3d(c, Vector3(float(i), 0.0, 0.0))
+	for cue in expected_sfx:
+		_sound.play_sfx_3d(cue, Vector3.ZERO, 0.0)
+	await frames(1)
+	_sound.reset_telemetry()
+	_sound.play_sfx_3d("wood_chop", Vector3.ZERO)
+	_sound.play_sfx_3d("stone_mine", Vector3.ZERO)
+	check(not _sound.play_sfx_3d("wood_chop", Vector3.ZERO) and not _sound.play_sfx_3d("stone_mine", Vector3.ZERO)
+		and _sound.get_cue_play_count("wood_chop") == 1 and _sound.get_cue_play_count("stone_mine") == 1,
+		"Rapid harvest requests are throttled in the 3D pool")
 	check(_sound.get_child_count() == initial_children, "SoundManager pool recycling leaves child count unchanged (%d)" % initial_children)
 
 	# ── (e) Title -> SettingsScreen layout -> Campaign -> Music States -> SFX Hooks -> Return to Title ──
@@ -192,6 +196,11 @@ func _run() -> void:
 	root.add_child(_shell)
 	await frames(3)
 	check(not _state.game_active, "Title starts without active campaign")
+	var title_track: AudioStreamPlayer = _sound._music_b if _sound._music_a.stream == null else _sound._music_a
+	check(_sound.get_active_music_state() == "TITLE" and title_track.playing, "The pooled TITLE track plays at startup")
+	_prefs.set_value("ambience", 0.30)
+	check(is_equal_approx(title_track.volume_db, linear_to_db(0.30)), "Title ambience slider changes the TITLE track gain")
+	_prefs.set_value("ambience", 0.65)
 
 	# Verify SettingsScreen Audio tab & bounds at 1280x720 with large UI scale (1.1)
 	_prefs.set_value("reduced_motion", true)
@@ -232,6 +241,7 @@ func _run() -> void:
 	await frames(12)
 	check(_state.game_active and _state.get_faction_leader(0) != null, "Campaign launches from TitleScreen")
 	check(_sound.get_last_music_state() == "PEACE_DAY", "Daytime campaign start selects PEACE_DAY music (got %s)" % _sound.get_last_music_state())
+	check(_sound._music_a.playing and _sound._music_b.playing, "Campaign launch crossfades from title ambience")
 
 	# Night music transition
 	_state.time_of_day = 23.0
@@ -336,9 +346,17 @@ func _run() -> void:
 	press(hud._overlays._confirmation, "Return to Title")
 	await frames(8)
 	check(not _state.game_active and _shell._title.visible, "Return to Title restores TitleScreen")
-	check(_sound.get_last_music_state() == "TITLE", "Return to Title restores TITLE music state (got %s)" % _sound.get_last_music_state())
+	check(_sound.get_active_music_state() == "TITLE", "Return to Title restores active TITLE music")
+	await frames(24)
+	var cleared_tracks := 0
+	for track in [_sound._music_a, _sound._music_b]:
+		if not track.playing and track.stream == null:
+			cleared_tracks += 1
+	check(cleared_tracks == 1, "Return to Title fade releases the outgoing campaign stream")
 
 	_sound.shutdown()
+	check(_sound.get_children().all(func(player): return not player.playing and player.stream == null),
+		"Shutdown stops and clears every pooled stream")
 	if is_instance_valid(_shell):
 		root.remove_child(_shell)
 		_shell.queue_free()

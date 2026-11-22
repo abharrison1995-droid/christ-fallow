@@ -303,6 +303,27 @@ func _run() -> void:
 	# Fight Tier I opponents in First-Person POV using LMB cleave
 	var opp_list: Array = _state.arena_bout.get("opponent_nodes", []).duplicate()
 	check(opp_list.size() == 3, "Tier I spawned 3 beasts (%d)" % opp_list.size())
+	var projectile_script: Script = load("res://scripts/entities/projectile_3d.gd")
+	var beast: Node3D = opp_list[0]
+	var beast_hp: float = beast.hp
+	beast.take_damage(9999.0, null, 0)
+	var beast_center: Vector3 = beast.projectile_hit_center()
+	var tower_shot: Node3D = projectile_script.spawn(tower, 0, beast_center + Vector3(0.0, 0.0, 2.0), beast_center, 9999.0)
+	tower_shot._physics_process(0.08)
+	check(is_equal_approx(beast.hp, beast_hp) and not tower_shot.is_queued_for_deletion(),
+		"Outside and source-less attacks leave arena beasts untouched and do not intercept arrows")
+	tower_shot.queue_free()
+	var wild_predator: Node3D = _state.world_node._spawn_animal("WOLF", arena_pos + Vector3(0.0, 0.0, 8.0))
+	var leader_hp: float = leader.hp
+	wild_predator._perform_attack(leader)
+	check(is_equal_approx(leader.hp, leader_hp), "Outside predators cannot attack the trial leader")
+	var predator_center: Vector3 = wild_predator.projectile_hit_center()
+	var ring_shot: Node3D = projectile_script.spawn(leader, 0, predator_center + Vector3(0.0, 0.0, 2.0), predator_center, 9999.0)
+	ring_shot._physics_process(0.08)
+	check(not wild_predator.is_dead and not ring_shot.is_queued_for_deletion(), "Arena shots pass through wildlife outside the bout")
+	ring_shot.queue_free()
+	_state.wildlife_container.remove_child(wild_predator)
+	wild_predator.queue_free()
 	var first_cleave_verified := false
 	for opp in opp_list:
 		var safety := 0
@@ -357,6 +378,9 @@ func _run() -> void:
 	await frames(2)
 	var ko_opp: Node = _state.arena_bout.get("opponent_nodes", [null])[0]
 	leader.take_damage(9999.0, ko_opp, -1)
+	var knockout_hp: float = leader.hp
+	leader.take_damage(9999.0, ko_opp, -1)
+	check(is_equal_approx(leader.hp, knockout_hp), "A second hit in the knockout frame cannot kill the leader")
 	await frames(3)
 	check(not leader.is_dead and not leader.is_wounded and float(leader.hp) >= 1.0,
 		"Lethal Arena hit keeps Leader alive (hp=%.1f)" % float(leader.hp))
@@ -366,6 +390,15 @@ func _run() -> void:
 	check(leader.global_position.distance_to(arena_pos + Vector3(0.0, 0.0, 6.2)) <= 0.6,
 		"Knocked-out Leader is moved outside the Arena gate")
 	check(not _state.is_arena_bout_active(), "Bout ends when all combatants are knocked out")
+	pc._javelin_cd = 0.0
+	pc._attack_cd = 0.0
+	pc._blessing_cd = 0.0
+	key_press(KEY_F)
+	key_press(KEY_Q)
+	click_at(Vector2(800.0, 450.0))
+	check(pc._javelin_cd == 0.0 and pc._attack_cd == 0.0 and pc._blessing_cd == 0.0,
+		"A recovering Chieftain cannot attack or cast a blessing")
+	check(hud._blessing_label.text.contains("Out of Commission"), "HUD shows convalescence on the Chieftain action bar")
 
 	# Restore leader & reset cooldown for Warrior KO + convalescence test
 	leader.arena_recovery_remaining = 0.0
@@ -379,11 +412,17 @@ func _run() -> void:
 		"Started Exhibition Tier I with Warrior w1 for KO test")
 	await frames(2)
 	var w_opp: Node = _state.arena_bout.get("opponent_nodes", [null])[0]
+	w1.start_revolt()
+	check(not w1.is_revolting and w1.faction_id == 0, "A warrior cannot revolt out of a bout")
 	w1.take_damage(9999.0, w_opp, -1)
 	await frames(3)
 	check(not w1.is_dead and not w1.is_wounded and float(w1.hp) >= 1.0, "Warrior survives lethal Arena KO (hp=%.1f)" % float(w1.hp))
 	check(w1.arena_recovery_remaining > 50.0 and w1.is_out_of_commission(),
 		"Knocked-out Warrior enters Out of Commission convalescence (%.1fs)" % w1.arena_recovery_remaining)
+	var recovery_order: int = w1.squad_order
+	key_press(KEY_F4)
+	check(w1.squad_order == recovery_order and not _state.assign_player_role(w1, GameData.Role.FORAGER),
+		"Squad orders and workforce assignment skip a recovering warrior")
 
 	# UI check: [Out of Commission] disabled fighter button
 	hud.open_arena_drawer()
@@ -454,6 +493,8 @@ func _run() -> void:
 	var w1_pre_dmg: float = float(w1.close_quarters_damage)
 	var pelt_before: int = int(f0["stockpile"].get("pelt_mantle", 0))
 
+	key_press(KEY_Z)
+	check(pc.is_first_person, "Opened Exhibition setup from first person")
 	hud.open_arena_drawer()
 	await frames(2)
 	var exh_btn: BaseButton = _find_tagged_button(colony_drawer, "arena-mode:EXHIBITION")
@@ -477,7 +518,8 @@ func _run() -> void:
 
 	check(_state.is_arena_bout_active() and str(_state.arena_bout.get("mode", "")) == ArenaRules.MODE_EXHIBITION,
 		"Warband Exhibition Tier III started")
-	check(pc.is_spectating_arena, "Exhibition mode enables Spectate Ring camera automatically")
+	check(pc.is_spectating_arena and not pc.is_first_person and not leader.is_first_person_hidden() and not pc._fp_viewmodel.visible,
+		"Exhibition started through the blocking drawer switches from first person to the ring camera")
 
 	# Toggle Spectate Ring button off and back on
 	var spec_btn: BaseButton = _find_tagged_button(colony_drawer, "arena-spectate")
@@ -492,6 +534,8 @@ func _run() -> void:
 			check(pc.is_spectating_arena, "Spectate Ring toggle re-enables spectate")
 	key_press(KEY_ESCAPE)
 	await frames(2)
+	key_press(KEY_ESCAPE)
+	check(not pc.is_spectating_arena and not _state.is_paused, "Escape from ring view restores the leader camera without pausing")
 
 	# Let warriors fight briefly and verify they damage Arena beasts, then finish Tier III
 	var t3_opps: Array = _state.arena_bout.get("opponent_nodes", []).duplicate()
@@ -562,11 +606,22 @@ func _run() -> void:
 	check(_state.is_arena_bout_active(), "Started Tier II Bone-Cave Raiders bout for forfeit test")
 
 	await physics_frames(15)
+	var forfeit_opp: Node3D = _state.arena_bout["opponent_nodes"][0]
+	var stale_target := Node3D.new()
+	w3._target_node = stale_target
+	w3._self_defense_target = forfeit_opp
+	w3._scan_enemy = forfeit_opp
+	w3._scan_wild = forfeit_opp
+	stale_target.free()
+	var forfeit_shot: Node3D = projectile_script.spawn(w2, 0, w2.global_position + Vector3.UP, arena_pos + Vector3(10.0, 1.0, 0.0), 30.0)
 	var forfeit_btn: BaseButton = _find_tagged_button(colony_drawer, "arena-forfeit")
 	if check(forfeit_btn != null and not forfeit_btn.disabled, "Forfeit Bout button visible during active bout"):
 		forfeit_btn.pressed.emit()
 	else:
 		_state.forfeit_arena_bout()
+	check(w3._target_node == null and w3._self_defense_target == null and w3._scan_enemy == null and w3._scan_wild == null,
+		"Forfeit clears live and previously freed targets on an outside guard")
+	check(forfeit_shot.is_queued_for_deletion() and not forfeit_shot.is_inside_tree(), "Forfeit removes in-flight arena arrows immediately")
 	await physics_frames(15)
 	await frames(3)
 	check(not _state.is_arena_bout_active() and ArenaRules.count_living_opponents(_state.arena_bout) == 0,
@@ -604,6 +659,7 @@ func _run() -> void:
 		"Cold reload preserves arena_recovery_remaining")
 	check(not _state.is_arena_bout_active() and bool(_state.get_arena_status().get("has_arena", false)),
 		"Cold reload preserves constructed Arena Pit without stale active bout")
+	await _verify_spectating_quickload(w1_id, w2_id)
 
 	DirAccess.remove_absolute(save_path)
 	if _sound != null:
@@ -617,6 +673,38 @@ func _run() -> void:
 		return
 	print("ARENA TRIALS VERIFICATION PASSED (%d checks)" % _pass_count)
 	quit(0)
+
+
+func _verify_spectating_quickload(fighter_id: int, recovering_id: int) -> void:
+	var pc: Node = _state.player_controller
+	var fc: Node = _state.faction_controllers[0]
+	var leader: Node3D = _state.get_faction_leader(0)
+	var second_pit: Node3D = fc.spawn_building("ARENA_PIT", leader.global_position + Vector3(18.0, 0.0, 0.0), 0.0, true)
+	leader.global_position = second_pit.global_position
+	_state.spatial_index.update_unit(leader)
+	_state.time_of_day = 23.0
+	check(_state.start_arena_bout(ArenaRules.MODE_EXHIBITION, 4, [fighter_id]), "Started Tier IV with human opponents for quicksave")
+	check(pc.is_spectating_arena and ArenaRules.get_arena_building(_state) == second_pit, "Exhibition spectates the pit closest to the leader")
+	var old_opponents: Array = _state.arena_bout.get("opponent_nodes", []).duplicate()
+	var unit_count: int = _state.units_container.get_child_count() - old_opponents.size()
+	var recovery: float = _find_unit_by_id(recovering_id).arena_recovery_remaining
+	key_press(KEY_F9)
+	check(FileAccess.file_exists(_state.CAMPAIGN_SAVE_PATH), "F9 writes the campaign while spectating an exhibition")
+	key_press(KEY_F10)
+	await frames(3)
+	check(not _state.is_arena_bout_active() and not pc.is_spectating_arena and not _find_unit_by_id(fighter_id).is_arena_combatant,
+		"F10 clears bout flags and spectator mode")
+	check(_state.units_container.get_child_count() == unit_count and old_opponents.all(func(node): return not is_instance_valid(node)),
+		"F10 discards temporary human opponents")
+	check(absf(_find_unit_by_id(recovering_id).arena_recovery_remaining - recovery) < 0.2,
+		"F10 preserves the recovery timer from the mid-bout save")
+	check(_sound == null or _sound.get_active_music_state() == "NIGHT", "F10 restores night music from the saved time")
+	var host: Node3D = ArenaRules.get_arena_building(_state)
+	check(_state.start_arena_bout(ArenaRules.MODE_EXHIBITION, 1, [fighter_id]), "Started a bout with two constructed pits")
+	host.take_damage(9999.0, 5)
+	await frames(3)
+	check(not _state.is_arena_bout_active() and not pc.is_spectating_arena and ArenaRules.get_arena_building(_state) != null,
+		"Destroying the host pit forfeits the bout even with a second pit standing")
 
 
 func _contains_arena_wildlife(wildlife_arr: Array) -> bool:

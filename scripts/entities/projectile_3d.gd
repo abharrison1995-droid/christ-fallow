@@ -1,6 +1,7 @@
 extends Node3D
 
 const UNIT_HIT_RADIUS := 1.15
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 var shooter: Node = null
 var faction_id: int = 0
@@ -11,6 +12,7 @@ var lifetime: float = 4.0
 var proj_type: String = "ARROW"
 var tier: int = 1
 var is_crit: bool = false
+var is_arena_shot: bool = false
 
 
 static func spawn(p_shooter: Node, p_faction_id: int, p_origin: Vector3, p_target_pos: Vector3, p_damage: float, p_speed: float = 28.0, p_type: String = "ARROW", p_tier: int = 1, p_crit: bool = false) -> Node3D:
@@ -25,6 +27,7 @@ static func spawn(p_shooter: Node, p_faction_id: int, p_origin: Vector3, p_targe
 
 func setup(p_shooter: Node, p_faction_id: int, p_origin: Vector3, p_target_pos: Vector3, p_damage: float, p_speed: float = 28.0, p_type: String = "ARROW", p_tier: int = 1, p_crit: bool = false) -> void:
 	shooter = p_shooter
+	is_arena_shot = ArenaRules.is_in_bout(shooter)
 	faction_id = p_faction_id
 	damage = p_damage
 	proj_type = p_type
@@ -64,6 +67,11 @@ static func _segment_distance_to_point(a: Vector3, b: Vector3, p: Vector3) -> fl
 func _physics_process(delta: float) -> void:
 	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished or is_queued_for_deletion():
 		return
+	var attacker: Node = shooter if is_instance_valid(shooter) and shooter.is_inside_tree() and not shooter.is_queued_for_deletion() else null
+	# A shot stays on the side of the arena boundary where it was fired.
+	if is_arena_shot != ArenaRules.is_in_bout(attacker):
+		queue_free()
+		return
 	lifetime -= delta
 	if lifetime <= 0.0:
 		queue_free()
@@ -74,8 +82,6 @@ func _physics_process(delta: float) -> void:
 	var next_pos := prev_pos + velocity * delta
 	global_position = next_pos
 	_orient_along_velocity()
-
-	var attacker: Node = shooter if is_instance_valid(shooter) else null
 
 	# Candidates come from the spatial index around the swept segment (container scan while the index is empty).
 	var indexed: bool = GameState.spatial_index.is_populated()
@@ -99,7 +105,7 @@ func _physics_process(delta: float) -> void:
 	# Hit detection against units (swept segment from prev_pos to next_pos)
 	if true:
 		for u in unit_candidates:
-			if not is_instance_valid(u) or u.get("is_dead") == true:
+			if not is_instance_valid(u) or u.get("is_dead") == true or u.get("is_wounded") == true or not ArenaRules.allows_attack(attacker, u):
 				continue
 			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 				continue
@@ -114,7 +120,7 @@ func _physics_process(delta: float) -> void:
 	# Hit detection against wildlife
 	if true:
 		for w in wild_candidates:
-			if not is_instance_valid(w) or w.get("is_dead") == true or w.is_protected_from(faction_id):
+			if not is_instance_valid(w) or w.get("is_dead") == true or w.is_protected_from(faction_id) or not ArenaRules.allows_attack(attacker, w):
 				continue
 			if _segment_distance_to_point(prev_pos, next_pos, w.projectile_hit_center()) < w.projectile_hit_radius:
 				_play_impact_sfx()
@@ -123,7 +129,7 @@ func _physics_process(delta: float) -> void:
 				return
 
 	# Hit detection against hostile buildings
-	if true:
+	if not is_arena_shot:
 		for b in bld_candidates:
 			if not is_instance_valid(b) or float(b.get("hp")) <= 0.0:
 				continue

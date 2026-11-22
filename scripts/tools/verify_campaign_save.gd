@@ -6,6 +6,7 @@ const Layout = preload("res://scripts/core/world_layout.gd")
 var _state: Node
 var _main: Node
 var _failures := 0
+var _checks := 0
 
 
 func _initialize() -> void:
@@ -13,6 +14,7 @@ func _initialize() -> void:
 
 
 func _check(condition: bool, caption: String) -> void:
+	_checks += 1
 	if not condition:
 		_failures += 1
 		push_error(caption)
@@ -152,7 +154,7 @@ func _run() -> void:
 	DirAccess.remove_absolute(path)
 	await process_frame
 	if _failures == 0:
-		print("CAMPAIGN SAVE VERIFICATION PASSED")
+		print("CAMPAIGN SAVE VERIFICATION PASSED (%d checks)" % _checks)
 	quit(0 if _failures == 0 else 1)
 
 

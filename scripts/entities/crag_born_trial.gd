@@ -105,6 +105,7 @@ const KIT_ITEMS := {
 	],
 	"LEADER": [
 		["Hand.R", "Weapon", "leader/great_spear", GRIP_R, Vector3(-0.37, 0, 0.23)],
+		["Hand.L", "Offhand", "spearman/hide_buckler", GRIP_L, Vector3(-0.70, 0, 0)],
 		["Chest", "Cape", "leader/split_mantle", Vector3(0, 0.05, 0.206), Vector3.ZERO],
 		["Chest", "Back", "javelineer/javelin_bundle", Vector3(0.06, 0.05, 0.272), Vector3(0, 0, -0.18)],
 		["Head", "Crown", "leader/bone_crown", Vector3(0, 0.177, 0.005), Vector3.ZERO],
@@ -320,6 +321,7 @@ func equip_gear(mesh_factory: Node, weapon_id: String, armor_id: String, weapon_
 			for slot_name in ["Weapon", "Offhand"]:
 				var old_slot := _skeleton.get_node_or_null(slot_name)
 				if old_slot != null:
+					clear_surface_overrides(old_slot)
 					_skeleton.remove_child(old_slot)
 					old_slot.queue_free()
 			var wdef: Dictionary = GameData.WEAPON_DEFS[weapon_id]
@@ -370,6 +372,7 @@ func equip_gear(mesh_factory: Node, weapon_id: String, armor_id: String, weapon_
 				cw.visible = false
 		if eff_armor_id != _equipped_armor_id or _armor == null or not is_instance_valid(_armor):
 			if _armor != null and is_instance_valid(_armor):
+				clear_surface_overrides(_armor)
 				_skeleton.remove_child(_armor)
 				_armor.queue_free()
 				_armor = null

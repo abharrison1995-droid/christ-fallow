@@ -104,7 +104,7 @@ func _sync_campaign_music(fade_seconds: float = 1.2) -> void:
 	if sm == null:
 		return
 	var desired := _desired_campaign_music_state()
-	if sm.get_last_music_state() != desired:
+	if sm.get_active_music_state() != desired:
 		sm.set_music_state(desired, fade_seconds)
 
 
@@ -470,6 +470,7 @@ func can_assign_player_role(unit: Node) -> bool:
 	return (
 		is_instance_valid(unit) and not unit.is_queued_for_deletion() and unit.faction_id == 0
 		and not (unit.is_leader or unit.is_child or unit.is_dead or unit.is_wounded or unit.is_revolting)
+		and not unit.is_arena_combatant and not unit.is_out_of_commission()
 	)
 
 
@@ -688,76 +689,61 @@ func hire_nomad_villager(faction_id: int = 0) -> Node:
 	return unit
 
 
-func equip_unit_weapon(unit: Node, weapon_id: String, consume_stockpile: bool = true) -> bool:
-	if unit == null or not is_instance_valid(unit) or unit.get("is_dead") == true:
+func equip_unit_weapon(unit: Node, weapon_id: String) -> bool:
+	if not _can_equip_player_unit(unit) or not GameData.WEAPON_DEFS.has(weapon_id):
 		return false
-	if int(unit.get("faction_id")) != 0 or not factions.has(0):
-		return false
-	if not GameData.WEAPON_DEFS.has(weapon_id):
-		return false
-	var current_weapon: String = unit.get_equipped_weapon_id() if unit.has_method("get_equipped_weapon_id") else str(unit.get("equipped_weapon_id"))
-	if weapon_id == current_weapon:
+	if weapon_id == unit.get_equipped_weapon_id():
 		return true
-	var raw_old_weapon: String = str(unit.get("equipped_weapon_id"))
 	var wdef: Dictionary = GameData.WEAPON_DEFS[weapon_id]
-	var fdata: Dictionary = factions[0]
-	var stock: Dictionary = fdata["stockpile"]
-	var min_tier: int = int(wdef.get("min_tier", 1))
-	var stock_key: String = str(wdef.get("stock_key", ""))
-	if consume_stockpile:
-		if int(fdata.get("tech_tier", 1)) < min_tier:
-			push_log("Requires %s to equip %s." % [GameData.TECH_TIER_NAMES.get(min_tier, "Tier %d" % min_tier), str(wdef["name"])], "warning")
-			return false
-		if stock_key != "" and int(stock.get(stock_key, 0)) <= 0:
-			push_log("No %s in stockpile. Craft one at the Crafting Pit." % str(wdef["name"]), "warning")
-			return false
-		if stock_key != "":
-			stock[stock_key] = int(stock.get(stock_key, 0)) - 1
-		if raw_old_weapon != "" and GameData.WEAPON_DEFS.has(raw_old_weapon):
-			var old_key: String = str(GameData.WEAPON_DEFS[raw_old_weapon].get("stock_key", ""))
-			if old_key != "":
-				stock[old_key] = int(stock.get(old_key, 0)) + 1
+	if not _exchange_player_gear(wdef, GameData.WEAPON_DEFS.get(unit.equipped_weapon_id, {})):
+		return false
+	unit.weapon_tier = int(factions[0]["tech_tier"])
 	unit.equip_loadout(weapon_id)
 	resources_changed.emit(0)
 	push_log("Equipped %s with %s." % [str(unit.get("unit_name")), str(wdef["name"])], "info")
 	return true
 
 
-func equip_unit_armor(unit: Node, armor_id: String, consume_stockpile: bool = true) -> bool:
-	if unit == null or not is_instance_valid(unit) or unit.get("is_dead") == true:
+func equip_unit_armor(unit: Node, armor_id: String) -> bool:
+	if not _can_equip_player_unit(unit) or not GameData.ARMOR_DEFS.has(armor_id):
 		return false
-	if int(unit.get("faction_id")) != 0 or not factions.has(0):
-		return false
-	if not GameData.ARMOR_DEFS.has(armor_id):
-		return false
-	var current_armor: String = unit.get_equipped_armor_id() if unit.has_method("get_equipped_armor_id") else str(unit.get("equipped_armor_id"))
-	if armor_id == current_armor:
+	# An explicit unarmored choice also opts out of later automatic armor assignment.
+	if armor_id == unit.get_equipped_armor_id() and (armor_id != "NONE" or unit.equipped_armor_id == "NONE"):
 		return true
-	var raw_old_armor: String = str(unit.get("equipped_armor_id"))
 	var adef: Dictionary = GameData.ARMOR_DEFS[armor_id]
-	var fdata: Dictionary = factions[0]
-	var stock: Dictionary = fdata["stockpile"]
-	var min_tier: int = int(adef.get("min_tier", 1))
-	var stock_key: String = str(adef.get("stock_key", ""))
-	if consume_stockpile:
-		if int(fdata.get("tech_tier", 1)) < min_tier:
-			push_log("Requires %s to equip %s." % [GameData.TECH_TIER_NAMES.get(min_tier, "Tier %d" % min_tier), str(adef["name"])], "warning")
-			return false
-		if stock_key != "" and int(stock.get(stock_key, 0)) <= 0:
-			push_log("No %s in stockpile. Craft one at the Crafting Pit." % str(adef["name"]), "warning")
-			return false
-		if stock_key != "":
-			stock[stock_key] = int(stock.get(stock_key, 0)) - 1
-		if raw_old_armor != "" and raw_old_armor != "NONE" and GameData.ARMOR_DEFS.has(raw_old_armor):
-			var old_key: String = str(GameData.ARMOR_DEFS[raw_old_armor].get("stock_key", ""))
-			if old_key != "":
-				stock[old_key] = int(stock.get(old_key, 0)) + 1
+	if not _exchange_player_gear(adef, GameData.ARMOR_DEFS.get(unit.equipped_armor_id, {})):
+		return false
 	unit.equip_loadout("__KEEP__", armor_id)
 	resources_changed.emit(0)
 	if armor_id == "NONE":
 		push_log("Unequipped armor from %s." % str(unit.get("unit_name")), "info")
 	else:
 		push_log("Equipped %s with %s." % [str(unit.get("unit_name")), str(adef["name"])], "info")
+	return true
+
+
+func _can_equip_player_unit(unit: Node) -> bool:
+	return (is_instance_valid(unit) and unit.is_inside_tree() and not unit.is_queued_for_deletion()
+		and unit.has_method("equip_loadout") and unit.get("faction_id") == 0 and factions.has(0)
+		and not unit.is_dead and not unit.is_child)
+
+
+func _exchange_player_gear(next: Dictionary, previous: Dictionary) -> bool:
+	var fdata: Dictionary = factions[0]
+	var min_tier: int = int(next["min_tier"])
+	if int(fdata["tech_tier"]) < min_tier:
+		push_log("Requires %s to equip %s." % [GameData.TECH_TIER_NAMES[min_tier], next["name"]], "warning")
+		return false
+	var stock_key: String = next["stock_key"]
+	var stock: Dictionary = fdata["stockpile"]
+	if stock_key != "":
+		if int(stock.get(stock_key, 0)) <= 0:
+			push_log("No %s in stockpile. Craft one at the Crafting Pit." % next["name"], "warning")
+			return false
+		stock[stock_key] = int(stock[stock_key]) - 1
+	var old_key: String = previous.get("stock_key", "")
+	if old_key != "":
+		stock[old_key] = int(stock.get(old_key, 0)) + 1
 	return true
 
 
@@ -919,7 +905,7 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	var player_leader_id := 0
 	if units_container != null:
 		for u in units_container.get_children():
-			if is_instance_valid(u) and not u.is_queued_for_deletion() and not u.get("is_dead") and not ArenaRules.is_bout_opponent(arena_bout, u):
+			if is_instance_valid(u) and not u.is_queued_for_deletion() and not u.get("is_dead") and not ArenaRules.is_opponent(u):
 				var u_data: Dictionary = u.serialize()
 				u_data["is_arena_combatant"] = false
 				units_data.append(u_data)
@@ -935,7 +921,7 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	var wildlife_data := []
 	if wildlife_container != null:
 		for animal in wildlife_container.get_children():
-			if is_instance_valid(animal) and not animal.is_queued_for_deletion() and not animal.get("is_dead") and not ArenaRules.is_bout_opponent(arena_bout, animal):
+			if is_instance_valid(animal) and not animal.is_queued_for_deletion() and not animal.get("is_dead") and not ArenaRules.is_opponent(animal):
 				wildlife_data.append(animal.serialize())
 
 	var saved_factions := factions.duplicate(true)
@@ -1036,7 +1022,7 @@ func _apply_campaign_snapshot(parsed: Dictionary) -> void:
 	arena_bout = {}
 	arena_cooldown = 0.0
 	if is_instance_valid(player_controller):
-		player_controller.set("is_spectating_arena", false)
+		player_controller.set_arena_spectate(false)
 	_paused_before_conquest = false
 	_guide_refresh_remaining = 0.0
 	campaign_finished = false

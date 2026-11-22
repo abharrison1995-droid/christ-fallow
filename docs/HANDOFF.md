@@ -31,11 +31,16 @@
   - `6090d74` through `971df84` — Promoted the gate, Flintmask Scout, settlement buildings, and additional skinned wildlife. [Production batches](../tools/assets/OVERHAUL.md#production-batches)
   - `3b042dd` and `c7f3a72` — Added [six wildcard prototypes](../tools/assets/examples/WILDCARD.md) and [eighteen standalone dinosaur models](../tools/assets/examples/DINOSAURS.md) for asset review.
   - `3abde8c` — **Performance baseline:** Recorded rendered/fixed-step frame attribution in [PERFORMANCE.md](PERFORMANCE.md) and ordered optimization plan in [PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
-  - **Working tree (22 Nov 2026):** **Phase 6** (Tribal Level, Perks & Skills System + Opening Tutorial directional pointer & in-drawer highlights), **Refactor Pass 2** (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`), **Phase 7** (Custom Weapons & Armor System), **Phase 8** (Stone Age SFX & Dynamic Music), and **Phase 9** (Blood-Pit Trial Arena).
+  - `b67dbbe` — First-person POV, Phase 6 perks and tutorial polish, and Refactor Pass 2.
+  - `15fef27` — Phase 7 custom weapons and armor.
+  - `6b3a7d4` — Phase 8 Stone Age SFX and dynamic music.
+  - `b512e92` — Phase 9 Blood-Pit Trial Arena.
 
 ---
 
 ## 2. Verified Baseline
+
+The follow-up audit records the fixes, gate commands, and results for first-person POV and Phases 7–9. [Roadmap audit](ROADMAP.md#first-person-and-phases-79-audit)
 
 These are Forward+ results using isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA`. On 22 November 2026 after Phases 7–9 and all Review Gate 3 fixes, the 7-suite sequential Forward+ gate passed with `EXIT_CODE:0` and zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines (`verify_arena_trials.gd`, `verify_equipment_system.gd`, `verify_audio_system.gd`, `verify_first_person_pov.gd`, `verify_perks_leveling.gd`, `verify_campaign_ui.gd -- --large-ui`, `verify_campaign_save.gd`). Historical baseline suites and benchmarks are also listed below. See the [performance review](PERFORMANCE.md) and [performance handover](PERFORMANCE_HANDOVER.md) for current reruns and stress measurements.
 
@@ -100,17 +105,17 @@ Reference: [docs/REFACTOR.md](REFACTOR.md#second-extraction-pass-22-november-202
 Completed. Extracted combat and faction-AI routines from `human_unit.gd` into [unit_combat_ai.gd](../scripts/entities/unit_combat_ai.gd), diplomacy/tribute/rebel/succession/conquest/victory rules from `game_state.gd` into [diplomacy_conquest_rules.gd](../scripts/core/diplomacy_conquest_rules.gd), and HUD panel builders/live refreshers from `hud_controller.gd` into [hud_panels.gd](../scripts/ui/hud_panels.gd). All three are preloaded static-function helpers without `class_name`, with thin forwarding wrappers and preserved properties/signals on the owning classes so existing callers and test suites run unchanged.
 
 ### Track G — Phase 7: Custom Weapons & Armor System
-Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Equipment verifier](../scripts/tools/verify_equipment_system.gd)
+Reference: [Roadmap](ROADMAP.md#phases-79-and-verification-gates) · [Equipment verifier](../scripts/tools/verify_equipment_system.gd)
 
 Completed. Added `GameData.WEAPON_DEFS` (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and `ARMOR_DEFS` (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`), expanded `CRAFT_RECIPES`, wired `HumanUnit.equip_loadout()` / `GameState.equip_unit_weapon()` / `equip_unit_armor()` / `UnitStats` / `CampaignSave`, added live 3rd-person & 1st-person gear swaps (`CragBornTrial`, `HumanMeshBuilder`, `FirstPersonViewmodel`), `PlayerController` weapon-driven attacks, and `ColonyDrawer` + `UnitInspector` loadout UI.
 
 ### Track H — Phase 8: Stone Age SFX & Dynamic Music
-Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Audio verifier](../scripts/tools/verify_audio_system.gd)
+Reference: [Roadmap](ROADMAP.md#phases-79-and-verification-gates) · [Audio verifier](../scripts/tools/verify_audio_system.gd)
 
 Completed. Added [generate_stone_age_audio.py](../tools/audio/generate_stone_age_audio.py) generating Stone Age foley & music loops in `assets/audio/`, pooled `SoundManager` autoload ([sound_manager.gd](../scripts/core/sound_manager.gd)) with `Master`/`Music`/`SFX` buses, 16 throttled SFX cues, and adaptive `TITLE`/`PEACE_DAY`/`NIGHT`/`COMBAT`/`ARENA` music transitions, `Preferences` & `SettingsScreen` Audio sliders, and gameplay audio hooks.
 
 ### Track I — Phase 9: Blood-Pit Trial Arena
-Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Arena verifier](../scripts/tools/verify_arena_trials.gd)
+Reference: [Roadmap](ROADMAP.md#phases-79-and-verification-gates) · [Arena verifier](../scripts/tools/verify_arena_trials.gd)
 
 Completed. Added `ARENA_PIT` (`Lv.3` + `BARRACKS_DRILLMASTERS` Rank 1 in `BuildDrawer`, 4 visual stages, walkable interior, pulsing braziers), [arena_rules.gd](../scripts/core/arena_rules.gd) 5-tier bout system (`CHIEFTAIN` in 1st/3rd-person POV & `EXHIBITION` with `Spectate Ring`), `[E]` Arena tab opening, strict bout isolation from Watchtowers/outside units/mid-bout saves, non-lethal KO & `1.75x` `SHAMAN_SHACK`/`CAMPFIRE` convalescence (`arena_recovery_remaining`), `is_arena_champion` (`+15` HP, `1.10x` DMG), Plan 1 gear drops, and `ColonyDrawer` + `UnitInspector` Arena controls/badges.
 

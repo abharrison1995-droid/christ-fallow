@@ -649,6 +649,9 @@ static func sync_leader_action_hint(hud: Control) -> void:
 	if not mount_name.is_empty():
 		hud._blessing_label.text = "%s  ·  [E] Dismount" % mount_name
 		return
+	if is_instance_valid(pc.leader_unit) and pc.leader_unit.is_out_of_commission():
+		hud._blessing_label.text = "[Out of Commission · %ds]" % ceili(pc.leader_unit.arena_recovery_remaining)
+		return
 	var cooldown: float = pc._blessing_cd
 	hud._blessing_label.text = "[Q] Blessing Ready" if cooldown <= 0.0 else "[Q] Blessing (%.0fs)" % cooldown
 

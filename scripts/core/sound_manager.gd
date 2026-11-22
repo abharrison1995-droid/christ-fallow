@@ -69,6 +69,7 @@ var _active_music_track: int = 0  # 0 -> _music_a, 1 -> _music_b
 var _music_tween: Tween = null
 var _last_music_state: String = ""
 var _active_music_state: String = ""
+var _title_volume_db: float = 0.0
 
 var _sfx_streams: Dictionary = {}
 var _music_streams: Dictionary = {}
@@ -85,7 +86,9 @@ func _ready() -> void:
 	_build_pools()
 	_preload_audio()
 	if has_node("/root/Preferences"):
-		get_node("/root/Preferences").call_deferred("_apply")
+		Preferences.changed.connect(_apply_ambience_volume)
+		_apply_ambience_volume()
+		Preferences.call_deferred("_apply")
 
 
 func _exit_tree() -> void:
@@ -155,6 +158,22 @@ func _preload_audio() -> void:
 				_music_streams[state] = raw
 
 
+func _music_volume_offset(track: AudioStreamPlayer) -> float:
+	return _title_volume_db if track.stream != null and track.stream == _music_streams.get("TITLE") else 0.0
+
+
+func _apply_ambience_volume() -> void:
+	var next_db := linear_to_db(maxf(0.00001, float(Preferences.get_value("ambience"))))
+	for track in [_music_a, _music_b]:
+		if track.stream != null and track.stream == _music_streams.get("TITLE"):
+			track.volume_db += next_db - _title_volume_db
+	_title_volume_db = next_db
+
+
+func _set_track_fade(db: float, track: AudioStreamPlayer) -> void:
+	track.volume_db = db + _music_volume_offset(track)
+
+
 func play_ui_sfx(cue: String, pitch_jitter: float = 0.05) -> bool:
 	if _shutting_down or _is_sfx_muted():
 		return false
@@ -202,13 +221,14 @@ func set_music_state(state: String, fade_seconds: float = DEFAULT_FADE_SECONDS) 
 	var key := state.strip_edges().to_upper()
 	if not MUSIC_TRACKS.has(key):
 		return false
-	_last_music_state = key
 	if _active_music_state == key:
+		_last_music_state = key
 		return true
 
 	var stream: AudioStream = _get_music_stream(key)
 	if stream == null:
 		return false
+	_last_music_state = key
 
 	var incoming := _music_b if _active_music_track == 0 else _music_a
 	var outgoing := _music_a if _active_music_track == 0 else _music_b
@@ -226,17 +246,17 @@ func set_music_state(state: String, fade_seconds: float = DEFAULT_FADE_SECONDS) 
 	if use_instant:
 		outgoing.stop()
 		outgoing.stream = null
-		incoming.volume_db = 0.0
+		_set_track_fade(0.0, incoming)
 		if not _is_headless_audio():
 			incoming.play()
 		return true
 
-	incoming.volume_db = SILENT_DB
+	_set_track_fade(SILENT_DB, incoming)
 	incoming.play()
 	_music_tween = create_tween()
 	_music_tween.set_parallel(true)
-	_music_tween.tween_property(incoming, "volume_db", 0.0, fade_seconds)
-	_music_tween.tween_property(outgoing, "volume_db", SILENT_DB, fade_seconds)
+	_music_tween.tween_method(_set_track_fade.bind(incoming), SILENT_DB, 0.0, fade_seconds)
+	_music_tween.tween_method(_set_track_fade.bind(outgoing), outgoing.volume_db - _music_volume_offset(outgoing), SILENT_DB, fade_seconds)
 	_music_tween.chain().tween_callback(func() -> void:
 		if is_instance_valid(outgoing):
 			outgoing.stop()
@@ -262,7 +282,7 @@ func stop_music(fade_seconds: float = 0.4) -> void:
 	for track in [_music_a, _music_b]:
 		if is_instance_valid(track) and track.playing:
 			any_playing = true
-			_music_tween.tween_property(track, "volume_db", SILENT_DB, fade_seconds)
+			_music_tween.tween_method(_set_track_fade.bind(track), track.volume_db - _music_volume_offset(track), SILENT_DB, fade_seconds)
 	if not any_playing:
 		_music_tween.kill()
 		_music_tween = null

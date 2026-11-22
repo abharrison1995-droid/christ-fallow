@@ -122,7 +122,7 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 		var w_proj: String = str(wdef.get("projectile_type", ""))
 		var w_dmg_mult: float = float(wdef.get("dmg_mult", 1.0))
 		var class_was_ranged: bool = (warrior_class == GameData.WarriorClass.ARCHER or warrior_class == GameData.WarriorClass.JAVELINEER) and (role == GameData.Role.WARRIOR or is_leader)
-		if w_is_ranged and not class_was_ranged:
+		if w_is_ranged:
 			if w_proj == "JAVELIN":
 				attack_damage = (ranged_attack_damage * 0.72 + close_quarters_damage * 0.42) * w_dmg_mult
 			else:

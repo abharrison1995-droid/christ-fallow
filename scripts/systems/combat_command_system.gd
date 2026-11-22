@@ -53,7 +53,7 @@ func issue_order(order: int, leader_pos: Vector3) -> void:
 	last_issued_order = order
 	var count := 0
 	for u in GameState.get_faction_units(0, true):
-		if u.get("is_leader") == true or u.get("is_child") == true:
+		if u.is_leader or u.is_child or u.is_arena_combatant or u.is_out_of_commission():
 			continue
 		if u.get("role") != GameData.Role.WARRIOR and not GameState.warhorn_active:
 			continue
@@ -84,7 +84,7 @@ func toggle_warhorn() -> void:
 	GameState.warhorn_active = not GameState.warhorn_active
 	for u in GameState.get_faction_units(0, true):
 		u._refresh_gear_visual()
-		if GameState.warhorn_active and u.get("role") != GameData.Role.WARRIOR and u.get("is_leader") != true and u.get("is_child") != true:
+		if GameState.warhorn_active and not u.is_arena_combatant and not u.is_out_of_commission() and u._is_warhorn_militia():
 			u.squad_order = GameData.SquadOrder.GUARD_BASE
 	if GameState.warhorn_active:
 		_play_ui_sfx("warhorn", 0.03)

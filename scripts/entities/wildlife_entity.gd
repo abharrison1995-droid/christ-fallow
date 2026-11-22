@@ -5,6 +5,7 @@ const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 var animal_type: String = "DEER"
 var animal_name: String = "Deer"
@@ -385,12 +386,7 @@ func projectile_hit_center() -> Vector3:
 
 
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
-	if is_dead:
-		return
-	if is_arena_opponent:
-		if attacker != null and not (attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true):
-			return
-	elif is_protected_from(attacker_faction):
+	if is_dead or not ArenaRules.allows_attack(attacker, self) or is_protected_from(attacker_faction):
 		return
 	var applied := UnitStats.mitigated_damage(amount, armor) if armor > 0.0 else amount
 	hp -= applied
@@ -422,8 +418,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		away.y = 0.0
 		_flee_dir = away.normalized() if away.length() > 0.1 else Vector3(1, 0, 0)
 	elif owner_faction < 0 and attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
-		if not is_arena_opponent or attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true:
-			_set_aggro_target(attacker)
+		_set_aggro_target(attacker)
 
 	if hp <= 0.0:
 		_die(attacker, attacker_faction)
@@ -597,9 +592,8 @@ func _physics_process(delta: float) -> void:
 		_flee_timer -= delta
 		desired_vel = _flee_dir * move_speed * 1.25
 	else:
-		if _target_unit != null and (not is_instance_valid(_target_unit) or _target_unit.get("is_dead") or _target_unit.get("is_wounded") or global_position.distance_to(_target_unit.global_position) > 28.0 \
-				or (is_arena_opponent and not (_target_unit.get("is_arena_combatant") == true or _target_unit.get_meta("is_arena_combatant", false) == true)) \
-				or (not is_arena_opponent and (_target_unit.get("is_arena_combatant") == true or _target_unit.get_meta("is_arena_combatant", false) == true))):
+		if typeof(_target_unit) != TYPE_NIL and (not is_instance_valid(_target_unit) or not ArenaRules.allows_attack(self, _target_unit) \
+				or _target_unit.is_dead or _target_unit.is_wounded or global_position.distance_to(_target_unit.global_position) > 28.0):
 			_set_aggro_target(null)
 
 		if _target_unit == null and is_aggro and _prey_scan_cd <= 0.0:
@@ -709,15 +703,9 @@ func _scan_for_prey(radius: float) -> Node:
 	elif GameState.units_container != null:
 		candidates = GameState.units_container.get_children()
 	for u in candidates:
-		if not is_instance_valid(u) or u.get("is_dead") or u.get("is_wounded"):
+		if not is_instance_valid(u) or u.get("is_dead") or u.get("is_wounded") or not ArenaRules.allows_attack(self, u):
 			continue
-		var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
-		if is_arena_opponent:
-			if not u_comb:
-				continue
-		else:
-			if u_comb:
-				continue
+		if not is_arena_opponent:
 			var u_fid: int = int(u.get("faction_id"))
 			if u_fid == -3:
 				continue
@@ -731,6 +719,8 @@ func _scan_for_prey(radius: float) -> Node:
 
 
 func _perform_attack(target: Node) -> void:
+	if not ArenaRules.allows_attack(self, target):
+		return
 	if _bite_player != null and _bite_player.has_animation(_attack_clip):
 		var aim: Vector3 = target.global_position
 		aim.y = global_position.y
@@ -757,12 +747,7 @@ func _perform_attack(target: Node) -> void:
 			stomp_targets = GameState.units_container.get_children()
 		if true:
 			for u in stomp_targets:
-				if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded"):
-					var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
-					if is_arena_opponent and not u_comb:
-						continue
-					if not is_arena_opponent and u_comb:
-						continue
+				if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded") and ArenaRules.allows_attack(self, u):
 					if global_position.distance_to(u.global_position) <= 4.0:
 						u.take_damage(damage, self, -1)
 	else:
@@ -772,7 +757,7 @@ func _perform_attack(target: Node) -> void:
 func _land_bite() -> void:
 	var target := _bite_target
 	_bite_target = null
-	if not is_instance_valid(target) or target.get("is_dead") == true or target.get("is_wounded") == true:
+	if not is_instance_valid(target) or target.get("is_dead") == true or target.get("is_wounded") == true or not ArenaRules.allows_attack(self, target):
 		return
 	var delta := target.global_position - global_position
 	delta.y = 0.0

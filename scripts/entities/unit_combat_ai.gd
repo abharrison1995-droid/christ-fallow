@@ -6,6 +6,7 @@ const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
 const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 
 static func _play_sfx_3d(cue: String, pos: Vector3, pitch_jitter: float = 0.08, volume_db: float = -2.0) -> void:
@@ -36,8 +37,7 @@ static func process_feral_caveman(u: Node, _delta: float) -> void:
 	var u_body := u as CharacterBody3D
 	var u_pos: Vector3 = u3d.global_position
 	var spd: float = float(u.move_speed)
-	var is_arena_opp: bool = (u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true)
-	if is_arena_opp:
+	if u.is_arena_opponent:
 		var bout_target: Node = u._find_nearest_enemy_unit(24.0)
 		if is_instance_valid(bout_target):
 			engage_target(u, bout_target)
@@ -108,16 +108,16 @@ static func _unit_weapon_def(u: Node) -> Dictionary:
 static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 	var p_leader: Node = GameState.get_faction_leader(0)
 	var camp: Vector3 = u._get_home_camp_pos()
-	var wdef: Dictionary = _unit_weapon_def(u)
-	var is_ranged_unit: bool = bool(wdef.get("is_ranged", false))
-
-	# If unequipped or below faction tech tier and Rack/stockpile exists, equip periodically
+	# Look for crafted replacements between bouts without changing the player's selected loadout.
 	var fid: int = int(u.faction_id)
 	var fdata: Dictionary = GameState.factions.get(fid, {})
 	var cur_tier: int = int(fdata.get("tech_tier", 1))
 	var fstock: Dictionary = fdata.get("stockpile", {})
-	var has_tier_upgrade: bool = (cur_tier >= 2 and int(fstock.get("pelt_mantle", 0)) > 0) or (cur_tier >= 3 and (int(fstock.get("obsidian_plate", 0)) > 0 or int(fstock.get("obsidian_cleavers", 0)) > 0))
-	if int(u.role) == GameData.Role.WARRIOR and (u.has_equipped_weapon != true or int(u.weapon_tier) < cur_tier or u.has_armor != true or has_tier_upgrade) and float(u._ai_think_cd) <= 0.0:
+	var cleaver_available: bool = cur_tier >= 3 and u.warrior_class == GameData.WarriorClass.BRUTE and int(fstock.get("obsidian_cleavers", 0)) > 0
+	var advanced_armor_available: bool = (cur_tier >= 2 and int(fstock.get("pelt_mantle", 0)) > 0) or (cur_tier >= 3 and int(fstock.get("obsidian_plate", 0)) > 0)
+	var needs_weapon: bool = not u.has_equipped_weapon or u.weapon_tier < cur_tier or (u.equipped_weapon_id == "" and cleaver_available)
+	var needs_armor: bool = u.equipped_armor_id == "" and (not u.has_armor or advanced_armor_available)
+	if u.role == GameData.Role.WARRIOR and not u.is_arena_combatant and (needs_weapon or needs_armor) and float(u._ai_think_cd) <= 0.0:
 		u._ai_think_cd = 3.0
 		u.try_equip_from_stockpile()
 
@@ -126,9 +126,9 @@ static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 	var u_pos: Vector3 = (u as Node3D).global_position
 	var u_body := u as CharacterBody3D
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
-	if u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true:
+	if u.is_arena_combatant:
 		var bout_opp: Node = enemy
-		if not is_instance_valid(bout_opp) or not (bout_opp.get("is_arena_opponent") == true or bout_opp.get_meta("is_arena_opponent", false) == true):
+		if not ArenaRules.is_opponent(bout_opp):
 			bout_opp = u._find_nearest_enemy_unit(24.0)
 			if not is_instance_valid(bout_opp):
 				bout_opp = u._find_nearest_hostile_wildlife(24.0)
@@ -143,6 +143,7 @@ static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 				u_body.velocity.z = 0.0
 		return
 	var fire_will: bool = (u.fire_at_will == true)
+	var is_ranged_unit: bool = u.is_ranged_weapon
 	var order: int = int(u.squad_order)
 
 	match order:
@@ -221,9 +222,9 @@ static func process_ai_warrior(u: Node, delta: float, enemy: Node) -> void:
 	var fid: int = int(u.faction_id)
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
 	var leader: bool = (u.is_leader == true)
-	if u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true:
+	if u.is_arena_opponent:
 		var bout_target: Node = enemy
-		if not is_instance_valid(bout_target) or not (bout_target.get("is_arena_combatant") == true or bout_target.get_meta("is_arena_combatant", false) == true):
+		if not ArenaRules.is_combatant(bout_target):
 			bout_target = u._find_nearest_enemy_unit(24.0)
 		if is_instance_valid(bout_target):
 			engage_target(u, bout_target)
@@ -286,24 +287,22 @@ static func can_shoot_or_reach(u: Node, enemy: Node) -> bool:
 	if not is_instance_valid(u) or not is_instance_valid(enemy):
 		return false
 	var d: float = (u as Node3D).global_position.distance_to((enemy as Node3D).global_position)
-	var wdef: Dictionary = _unit_weapon_def(u)
-	if bool(wdef.get("is_ranged", false)):
+	if u.is_ranged_weapon:
 		return u.fire_at_will == true and d <= float(u.attack_range)
 	return d <= 5.5
 
 
 static func engage_target(u: Node, target: Node) -> void:
-	if not is_instance_valid(u) or not is_instance_valid(target):
+	if not is_instance_valid(u) or not ArenaRules.allows_attack(u, target):
 		return
 	var u_body := u as CharacterBody3D
 	var u_pos: Vector3 = u_body.global_position
 	var t_pos: Vector3 = (target as Node3D).global_position
 	var d: float = u_pos.distance_to(t_pos)
 	var eff_class: int = int(u._get_effective_warrior_class())
-	var wdef: Dictionary = _unit_weapon_def(u)
-	var proj_type: String = str(wdef.get("projectile_type", ""))
+	var proj_type: String = u.projectile_type
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
-	var is_ranged_kiter: bool = bool(wdef.get("is_ranged", false)) and ((proj_type == "ARROW" and d < 6.0) or (proj_type == "JAVELIN" and d < 4.2))
+	var is_ranged_kiter: bool = u.is_ranged_weapon and ((proj_type == "ARROW" and d < 6.0) or (proj_type == "JAVELIN" and d < 4.2))
 	if is_ranged_kiter and float(u._attack_cd) > 0.15:
 		# Ranged skirmisher/archer kites away from closing melee threats while keeping aim
 		var away: Vector3 = u_pos - t_pos
@@ -338,7 +337,7 @@ static func engage_target(u: Node, target: Node) -> void:
 
 
 static func engage_building(u: Node, b: Node) -> void:
-	if not is_instance_valid(u) or not is_instance_valid(b):
+	if not is_instance_valid(u) or not ArenaRules.allows_attack(u, b):
 		return
 	var u_body := u as CharacterBody3D
 	var b_pos: Vector3 = (b as Node3D).global_position
@@ -347,8 +346,8 @@ static func engage_building(u: Node, b: Node) -> void:
 	var eff_class: int = int(u._get_effective_warrior_class())
 	var wdef: Dictionary = _unit_weapon_def(u)
 	var w_anim: String = str(wdef.get("attack_anim", ""))
-	var is_ranged_atk: bool = bool(wdef.get("is_ranged", false))
-	var proj_type: String = str(wdef.get("projectile_type", ""))
+	var is_ranged_atk: bool = u.is_ranged_weapon
+	var proj_type: String = u.projectile_type
 	if d > reach:
 		u._steer_toward(b_pos, float(u.move_speed) * float(u._buff_speed_mult))
 	else:
@@ -378,14 +377,14 @@ static func engage_building(u: Node, b: Node) -> void:
 
 
 static func execute_attack_on(u: Node, target: Node) -> void:
-	if not is_instance_valid(u) or not is_instance_valid(target):
+	if not is_instance_valid(u) or u.is_out_of_commission() or not ArenaRules.allows_attack(u, target):
 		return
 	u._attack_cd = float(u.attack_cooldown_max)
 	var eff_class: int = int(u._get_effective_warrior_class())
 	var wdef: Dictionary = _unit_weapon_def(u)
 	var w_anim: String = str(wdef.get("attack_anim", ""))
-	var is_ranged_atk: bool = bool(wdef.get("is_ranged", false))
-	var proj_type: String = str(wdef.get("projectile_type", ""))
+	var is_ranged_atk: bool = u.is_ranged_weapon
+	var proj_type: String = u.projectile_type
 	var anim_dur: float = 0.44 if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE) else (0.34 if (w_anim == "DUAL_SLASH" or eff_class == GameData.WarriorClass.KNIFE_RAIDER) else 0.40)
 	u.play_attack_animation("", anim_dur)
 	var dmg: float = float(u.attack_damage)
@@ -440,6 +439,8 @@ static func fire_javelin_at(u: Node, aim_pos: Vector3, dmg: float) -> void:
 
 static func engage_unarmed_self_defense(u: Node, target: Node) -> void:
 	if not is_instance_valid(target) or not (target is CharacterBody3D) or target.get("is_dead") == true or target.get("is_wounded") == true:
+		return
+	if not ArenaRules.allows_attack(u, target):
 		return
 	var u_body := u as CharacterBody3D
 	var t_pos: Vector3 = (target as Node3D).global_position

@@ -79,6 +79,11 @@ func _verify_fp_meshes_hidden(leader: Node, label: String) -> void:
 	var smalls: Array = leader.get("_cached_fp_small_meshes")
 	check(not meshes.is_empty(), "%s: FP mesh cache populated (%d)" % [label, meshes.size()])
 	var all_hidden := true
+	for rig in [leader._visual_root, leader._skinned_trial]:
+		if is_instance_valid(rig):
+			for mesh in rig.find_children("*", "MeshInstance3D", true, false):
+				if mesh not in meshes:
+					all_hidden = false
 	for mi in meshes:
 		if not is_instance_valid(mi):
 			continue
@@ -137,6 +142,9 @@ func _run() -> void:
 	var hud: Node = _state.hud_controller
 	var pc: Node = _state.player_controller
 	check(leader != null and fc != null and hud != null and pc != null, "Campaign bootstrapped for equipment suite")
+	if CragBornTrial.enabled():
+		var leader_rig: Node3D = leader.get("_skinned_trial")
+		check(leader_rig is CragBornTrial and leader_rig._skeleton.has_node("Offhand"), "The starting skinned Great-Spear kit includes its buckler")
 
 	# ------------------------------------------------------------------
 	# (a) Crafting Pit recipes, tier gating, and crafting completion
@@ -159,6 +167,13 @@ func _run() -> void:
 	check(fc.queue_craft("bows"), "Tier 1 bows queues")
 
 	var stock: Dictionary = f0["stockpile"]
+	stock["obsidian_cleavers"] = 1
+	stock["pelt_mantle"] = 1
+	var locked_stock: Dictionary = stock.duplicate()
+	check(not _state.equip_unit_weapon(leader, "OBSIDIAN_CLEAVER") and not _state.equip_unit_armor(leader, "PELT_MANTLE") and stock == locked_stock,
+		"Tier I equip rejects stocked Tier II and III gear without consuming or refunding anything")
+	stock["obsidian_cleavers"] = 0
+	stock["pelt_mantle"] = 0
 	var before_t1 := {
 		"hide_tunic": int(stock.get("hide_tunic", 0)),
 		"great_spears": int(stock.get("great_spears", 0)),
@@ -222,6 +237,11 @@ func _run() -> void:
 	check(_state.equip_unit_armor(leader, "NONE"), "Unequip Leader armor to NONE")
 	check(int(stock["hide_tunic"]) == 1 and not leader.has_armor and leader.get_equipped_armor_id() == "NONE", "Unequipping HIDE_TUNIC refunds hide_tunic and sets NONE")
 	check(_state.equip_unit_armor(leader, "NONE") and int(stock["hide_tunic"]) == 1, "Re-applying NONE is a no-op with no dupe")
+	var sound := root.get_node("SoundManager")
+	sound.reset_telemetry()
+	leader.take_damage(3.0, null, 0)
+	check(sound.get_cue_play_count("melee_hit") == 1 and sound.get_cue_play_count("shield_block") == 0,
+		"The unarmored leader's dirk loadout uses the ordinary hit cue")
 
 	# Replenish stockpile for stat, projectile, visual, and UI tests
 	for sk in ["spears", "great_spears", "clubs", "knives", "bows", "javelins", "obsidian_cleavers", "armor", "hide_tunic", "pelt_mantle", "obsidian_plate"]:
@@ -301,6 +321,21 @@ func _run() -> void:
 		"Warrior with HUNTING_BOW fires ARROW projectile via UnitCombatAI")
 	if is_instance_valid(dummy_enemy):
 		dummy_enemy.queue_free()
+	check(warrior.weapon_tier == 3, "Manual weapon assignment uses the faction's unlocked crafting tier")
+	_state.equip_unit_armor(warrior, "PELT_MANTLE")
+	warrior.weapon_tier = 2
+	check(_state.assign_player_role(warrior, GameData.Role.FORAGER), "Reassigned equipped warrior to foraging")
+	check(_has_bow_and_pelt(warrior), "Forager preserves its bow and pelt visually")
+	key_press(KEY_H)
+	check(_state.warhorn_active and _has_bow_and_pelt(warrior), "H raises militia with the chosen bow and pelt")
+	hud._warhorn_btn.pressed.emit()
+	check(not _state.warhorn_active and _has_bow_and_pelt(warrior), "Warhorn button stands down militia with its loadout intact")
+	var spears_before: int = stock["spears"]
+	_state.assign_player_role(warrior, GameData.Role.WARRIOR, GameData.WarriorClass.JAVELINEER)
+	check(_has_bow_and_pelt(warrior) and stock["spears"] == spears_before, "Returning to warrior keeps explicit equipment across an automatic tier upgrade")
+	check(warrior.projectile_type == "ARROW" and is_equal_approx(warrior.attack_damage, warrior.ranged_attack_damage),
+		"A Javelineer with a Hunting Bow uses the arrow damage formula")
+	_state.assign_player_role(warrior, GameData.Role.WARRIOR, GameData.WarriorClass.SPEARMAN)
 
 	# ------------------------------------------------------------------
 	# (d) 3rd-person (CragBornTrial / HumanMeshBuilder) & 1st-person (FirstPersonViewmodel)
@@ -379,6 +414,13 @@ func _run() -> void:
 	await frames(4)
 	check(not pc.is_first_person, "Z exits First-Person POV back to Third-Person")
 	_verify_tp_meshes_restored(leader, "Post-swap exit FP")
+	_state.equip_unit_weapon(leader, "HUNTING_BOW")
+	_state.equip_unit_armor(leader, "OBSIDIAN_PLATE")
+	key_press(KEY_Z)
+	await frames(1)
+	_verify_fp_meshes_hidden(leader, "Re-entering FP with gear equipped in third person")
+	key_press(KEY_Z)
+	_verify_tp_meshes_restored(leader, "Exiting FP after a third-person gear swap")
 
 	# ------------------------------------------------------------------
 	# (e) UI controls: ColonyDrawer Crafting tab & UnitInspector
@@ -445,6 +487,8 @@ func _run() -> void:
 		await frames(2)
 		check(warrior.get_equipped_armor_id() == "NONE", "Warrior unarmored via UnitInspector")
 		check(root.gui_get_focus_owner() == null, "UnitInspector armor OptionButton releases focus")
+		warrior.try_equip_from_stockpile()
+		check(warrior.get_equipped_armor_id() == "NONE", "Automatic equipment respects the player's unarmored choice")
 	insp.close()
 	await frames(2)
 
@@ -461,7 +505,7 @@ func _run() -> void:
 	var save_path := "user://equip_verify_%d.json" % Time.get_ticks_usec()
 	check(_state.save_game(save_path), "Saved campaign with custom equipment")
 
-	# In-session reload (check immediately before AI auto-upgrade ticks)
+	# In-session reload preserves the chosen gear and stockpile.
 	check(_state.load_game(save_path), "In-session load succeeded")
 	var r_leader: Node = _state.get_faction_leader(0)
 	var r_warrior: Node = null
@@ -505,3 +549,16 @@ func _run() -> void:
 		return
 	print("EQUIPMENT SYSTEM VERIFICATION PASSED (%d checks)" % _pass_count)
 	quit(0)
+
+
+func _has_bow_and_pelt(unit: Node) -> bool:
+	if unit.equipped_weapon_id != "HUNTING_BOW" or unit.equipped_armor_id != "PELT_MANTLE":
+		return false
+	var trial: Node3D = unit.get("_skinned_trial")
+	if trial is CragBornTrial:
+		var offhand: Node3D = trial._skeleton.get_node_or_null("Offhand")
+		return trial._equipped_weapon_id == "HUNTING_BOW" and trial._equipped_armor_id == "PELT_MANTLE" and offhand != null and offhand.is_visible_in_tree() and trial._armor.is_visible_in_tree()
+	var offhand: Node3D = unit._visual_root.find_child("OffhandMount", true, false)
+	var bow: Node3D = offhand.get_node("BOW")
+	var armor: Node3D = unit._visual_root.find_child("ArmorMount", true, false)
+	return bow.is_visible_in_tree() and armor.is_visible_in_tree()

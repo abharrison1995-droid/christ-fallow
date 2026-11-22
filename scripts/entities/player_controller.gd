@@ -9,6 +9,7 @@ var _mounted_animal: Node3D
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 const TutorialBeacon = preload("res://scripts/core/tutorial_beacon.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
@@ -30,19 +31,7 @@ var is_first_person: bool = false
 var fp_pitch: float = -6.0
 var _saved_third_person_dist: float = 12.0
 var _fp_bob_time: float = 0.0
-var is_spectating_arena: bool = false:
-	set(value):
-		if is_spectating_arena == value:
-			return
-		is_spectating_arena = value
-		if is_spectating_arena:
-			if is_first_person:
-				set_first_person(false, false)
-			if arena_spectate_center == Vector3.ZERO and GameState.arena_bout.has("arena_pos"):
-				arena_spectate_center = GameState.arena_bout["arena_pos"]
-			target_cam_distance = maxf(target_cam_distance, 13.5)
-		else:
-			arena_spectate_center = Vector3.ZERO
+var is_spectating_arena: bool = false
 var arena_spectate_center: Vector3 = Vector3.ZERO
 
 var is_build_mode: bool = false
@@ -131,18 +120,19 @@ func attach_leader(p_leader: CharacterBody3D) -> void:
 
 
 func set_arena_spectate(enabled: bool, center: Vector3 = Vector3.ZERO) -> void:
-	if enabled:
-		var target_center := center
-		if target_center == Vector3.ZERO and GameState.arena_bout.has("arena_pos"):
-			target_center = GameState.arena_bout["arena_pos"]
-		arena_spectate_center = target_center
-		if is_first_person:
-			set_first_person(false, false)
-		is_spectating_arena = true
-		target_cam_distance = maxf(target_cam_distance, 13.5)
-	else:
+	if not enabled:
 		is_spectating_arena = false
 		arena_spectate_center = Vector3.ZERO
+		return
+	if not GameState.is_arena_bout_active() or not _has_live_leader() or camera == null:
+		return
+	is_spectating_arena = true
+	arena_spectate_center = center if center != Vector3.ZERO else GameState.arena_bout["arena_pos"]
+	if is_first_person:
+		_apply_first_person(false, false)
+	target_cam_distance = maxf(target_cam_distance, 13.5)
+	camera_pivot.global_position = _get_third_person_pivot()
+	_update_camera(0.0)
 
 
 func _has_live_leader() -> bool:
@@ -161,6 +151,12 @@ func toggle_first_person() -> void:
 func set_first_person(enabled: bool, from_scroll: bool = false) -> void:
 	if is_first_person == enabled or not can_toggle_first_person():
 		return
+	if enabled:
+		set_arena_spectate(false)
+	_apply_first_person(enabled, from_scroll)
+
+
+func _apply_first_person(enabled: bool, from_scroll: bool) -> void:
 	is_first_person = enabled
 	_fp_bob_time = 0.0
 	cancel_camera_drag()
@@ -638,6 +634,8 @@ func _update_blueprint_ghost() -> void:
 
 
 func _try_place_blueprint() -> void:
+	if not _has_live_leader() or leader_unit.is_arena_combatant or leader_unit.is_out_of_commission():
+		return
 	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished or _blueprint_ghost == null:
 		return
 	var b_info: Dictionary = GameData.BUILDINGS.get(blueprint_type, {})
@@ -708,7 +706,7 @@ func _try_dash() -> void:
 func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 	if not _has_live_leader():
 		return
-	if is_mounted():
+	if is_mounted() or leader_unit.is_out_of_commission():
 		if inspect_if_clear:
 			_try_inspect_aimed_unit()
 		return
@@ -721,7 +719,8 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 	var cd_mult: float = float(wdef.get("cooldown_mult", 1.0))
 
 	if eff_wid == "HUNTING_BOW":
-		if inspect_if_clear and _try_inspect_aimed_unit():
+		var hostile_aim := _get_first_person_aim_point(true) if is_first_person and inspect_if_clear else Vector3.INF
+		if inspect_if_clear and hostile_aim == Vector3.INF and _try_inspect_aimed_unit():
 			return
 		if _attack_cd > 0.0:
 			return
@@ -735,7 +734,7 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 		var target_pos: Vector3
 		if is_first_person and camera != null:
 			origin = camera.global_position - camera.global_basis.z * FIRST_PERSON_JAVELIN_RELEASE
-			target_pos = _get_first_person_aim_point()
+			target_pos = hostile_aim if hostile_aim != Vector3.INF else _get_first_person_aim_point()
 		else:
 			var aim := _get_ground_mouse_pos()
 			var dir := aim - leader_unit.global_position
@@ -808,33 +807,20 @@ func _get_cleave_targets(reach_scale: float = 1.0) -> Array[Node3D]:
 	var unit_reach := 3.2 * reach_scale
 	var wild_reach := 3.6 * reach_scale
 	var targets: Array[Node3D] = []
-	var leader_in_arena: bool = (leader_unit.get("is_arena_combatant") == true or leader_unit.get_meta("is_arena_combatant", false) == true)
 	for u in GameState.spatial_index.query_units_in_radius(center, unit_reach):
-		if u == leader_unit or u.is_wounded or not GameState.is_hostile(0, u.faction_id):
-			continue
-		var u_opp: bool = (u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true)
-		var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
-		if leader_in_arena:
-			if not u_opp:
-				continue
-		elif u_opp or u_comb:
+		if not ArenaRules.allows_attack(leader_unit, u) or u == leader_unit or u.is_wounded or not GameState.is_hostile(0, u.faction_id):
 			continue
 		var point: Vector3 = u.global_position + (Vector3.UP if is_first_person else Vector3.ZERO)
 		if _cleave_reaches(center, point, unit_reach):
 			targets.append(u)
 
 	for w in GameState.spatial_index.query_wildlife_in_radius(center, wild_reach):
-		var w_opp: bool = (w.get("is_arena_opponent") == true or w.get_meta("is_arena_opponent", false) == true)
-		if leader_in_arena:
-			if not w_opp:
-				continue
-		else:
-			if w_opp or w.is_protected_from(0):
-				continue
+		if not ArenaRules.allows_attack(leader_unit, w) or w.is_protected_from(0):
+			continue
 		var point: Vector3 = w.projectile_hit_center() if is_first_person else w.global_position
 		if _cleave_reaches(center, point, (3.6 if w.is_boss else 2.8) * reach_scale):
 			targets.append(w)
-	if not targets.is_empty() or leader_in_arena:
+	if not targets.is_empty() or leader_unit.is_arena_combatant:
 		return targets
 
 	for b in GameState.spatial_index.query_buildings_in_radius(center, wild_reach):
@@ -856,24 +842,16 @@ func _cleave_reaches(center: Vector3, point: Vector3, radius: float) -> bool:
 	return from_eye.dot(-camera.global_basis.z) >= from_eye.length() * 0.5
 
 
-func _get_first_person_aim_point() -> Vector3:
+func _get_first_person_aim_point(require_hostile: bool = false) -> Vector3:
 	var ray_orig := camera.global_position
 	var ray_dir := -camera.global_basis.z
 	var aim_limit := 32.0
 	if ray_dir.y < -0.001 and ray_orig.y > 0.0:
 		aim_limit = minf(aim_limit, ray_orig.y / -ray_dir.y)
 	var best_t := aim_limit
-	var best_point := ray_orig + ray_dir * minf(24.0, aim_limit)
-	var leader_in_arena: bool = (leader_unit.get("is_arena_combatant") == true or leader_unit.get_meta("is_arena_combatant", false) == true)
+	var best_point := Vector3.INF if require_hostile else ray_orig + ray_dir * minf(24.0, aim_limit)
 	for u in GameState.spatial_index.query_units_in_radius(ray_orig, aim_limit + Projectile3D.UNIT_HIT_RADIUS):
-		if u == leader_unit or u.is_wounded or not GameState.is_hostile(0, u.faction_id):
-			continue
-		var u_opp: bool = (u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true)
-		var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
-		if leader_in_arena:
-			if not u_opp:
-				continue
-		elif u_opp or u_comb:
+		if not ArenaRules.allows_attack(leader_unit, u) or u == leader_unit or u.is_wounded or not GameState.is_hostile(0, u.faction_id):
 			continue
 		var tgt: Vector3 = u.global_position + Vector3.UP
 		var proj := (tgt - ray_orig).dot(ray_dir)
@@ -882,13 +860,8 @@ func _get_first_person_aim_point() -> Vector3:
 				best_t = proj
 				best_point = tgt
 	for w in GameState.spatial_index.query_wildlife_in_radius(ray_orig, aim_limit + 2.0):
-		var w_opp: bool = (w.get("is_arena_opponent") == true or w.get_meta("is_arena_opponent", false) == true)
-		if leader_in_arena:
-			if not w_opp:
-				continue
-		else:
-			if w_opp or w.is_protected_from(0):
-				continue
+		if not ArenaRules.allows_attack(leader_unit, w) or w.is_protected_from(0):
+			continue
 		var tgt_w: Vector3 = w.projectile_hit_center()
 		var proj_w := (tgt_w - ray_orig).dot(ray_dir)
 		if proj_w > FIRST_PERSON_JAVELIN_RELEASE and proj_w < best_t:
@@ -900,7 +873,7 @@ func _get_first_person_aim_point() -> Vector3:
 
 
 func _try_throw_javelin() -> void:
-	if _javelin_cd > 0.0 or leader_unit == null or leader_unit.is_dead or GameState.projectiles_container == null or is_mounted():
+	if _javelin_cd > 0.0 or not _has_live_leader() or leader_unit.is_out_of_commission() or GameState.projectiles_container == null or is_mounted():
 		return
 	_javelin_cd = 1.15 * PerkSystem.get_leader_attack_cd_mult(GameState.factions.get(0, {}))
 	GameState.tutorial_thrown = true
@@ -980,10 +953,16 @@ func _try_inspect_clicked_unit() -> bool:
 
 
 func _try_interact_or_harvest() -> void:
-	if leader_unit == null or leader_unit.is_dead:
+	if not _has_live_leader():
 		return
 	if is_mounted():
 		_try_dismount()
+		return
+	var arena := ArenaRules.get_arena_building(GameState)
+	if is_instance_valid(arena) and is_instance_valid(GameState.hud_controller) and leader_unit.global_position.distance_to(arena.global_position) <= 7.2:
+		GameState.hud_controller.open_arena_drawer()
+		return
+	if leader_unit.is_arena_combatant or leader_unit.is_out_of_commission():
 		return
 	var representative := GameState.nearby_rival_leader(leader_unit.global_position)
 	if representative != null and is_instance_valid(GameState.hud_controller):
@@ -1051,14 +1030,6 @@ func _try_interact_or_harvest() -> void:
 				CombatVFX.spawn_damage_popup(b as Node3D, "+Build", Color(0.55, 0.90, 1.0), 0.95, 2.2)
 				_notify_tutorial_progress()
 				return
-
-	# 1.8 Open Blood-Pit Arena drawer when interacting near a constructed Arena Pit
-	for arena_b in GameState.get_faction_buildings(0, "ARENA_PIT", true):
-		if is_instance_valid(arena_b) and not arena_b.get("is_destroyed"):
-			if leader_unit.global_position.distance_to((arena_b as Node3D).global_position) <= 7.2:
-				if is_instance_valid(GameState.hud_controller) and GameState.hud_controller.has_method("open_arena_drawer"):
-					GameState.hud_controller.open_arena_drawer()
-					return
 
 	# 2. Direct harvest nearby resource node
 	if _harvest_cd > 0.0:
@@ -1187,7 +1158,7 @@ func restore_mount_from_save() -> void:
 
 
 func _try_god_blessing() -> void:
-	if is_mounted():
+	if not _has_live_leader() or leader_unit.is_out_of_commission() or is_mounted():
 		return
 	if _blessing_cd > 0.0 or leader_unit == null:
 		if _blessing_cd > 0.0:

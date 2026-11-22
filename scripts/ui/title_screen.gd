@@ -7,7 +7,6 @@ const Settings = preload("res://scripts/ui/settings_screen.gd")
 const Embers = preload("res://scripts/ui/title_embers.gd")
 const CampaignSession = preload("res://scripts/systems/campaign_session.gd")
 const ART := "res://assets/ui/valley_dawn.png"
-const AMBIENCE := "res://assets/ui/title_ambience.wav"
 
 var _title: Control
 var _stack: VBoxContainer
@@ -20,7 +19,6 @@ var _status: Label
 var _page: Control
 var _page_trigger: Control
 var _session: Node
-var _ambience: AudioStreamPlayer
 var _launching := false
 var _menu_open := false
 var _quitting := false
@@ -33,25 +31,7 @@ func _ready() -> void:
 	get_tree().auto_accept_quit = false
 	_build_title()
 	_show_start()
-	if DisplayServer.get_name() != "headless" and ResourceLoader.exists(AMBIENCE):
-		_ambience = AudioStreamPlayer.new()
-		_ambience.bus = &"Music"
-		var loop := load(AMBIENCE).duplicate() as AudioStreamWAV
-		loop.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		loop.loop_end = int(loop.get_length() * loop.mix_rate)
-		_ambience.stream = loop
-		add_child(_ambience)
-		Preferences.changed.connect(_update_ambience)
-		_update_ambience()
-		_ambience.play()
-
-
-func _exit_tree() -> void:
-	if is_instance_valid(_ambience):
-		_ambience.stop()
-		_ambience.stream = null
-	if has_node("/root/SoundManager"):
-		SoundManager.shutdown()
+	SoundManager.set_music_state("TITLE", 0.0)
 
 
 func _notification(what: int) -> void:
@@ -63,13 +43,8 @@ func _quit_game() -> void:
 	if _quitting:
 		return
 	_quitting = true
-	var had_audio := is_instance_valid(_ambience)
-	if had_audio:
-		_ambience.stop()
-		_ambience.stream = null
-	if has_node("/root/SoundManager"):
-		SoundManager.shutdown()
-	if had_audio:
+	SoundManager.shutdown()
+	if DisplayServer.get_name() != "headless":
 		# Give the mixer time to drop the stopped playback before normal shutdown.
 		await get_tree().create_timer(maxf(0.05, AudioServer.get_output_latency())).timeout
 	get_tree().quit()
@@ -257,8 +232,6 @@ func _begin_campaign(load_saved: bool, leader: String = "", tribe: String = "", 
 		_status.text = "The campaign could not be loaded. Open Load Game for details."
 		return
 	_title.hide()
-	if _ambience != null:
-		_ambience.stop()
 	_launching = false
 
 
@@ -266,16 +239,6 @@ func _return_to_title() -> void:
 	_status.text = ""
 	_title.show()
 	_show_main_menu()
-	if has_node("/root/SoundManager"):
-		SoundManager.stop_music(0.0)
-	if _ambience != null:
-		_ambience.play()
-
-
-func _update_ambience() -> void:
-	var volume := float(Preferences.get_value("ambience"))
-	_ambience.volume_db = linear_to_db(maxf(volume, 0.001))
-	_ambience.stream_paused = volume <= 0.0
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

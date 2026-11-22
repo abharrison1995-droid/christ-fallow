@@ -22,6 +22,21 @@ var _last_hit_flash := -1.0
 var _base_scale := Vector3.ONE
 
 
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		clear_surface_overrides(self)
+
+
+static func clear_surface_overrides(root: Node) -> void:
+	# Clear render-side overrides before the mesh nodes release their material references.
+	# Godot 4.3 can otherwise read a freed RID when the imported mesh is still cached.
+	for node in root.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		for surface in range(mesh.get_surface_override_material_count()):
+			if mesh.get_surface_override_material(surface) != null:
+				mesh.set_surface_override_material(surface, null)
+
+
 func set_rig_scale(rig_scale: Vector3) -> void:
 	_base_scale = rig_scale
 	scale = rig_scale

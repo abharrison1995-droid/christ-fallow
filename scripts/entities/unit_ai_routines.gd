@@ -4,6 +4,7 @@ extends RefCounted
 
 const Layout = preload("res://scripts/core/world_layout.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 
 static func _units_near(point: Vector3, radius: float) -> Array:
@@ -420,23 +421,11 @@ static func find_nearest_resource_node(types: Array, around: Vector3, max_dist: 
 	return best
 
 
-static func is_arena_combatant(n: Node) -> bool:
-	return n != null and (n.get("is_arena_combatant") == true or n.get_meta("is_arena_combatant", false) == true)
-
-
-static func is_arena_opponent(n: Node) -> bool:
-	return n != null and (n.get("is_arena_opponent") == true or n.get_meta("is_arena_opponent", false) == true)
-
-
-static func is_in_arena_bout(n: Node) -> bool:
-	return is_arena_combatant(n) or is_arena_opponent(n)
-
-
 static func find_nearest_prey(u, max_dist: float) -> Node:
 	var best: Node = null
 	var best_d := max_dist
 	for w in _wildlife_near((u as Node3D).global_position, max_dist):
-		if not is_instance_valid(w) or w.get("is_dead") or is_arena_opponent(w):
+		if not is_instance_valid(w) or w.get("is_dead") or ArenaRules.is_opponent(w):
 			continue
 		var at: String = str(w.get("animal_type"))
 		if w.owner_faction < 0 and (at == "DEER" or at == "BOAR"):
@@ -448,15 +437,7 @@ static func find_nearest_prey(u, max_dist: float) -> Node:
 
 
 static func is_wildlife_hostile_to_faction(w: Node, faction_id: int, unit_ref: Node = null) -> bool:
-	if not is_instance_valid(w) or w.get("is_dead") == true:
-		return false
-	var w_opp := is_arena_opponent(w)
-	if unit_ref != null:
-		if is_arena_combatant(unit_ref):
-			return w_opp
-		if is_arena_opponent(unit_ref):
-			return false
-	if w_opp:
+	if not is_instance_valid(w) or w.get("is_dead") == true or not ArenaRules.allows_attack(unit_ref, w):
 		return false
 	if w.get("is_aggro") == true:
 		return true
@@ -471,7 +452,7 @@ static func is_wildlife_hostile_to_faction(w: Node, faction_id: int, unit_ref: N
 
 
 static func find_hostile_wildlife_near_point(u, point: Vector3, radius: float) -> Node:
-	if is_arena_opponent(u):
+	if ArenaRules.is_opponent(u):
 		return null
 	var best: Node = null
 	var best_d := radius
@@ -494,25 +475,12 @@ static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
 	var best: Node = null
 	var best_score := 999999.0
 	var faction: int = u.faction_id
-	var u_comb := is_arena_combatant(u)
-	var u_opp := is_arena_opponent(u)
 	var warrior_class: int = u.warrior_class if u.role == GameData.Role.WARRIOR else -1
 	var spear_camp: Vector3 = u._get_home_camp_pos() if warrior_class == GameData.WarriorClass.SPEARMAN else Vector3.ZERO
 	var hostility := {}
 	for other in _units_near(point, radius):
-		if not is_instance_valid(other) or other.get("is_dead") or other.get("is_wounded"):
+		if not ArenaRules.allows_attack(u, other) or other.get("is_dead") or other.get("is_wounded"):
 			continue
-		var o_comb := is_arena_combatant(other)
-		var o_opp := is_arena_opponent(other)
-		if u_comb:
-			if not o_opp:
-				continue
-		elif u_opp:
-			if not o_comb:
-				continue
-		else:
-			if o_comb or o_opp:
-				continue
 		var other_faction: int = other.faction_id
 		if not hostility.has(other_faction):
 			hostility[other_faction] = GameState.is_hostile(faction, other_faction)
@@ -537,7 +505,7 @@ static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
 
 
 static func find_nearest_enemy_building(u, radius: float) -> Node:
-	if is_in_arena_bout(u):
+	if ArenaRules.is_in_bout(u):
 		return null
 	var best: Node = null
 	var best_d := radius
@@ -568,7 +536,7 @@ static func respond_to_civilian_threat(u, enemy: Node) -> bool:
 	# Civilian self-defense (weak unarmed hand attacks) or fleeing to camp
 	var threat: Node = enemy if _is_valid_self_defense_target(enemy) else null
 	if u._self_defense_target != null:
-		if not _is_valid_self_defense_target(u._self_defense_target):
+		if not _is_valid_self_defense_target(u._self_defense_target) or not ArenaRules.allows_attack(u, u._self_defense_target):
 			u._self_defense_target = null
 		else:
 			var sd_fid: Variant = u._self_defense_target.get("faction_id")

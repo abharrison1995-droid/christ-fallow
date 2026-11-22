@@ -3,6 +3,7 @@ extends CharacterBody3D
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 const FOOT_CAPSULE_CENTER := Vector3(0.0, 0.85, 0.0)
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
@@ -369,6 +370,8 @@ func _rebuild_visual() -> void:
 			else:
 				pilot.free()
 	_sync_rider_visual()
+	if _mounted or _unarmed_punch_vis_timer > 0.0:
+		_set_hand_mounts_visible(false)
 	if _first_person_hidden:
 		_rebuild_fp_mesh_cache()
 		_apply_first_person_shadow_mode()
@@ -389,7 +392,7 @@ func set_first_person_view(active: bool) -> void:
 		return
 	_first_person_hidden = active
 	_fp_anim_idle_time = 0.0
-	if active and _cached_fp_meshes.is_empty():
+	if active:
 		_rebuild_fp_mesh_cache()
 	_apply_first_person_shadow_mode()
 	_sync_leader_nameplate()
@@ -604,6 +607,8 @@ func _refresh_gear_visual() -> void:
 	HumanMeshBuilder.update_human_gear(MeshFactory, _visual_root, w_str, weapon_tier, has_armor, use_tool, desired_key, eff_weapon_id, eff_armor_id)
 	if _skinned_trial is CragBornTrial:
 		_skinned_trial.equip_gear(MeshFactory, eff_weapon_id, eff_armor_id, weapon_tier)
+	if _mounted or _unarmed_punch_vis_timer > 0.0:
+		_set_hand_mounts_visible(false)
 	if _first_person_hidden:
 		_rebuild_fp_mesh_cache()
 		_apply_first_person_shadow_mode()
@@ -816,7 +821,7 @@ func modify_morale(delta_m: float) -> void:
 
 
 func start_revolt() -> void:
-	if is_leader or is_child or is_revolting or is_wounded:
+	if is_leader or is_child or is_revolting or is_wounded or is_arena_combatant or is_out_of_commission():
 		return
 	is_revolting = true
 	original_faction_id = faction_id if faction_id >= 0 else 0
@@ -884,17 +889,14 @@ func send_to_shaman_shack(shack_pos: Vector3) -> void:
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	if is_dead or is_wounded or GameState.has_truce(faction_id, attacker_faction):
 		return
-	if is_arena_combatant and attacker != null and not (attacker.get("is_arena_opponent") == true or attacker.get_meta("is_arena_opponent", false) == true):
-		return
-	if is_arena_opponent and attacker != null and not (attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true):
+	if not ArenaRules.allows_attack(attacker, self):
 		return
 	var total_armor := armor + _buff_armor_bonus
 	var mitigated := UnitStats.mitigated_damage(amount, total_armor)
-	if faction_id == 0 and is_arena_combatant and (hp - mitigated) <= 0.0:
+	if is_arena_combatant and hp - mitigated <= 0.0:
 		hp = maxf(1.0, max_hp * 0.20)
 		is_arena_combatant = false
-		set_meta("is_arena_combatant", false)
-		arena_recovery_remaining = 25.0 if is_leader else 55.0
+		arena_recovery_remaining = ArenaRules.RECOVERY_DURATION if is_leader else 55.0
 		is_raiding = false
 		clear_combat_target()
 		_knockback_vel = Vector3.ZERO
@@ -946,7 +948,10 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 				hit_dir_body = Vector3(-local_atk.x, 0.0, -local_atk.z).normalized()
 
 	var ckey := _get_class_key()
-	var has_shield: bool = (ckey == "SPEARMAN" or ckey == "JAVELINEER" or ckey == "LEADER" or ckey == "TRAINEE")
+	var has_shield := ckey in ["SPEARMAN", "JAVELINEER", "LEADER", "TRAINEE"]
+	if equipped_weapon_id != "":
+		var weapon: Dictionary = GameData.WEAPON_DEFS[equipped_weapon_id]
+		has_shield = weapon["proc_offhand"] in ["BUCKLER_SHIELD", "TARGET_SHIELD"]
 	var is_heavy: bool = (mitigated >= max_hp * 0.16) or atk_is_boss or atk_is_brute
 	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
 	if sm != null:
@@ -988,7 +993,7 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 	hp = 0.0
 	_unregister_from_index()
 
-	if GameState.factions.has(killer_faction) and GameState.has_tenet(killer_faction, "BLOOD_SACRIFICE"):
+	if not is_arena_opponent and GameState.has_tenet(killer_faction, "BLOOD_SACRIFICE"):
 		GameState.add_resource(killer_faction, "faith", 8.0)
 		if killer != null and is_instance_valid(killer) and killer.has_method("heal"):
 			killer.heal(10.0)
@@ -1218,10 +1223,7 @@ func _promote_to_leader(player_controlled: bool) -> void:
 	_retreating_to_heal = false
 	role = GameData.Role.WARRIOR
 	has_equipped_weapon = true
-	equipped_weapon_id = ""
-	has_armor = true
-	if equipped_armor_id == "NONE":
-		equipped_armor_id = ""
+	has_armor = equipped_armor_id != "NONE"
 	if GameState.factions.has(faction_id):
 		GameState.factions[faction_id]["leader_name"] = unit_name
 		weapon_tier = maxi(weapon_tier, int(GameState.factions[faction_id].get("tech_tier", 1)))
@@ -1263,65 +1265,61 @@ static func _armor_rank(armor_id: String) -> int:
 
 
 func try_equip_from_stockpile() -> void:
-	if not GameState.factions.has(faction_id):
+	if is_child or is_dead or is_wounded or is_arena_combatant or is_arena_opponent or is_out_of_commission() or not GameState.factions.has(faction_id):
 		return
 	var fdata: Dictionary = GameState.factions[faction_id]
 	var stock: Dictionary = fdata["stockpile"]
 	var tier: int = int(fdata.get("tech_tier", 1))
 	var equipped_any := false
 
-	var cur_wid: String = get_equipped_weapon_id()
-	if (is_leader or warrior_class == GameData.WarriorClass.BRUTE) and tier >= 3 and int(stock.get("obsidian_cleavers", 0)) > 0 and cur_wid != "OBSIDIAN_CLEAVER":
-		stock["obsidian_cleavers"] = int(stock["obsidian_cleavers"]) - 1
-		if equipped_weapon_id != "" and GameData.WEAPON_DEFS.has(equipped_weapon_id):
-			var old_wkey: String = str(GameData.WEAPON_DEFS[equipped_weapon_id].get("stock_key", ""))
-			if old_wkey != "":
-				stock[old_wkey] = int(stock.get(old_wkey, 0)) + 1
-		equipped_weapon_id = "OBSIDIAN_CLEAVER"
-		has_equipped_weapon = true
-		weapon_tier = tier
-		equipped_any = true
+	var target_wid := ""
+	var keep_weapon := faction_id == 0 and equipped_weapon_id != ""
+	if not keep_weapon and (is_leader or warrior_class == GameData.WarriorClass.BRUTE) and tier >= 3 \
+			and int(stock.get("obsidian_cleavers", 0)) > 0 and equipped_weapon_id != "OBSIDIAN_CLEAVER":
+		target_wid = "OBSIDIAN_CLEAVER"
 	elif not has_equipped_weapon or weapon_tier < tier:
-		var target_wid: String = "GREAT_SPEAR" if is_leader else GameData.resolve_default_weapon_id(GameData.Role.WARRIOR, warrior_class, false, false)
-		var key: String = str(GameData.WEAPON_DEFS.get(target_wid, {}).get("stock_key", "spears"))
-		if int(stock.get(key, 0)) > 0:
+		target_wid = equipped_weapon_id if keep_weapon else GameData.resolve_default_weapon_id(GameData.Role.WARRIOR, warrior_class, is_leader, false)
+	if target_wid != "":
+		var weapon: Dictionary = GameData.WEAPON_DEFS[target_wid]
+		var key: String = weapon["stock_key"]
+		if tier >= int(weapon["min_tier"]) and int(stock.get(key, 0)) > 0:
 			stock[key] = int(stock[key]) - 1
+			var old_weapon: Dictionary = GameData.WEAPON_DEFS.get(equipped_weapon_id, {})
+			var old_key: String = old_weapon.get("stock_key", "")
+			# Replacing a weapon with a newly crafted one of the same type pays for the tier upgrade.
+			if old_key != "" and old_key != key:
+				stock[old_key] = int(stock.get(old_key, 0)) + 1
 			equipped_weapon_id = target_wid
 			has_equipped_weapon = true
 			weapon_tier = tier
 			equipped_any = true
 
-	var cur_aid: String = get_equipped_armor_id() if has_armor else "NONE"
-	var cur_rank: int = _armor_rank(cur_aid)
-	var upgrade_aid := ""
-	var upgrade_key := ""
-	if tier >= 3 and cur_rank < 4 and int(stock.get("obsidian_plate", 0)) > 0:
-		upgrade_aid = "OBSIDIAN_PLATE"
-		upgrade_key = "obsidian_plate"
-	elif tier >= 2 and cur_rank < 3 and int(stock.get("pelt_mantle", 0)) > 0:
-		upgrade_aid = "PELT_MANTLE"
-		upgrade_key = "pelt_mantle"
-	elif cur_rank < 2 and int(stock.get("armor", 0)) > 0:
-		upgrade_aid = "BONE_GUARD"
-		upgrade_key = "armor"
-	elif cur_rank < 1 and int(stock.get("hide_tunic", 0)) > 0:
-		upgrade_aid = "HIDE_TUNIC"
-		upgrade_key = "hide_tunic"
-
-	if upgrade_aid != "":
-		stock[upgrade_key] = int(stock[upgrade_key]) - 1
-		if equipped_armor_id != "" and equipped_armor_id != "NONE" and GameData.ARMOR_DEFS.has(equipped_armor_id):
-			var old_akey: String = str(GameData.ARMOR_DEFS[equipped_armor_id].get("stock_key", ""))
+	if faction_id != 0 or equipped_armor_id == "":
+		var cur_rank: int = _armor_rank(get_equipped_armor_id())
+		var upgrade_aid := ""
+		if tier >= 3 and cur_rank < 4 and int(stock.get("obsidian_plate", 0)) > 0:
+			upgrade_aid = "OBSIDIAN_PLATE"
+		elif tier >= 2 and cur_rank < 3 and int(stock.get("pelt_mantle", 0)) > 0:
+			upgrade_aid = "PELT_MANTLE"
+		elif cur_rank < 2 and int(stock.get("armor", 0)) > 0:
+			upgrade_aid = "BONE_GUARD"
+		elif cur_rank < 1 and int(stock.get("hide_tunic", 0)) > 0:
+			upgrade_aid = "HIDE_TUNIC"
+		if upgrade_aid != "":
+			var upgrade_key: String = GameData.ARMOR_DEFS[upgrade_aid]["stock_key"]
+			stock[upgrade_key] = int(stock[upgrade_key]) - 1
+			var old_armor: Dictionary = GameData.ARMOR_DEFS.get(equipped_armor_id, {})
+			var old_akey: String = old_armor.get("stock_key", "")
 			if old_akey != "":
 				stock[old_akey] = int(stock.get(old_akey, 0)) + 1
-		equipped_armor_id = upgrade_aid
-		has_armor = true
-		equipped_any = true
+			equipped_armor_id = upgrade_aid
+			has_armor = true
+			equipped_any = true
 
 	if equipped_any:
+		recalculate_stats(false)
 		if faction_id == 0:
 			GameState.resources_changed.emit(0)
-		recalculate_stats(false)
 
 
 func _physics_process(delta: float) -> void:
@@ -1437,7 +1435,7 @@ func _physics_process(delta: float) -> void:
 					GameState.check_victory_conditions()
 		return
 
-	if faction_id == 0 and not is_leader and not is_child:
+	if faction_id == 0 and not is_leader and not is_child and not is_arena_combatant and not is_out_of_commission():
 		if GameState.warhorn_active and GameState.current_phase == GameData.SchedulePhase.DAY_WORK:
 			_warhorn_fatigue_timer += delta
 			if _warhorn_fatigue_timer >= 15.0:
@@ -1840,7 +1838,7 @@ func _find_cached_enemy_near_point(point: Vector3, radius: float) -> Node:
 			return null
 		if (_cache_alive(_scan_enemy) and not _scan_enemy.is_wounded
 				and GameState.is_hostile(faction_id, _scan_enemy.faction_id)
-				and not UnitAIRoutines.is_in_arena_bout(_scan_enemy)):
+				and ArenaRules.allows_attack(self, _scan_enemy)):
 			return _scan_enemy
 	_scan_enemy_cd = _scan_jitter()
 	_scan_enemy_radius = radius

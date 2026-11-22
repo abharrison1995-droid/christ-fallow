@@ -6,6 +6,7 @@ const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
 const Gate = preload("res://scripts/core/standing_stone_gate.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 
 var building_type: String = "CAMPFIRE"
 var faction_id: int = 0:
@@ -622,13 +623,13 @@ func _physics_process(delta: float) -> void:
 					heal_amt = 8.5
 				heal_amt *= PerkSystem.get_campfire_heal_mult(faction_dict)
 				for u in GameState.get_faction_units(faction_id, true):
-					if u.global_position.distance_to(global_position) <= 10.0 and float(u.get("_campfire_heal_cd")) <= 0.0:
+					if not u.is_arena_combatant and u.global_position.distance_to(global_position) <= 10.0 and float(u.get("_campfire_heal_cd")) <= 0.0:
 						u._campfire_heal_cd = 1.95
 						u.heal(heal_amt)
 
 	# Arena Pit corner brazier flicker & bright bout pulse
 	if building_type == "ARENA_PIT" and _visual_root != null and damage_stage < 3:
-		var bout_active: bool = GameState.is_arena_bout_active()
+		var bout_active: bool = GameState.arena_bout.get("arena") == self
 		var t_sec := float(Time.get_ticks_msec()) * 0.001
 		var stage_node := _get_active_stage_node()
 		if stage_node != null:
@@ -825,8 +826,7 @@ func _find_nearest_hostile(max_range: float) -> Node3D:
 	for u in unit_candidates:
 		if not is_instance_valid(u) or u.get("is_dead") == true:
 			continue
-		if u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true \
-				or u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true:
+		if ArenaRules.is_in_bout(u):
 			continue
 		if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 			continue
@@ -844,8 +844,6 @@ func _find_nearest_hostile(max_range: float) -> Node3D:
 		wild_candidates = GameState.wildlife_container.get_children()
 	if true:
 		for w in wild_candidates:
-			if w.get("is_arena_opponent") == true or w.get_meta("is_arena_opponent", false) == true:
-				continue
 			if not UnitAIRoutines.is_wildlife_hostile_to_faction(w, faction_id):
 				continue
 			var w3d := w as Node3D

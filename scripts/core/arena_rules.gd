@@ -177,11 +177,48 @@ const BOUT_TIERS := {
 static func get_arena_building(game_state) -> Node3D:
 	if game_state == null:
 		return null
-	var arenas: Array = game_state.get_faction_buildings(0, "ARENA_PIT", true)
-	for b in arenas:
-		if is_instance_valid(b) and not b.is_queued_for_deletion() and not bool(b.get("is_destroyed")):
-			return b as Node3D
-	return null
+	if game_state.is_arena_bout_active():
+		var host: Variant = game_state.arena_bout.get("arena")
+		return host as Node3D if _is_available_arena(host) else null
+	var leader: Node3D = game_state.get_faction_leader(0)
+	var closest: Node3D = null
+	var best_dist := INF
+	for arena in game_state.get_faction_buildings(0, "ARENA_PIT", true):
+		if not _is_available_arena(arena):
+			continue
+		if leader == null:
+			return arena
+		var dist: float = leader.global_position.distance_squared_to(arena.global_position)
+		if dist < best_dist:
+			closest = arena
+			best_dist = dist
+	return closest
+
+
+static func _is_available_arena(arena: Variant) -> bool:
+	return is_instance_valid(arena) and arena.is_inside_tree() and not arena.is_queued_for_deletion() and not arena.is_destroyed and arena.faction_id == 0
+
+
+static func is_combatant(entity: Node) -> bool:
+	return is_instance_valid(entity) and entity.get("is_arena_combatant") == true
+
+
+static func is_opponent(entity: Node) -> bool:
+	return is_instance_valid(entity) and entity.get("is_arena_opponent") == true
+
+
+static func is_in_bout(entity: Node) -> bool:
+	return is_combatant(entity) or is_opponent(entity)
+
+
+static func allows_attack(attacker: Node, target: Node) -> bool:
+	if not is_instance_valid(target) or not target.is_inside_tree() or target.is_queued_for_deletion():
+		return false
+	if is_combatant(attacker):
+		return is_opponent(target)
+	if is_opponent(attacker):
+		return is_combatant(target)
+	return not is_in_bout(target)
 
 
 static func _get_unit_recovery(unit: Node) -> float:
@@ -205,6 +242,9 @@ static func _check_fighter_eligibility(unit: Node) -> Dictionary:
 		return {"ok": false, "reason": "%s is too young for the Blood-Pit." % uname}
 	if unit.get("is_revolting") == true:
 		return {"ok": false, "reason": "%s is revolting." % uname}
+	var role_id: int = int(unit.get("role"))
+	if unit.get("is_leader") != true and role_id not in [GameData.Role.WARRIOR, GameData.Role.TRAINEE]:
+		return {"ok": false, "reason": "%s must be a Warrior or Barracks Trainee." % uname}
 	var rec := _get_unit_recovery(unit)
 	if rec > 0.0:
 		return {"ok": false, "reason": "%s is recovering from a knockout (%.0fs)." % [uname, ceilf(rec)]}
@@ -214,6 +254,8 @@ static func _check_fighter_eligibility(unit: Node) -> Dictionary:
 static func _resolve_fighters(game_state, mode: String, tier_id: int, fighter_ids: Array) -> Dictionary:
 	if game_state == null or not game_state.game_active or game_state.campaign_finished:
 		return {"ok": false, "reason": "No active campaign.", "fighters": []}
+	if game_state.is_paused:
+		return {"ok": false, "reason": "Resume the campaign to start an arena bout.", "fighters": []}
 	if game_state.is_arena_bout_active():
 		return {"ok": false, "reason": "An arena bout is already active.", "fighters": []}
 	if float(game_state.arena_cooldown) > 0.0:
@@ -281,9 +323,6 @@ static func _resolve_fighters(game_state, mode: String, tier_id: int, fighter_id
 			return {"ok": false, "reason": str(f_check["reason"]), "fighters": []}
 		if fighter.get("is_leader") == true:
 			return {"ok": false, "reason": "Use Chieftain Trial to fight with your Chieftain.", "fighters": []}
-		var role_id: int = int(fighter.get("role"))
-		if role_id != GameData.Role.WARRIOR and role_id != GameData.Role.TRAINEE:
-			return {"ok": false, "reason": "%s must be a Warrior or Barracks Trainee." % str(fighter.get("unit_name")), "fighters": []}
 		seen_ids[uid] = true
 		fighters.append(fighter)
 
@@ -311,15 +350,8 @@ static func start_bout(game_state, mode: String, tier_id: int, fighter_ids: Arra
 	var arena_pos: Vector3 = arena.global_position
 
 	var pc: Variant = game_state.player_controller
-	if pc != null and is_instance_valid(pc):
-		if mode == MODE_CHIEFTAIN:
-			if pc.has_method("is_mounted") and pc.is_mounted():
-				var mount_node: Variant = pc.get("_mounted_animal")
-				if mount_node != null and is_instance_valid(mount_node):
-					pc.dismount_from(mount_node as Node3D)
-			pc.set("is_spectating_arena", false)
-		else:
-			pc.set("is_spectating_arena", true)
+	if is_instance_valid(pc) and mode == MODE_CHIEFTAIN and pc.is_mounted():
+		pc.dismount_from(pc.get("_mounted_animal"))
 
 	var combatant_ids: Array = []
 	var f_count := fighters.size()
@@ -332,9 +364,9 @@ static func start_bout(game_state, mode: String, tier_id: int, fighter_ids: Arra
 		if fighter is CharacterBody3D:
 			(fighter as CharacterBody3D).velocity = Vector3.ZERO
 		fighter.set("is_raiding", false)
-		fighter.set("_target_node", null)
+		fighter.set("_knockback_vel", Vector3.ZERO)
+		fighter.clear_combat_target()
 		fighter.set("is_arena_combatant", true)
-		fighter.set_meta("is_arena_combatant", true)
 		fighter_3d.look_at(arena_pos + Vector3(2.6, 0.0, z_off), Vector3.UP)
 		game_state.spatial_index.update_unit(fighter_3d)
 		combatant_ids.append(int(fighter.get("unit_id")))
@@ -353,6 +385,7 @@ static func start_bout(game_state, mode: String, tier_id: int, fighter_ids: Arra
 
 	game_state.arena_bout = {
 		"active": true,
+		"arena": arena,
 		"mode": mode,
 		"tier_id": tier_id,
 		"arena_pos": arena_pos,
@@ -360,6 +393,8 @@ static func start_bout(game_state, mode: String, tier_id: int, fighter_ids: Arra
 		"opponent_nodes": opponent_nodes,
 		"elapsed": 0.0,
 	}
+	if is_instance_valid(pc):
+		pc.set_arena_spectate(mode == MODE_EXHIBITION, arena_pos)
 
 	var sm: Node = game_state.get_node_or_null("/root/SoundManager")
 	if sm != null:
@@ -404,7 +439,6 @@ static func _spawn_opponent(game_state, spec: Dictionary, pos: Vector3, arena_po
 		animal.flees_when_hit = false
 		animal.home_pos = arena_pos
 		animal.set("is_arena_opponent", true)
-		animal.set_meta("is_arena_opponent", true)
 		game_state.spatial_index.update_wildlife(animal)
 		return animal
 
@@ -440,7 +474,6 @@ static func _spawn_opponent(game_state, spec: Dictionary, pos: Vector3, arena_po
 	})
 	unit.set("is_arena_champion", is_champ)
 	unit.set("is_arena_opponent", true)
-	unit.set_meta("is_arena_opponent", true)
 	if unit.has_method("recalculate_stats"):
 		unit.recalculate_stats(true)
 	game_state.spatial_index.update_unit(unit)
@@ -483,17 +516,6 @@ static func _leash_to_pit(node: Node3D, arena_pos: Vector3, max_radius: float = 
 			if v_xz.dot(dir) > 0.0:
 				body.velocity.x = 0.0
 				body.velocity.z = 0.0
-
-
-static func is_bout_opponent(bout: Dictionary, entity: Node) -> bool:
-	if entity == null or not is_instance_valid(entity):
-		return false
-	if entity.get("is_arena_opponent") == true or entity.get_meta("is_arena_opponent", false) == true:
-		return true
-	var opp_nodes: Variant = bout.get("opponent_nodes", [])
-	if opp_nodes is Array:
-		return (opp_nodes as Array).has(entity)
-	return false
 
 
 static func count_living_opponents(bout: Dictionary) -> int:
@@ -540,9 +562,9 @@ static func tick_bout(game_state, delta: float) -> void:
 		if fighter == null:
 			continue
 		if _is_combatant_ko(fighter):
-			if "is_arena_combatant" in fighter:
+			if is_combatant(fighter):
 				fighter.set("is_arena_combatant", false)
-			_clear_fighter_targets(fighter)
+				fighter.clear_combat_target()
 			continue
 		active_combatants += 1
 		_leash_to_pit(fighter as Node3D, arena_pos)
@@ -554,15 +576,6 @@ static func tick_bout(game_state, delta: float) -> void:
 		resolve_bout(game_state, false)
 
 
-static func _clear_fighter_targets(unit: Node) -> void:
-	if unit == null or not is_instance_valid(unit):
-		return
-	unit.set("_target_node", null)
-	unit.set("_self_defense_target", null)
-	unit.set("_scan_enemy", null)
-	unit.set("_scan_wild", null)
-
-
 static func _clear_references_to_opponents(game_state, opp_nodes: Array) -> void:
 	if game_state == null or game_state.units_container == null or opp_nodes.is_empty():
 		return
@@ -571,7 +584,7 @@ static func _clear_references_to_opponents(game_state, opp_nodes: Array) -> void
 			continue
 		for prop in ["_target_node", "_self_defense_target", "_scan_enemy", "_scan_wild"]:
 			var ref_val: Variant = u.get(prop)
-			if ref_val != null and (not is_instance_valid(ref_val) or opp_nodes.has(ref_val)):
+			if typeof(ref_val) != TYPE_NIL and (not is_instance_valid(ref_val) or opp_nodes.has(ref_val)):
 				u.set(prop, null)
 
 
@@ -590,9 +603,13 @@ static func resolve_bout(game_state, player_won: bool, forfeited: bool = false) 
 
 	var opp_nodes: Array = bout.get("opponent_nodes", [])
 	var c_ids: Array = bout.get("combatant_ids", [])
-	for raw_id in c_ids:
-		_clear_fighter_targets(_find_unit_by_id(game_state, int(raw_id)))
 	_clear_references_to_opponents(game_state, opp_nodes)
+	var projectiles: Node = game_state.projectiles_container
+	if is_instance_valid(projectiles):
+		for shot in projectiles.get_children():
+			if shot.get("is_arena_shot") == true:
+				projectiles.remove_child(shot)
+				shot.queue_free()
 
 	for opp in opp_nodes:
 		if not is_instance_valid(opp) or opp.is_queued_for_deletion():
@@ -617,8 +634,7 @@ static func resolve_bout(game_state, player_won: bool, forfeited: bool = false) 
 		if fighter == null:
 			continue
 		fighter.set("is_arena_combatant", false)
-		fighter.set_meta("is_arena_combatant", false)
-		_clear_fighter_targets(fighter)
+		fighter.clear_combat_target()
 		if player_won and fighter.get("is_dead") != true:
 			if train_xp > 0.0:
 				var unit_ai: Script = load("res://scripts/entities/unit_ai_routines.gd")
@@ -630,8 +646,8 @@ static func resolve_bout(game_state, player_won: bool, forfeited: bool = false) 
 				fighter.recalculate_stats(false)
 
 	var pc: Variant = game_state.player_controller
-	if pc != null and is_instance_valid(pc):
-		pc.set("is_spectating_arena", false)
+	if is_instance_valid(pc):
+		pc.set_arena_spectate(false)
 
 	if player_won:
 		var res_rewards: Dictionary = rewards.get("resources", {})

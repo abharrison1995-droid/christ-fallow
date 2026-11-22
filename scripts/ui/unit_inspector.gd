@@ -141,6 +141,7 @@ func _ready() -> void:
 	_insp_weapon_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_insp_weapon_opt.fit_to_longest_item = false
 	_insp_weapon_opt.clip_text = true
+	_insp_weapon_opt.get_popup().popup_hide.connect(_insp_weapon_opt.release_focus)
 	_insp_weapon_opt.item_selected.connect(func(idx: int):
 		_insp_weapon_opt.release_focus()
 		if _insp_syncing or _inspected_unit == null or not is_instance_valid(_inspected_unit):
@@ -165,6 +166,7 @@ func _ready() -> void:
 	_insp_armor_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_insp_armor_opt.fit_to_longest_item = false
 	_insp_armor_opt.clip_text = true
+	_insp_armor_opt.get_popup().popup_hide.connect(_insp_armor_opt.release_focus)
 	_insp_armor_opt.item_selected.connect(func(idx: int):
 		_insp_armor_opt.release_focus()
 		if _insp_syncing or _inspected_unit == null or not is_instance_valid(_inspected_unit):

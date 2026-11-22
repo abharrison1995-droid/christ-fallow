@@ -23,7 +23,7 @@
   - `scripts/tools/verify_glb_assets.gd --require-gameplay-rig`, `verify_crag_born.gd` (default promoted mode, `--check-default-roster`, and `--procedural-roster` opt-out), `verify_valley_assets.gd`, and `scenes/asset_showcase.tscn` (7 PNGs) passed in Forward+.
 
 ### Partially delivered (3D assets)
-- **Buildings**. All fourteen buildable types use imported four-stage models. Blueprints and placement ghosts use a tinted intact stage. Standing-Stone Gate has separate pier collision and verified traversal. [Asset catalog](../tools/assets/CATALOG.md#live-assets-by-type)
+- **Buildings**. Fourteen buildings use imported four-stage models. The Blood-Pit Arena uses procedural stages. Blueprints and placement ghosts use tinted intact stages. Standing-Stone Gate has separate pier collision and verified traversal. [Asset catalog](../tools/assets/CATALOG.md#live-assets-by-type)
 - **Characters & gear**. All seven lineages have six skinned bodies. Fourteen shared kits cover warriors, adult workforce, leaders, and nomads. Farmers reuse the Forager kit. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
 - **Environment & wildlife**. Four scenery props and all eight wildlife species use imported models. Mammoth and Cave Bear have skeletal attacks for their existing area damage. [Asset catalog](../tools/assets/CATALOG.md#valley-scenery-and-wildlife)
 - **Asset rollout complete**. All seven six-body lineages, fourteen shared kits, Flintmask Scout, fourteen building models, and eight wildlife models are verified in Forward+. Six wildcard prototypes have individual GLBs and two Forward+ review sheets. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard review](../tools/assets/examples/WILDCARD.md)
@@ -257,7 +257,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 
 ## First-person POV stabilization
 
-The first-person review and this follow-up use the working source on `feat/first-person-pov`. [Controls](../README.md#controls) · [POV verifier](../scripts/tools/verify_first_person_pov.gd)
+First-person POV landed on `main` in `b67dbbe`. [Controls](../README.md#controls) · [POV verifier](../scripts/tools/verify_first_person_pov.gd)
 
 | Work | Acceptance criteria | Status |
 | --- | --- | --- |
@@ -285,7 +285,7 @@ Run the POV suite with `--procedural-roster` and `--skinned-tribesman-trial` whe
 
 ---
 
-## Upcoming Sequential Phases (7–9) & Mandatory Inter-Phase Reviews
+## Phases 7–9 and verification gates
 
 > **Completed 22 Nov 2026 (`main`)** — Delivered in strict succession with dedicated review and Forward+ verification gates between every phase. All 7 final sequential Forward+ suites passed on 22 Nov 2026 (`EXIT_CODE:0`, 0 script/parse/shader errors).
 
@@ -298,6 +298,65 @@ Run the POV suite with `--procedural-roster` and `--skinned-tribesman-trial` whe
 3. **Phase 9 (Plan 3) — Blood-Pit Trial Arena (`[Completed 22 Nov 2026]`)**:
    - **Scope**: Unlockable `ARENA_PIT` settlement building (`Lv.3`, `BARRACKS_DRILLMASTERS` Rank 1 in `BuildDrawer` → `Defences`, 4 visual stages, walkable fighting floor, pulsing braziers); [arena_rules.gd](../scripts/core/arena_rules.gd) five-tier encounter tables and bout state machine (`Chieftain's Trial` in 1st/3rd-person POV + spectated `Warband Exhibition`); bout combatant isolation (no outside Watchtower/guard/wildlife interference or mid-bout save leaks); non-lethal knockout & `"Out of Commission"` convalescence recovery routing to `SHAMAN_SHACK`/`CAMPFIRE` at `1.75x` speed (`arena_recovery_remaining`); `is_arena_champion` veteran bonus (`+15` Max HP, `1.10x` DMG); resource, Tribal XP, Training XP, and Plan 1 gear rewards; Plan 2 `"ARENA"`/`"PEACE_DAY"` music & `"warhorn"`/`"level_up"` cues; `[E]` Arena interaction; and `ColonyDrawer` Arena controls + `Spectate Ring` + `UnitInspector` badges.
    - **Review Gate 3**: Verified by [verify_arena_trials.gd](../scripts/tools/verify_arena_trials.gd) (`91` checks) + doc sync (`AGENTS.md`, `README.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`, `docs/FUTURE.md`) + full 7-suite sequential Forward+ regression gate (`verify_arena_trials.gd`, `verify_equipment_system.gd`, `verify_audio_system.gd`, `verify_first_person_pov.gd`, `verify_perks_leveling.gd`, `verify_campaign_ui.gd -- --large-ui`, `verify_campaign_save.gd`).
+
+### First-person and Phases 7–9 audit
+
+The audit started from `main` at `b512e92`. The Arena, skinned equipment, and campaign save suites printed pass markers alongside Forward+ `material` errors. Clearing surface overrides before destroying imported rigs and gear slots resolved the errors on Godot 4.3. [Skinned rig cleanup](../scripts/entities/skinned_tribesman_trial.gd) · [Godot issue #85817](https://github.com/godotengine/godot/issues/85817)
+
+- The armory checks faction tier and stock before changing the loadout. Role changes and Warhorn preserve assigned gear, and hit cues use the equipped offhand. Entering first person refreshes the mesh cache after third-person swaps. [Stockpile actions](../scripts/core/game_state.gd) · [Gear and mesh state](../scripts/entities/human_unit.gd)
+- The title uses the pooled music crossfade and retains the Title ambience slider as a gain control for `TITLE`. [SoundManager](../scripts/core/sound_manager.gd)
+- Arena targeting and impacts share the same bout boundary. Forfeit clears cached targets and arena projectiles. F9/F10 during an exhibition preserves HP and recovery, clears temporary combatants and spectating, and selects music from the restored time. [Arena rules](../scripts/core/arena_rules.gd) · [Arena verifier](../scripts/tools/verify_arena_trials.gd)
+
+Run the cases in order with the Godot 4.3 console, Forward+ Vulkan, and `--fixed-fps 60`. Use the listed resolution and `--quit-after` for each script under `res://scripts/tools/`. Pass a scratch `--out-dir` to the POV and campaign UI suites. The campaign save case uses the default project resolution. All eleven cases printed their pass markers, exited `0`, and logged zero engine diagnostics on Intel UHD 620.
+
+| Script | Resolution | Frame limit | User argument | Gameplay path | Checks passed |
+| --- | --- | ---: | --- | --- | ---: |
+| `verify_arena_trials.gd` | `1600x900` | 1400 | | Trial, Exhibition, knockout, forfeit, F9/F10, recovery | 112 |
+| `verify_equipment_system.gd` | `1600x900` | 1000 | | Crafting, stockpile, roles, Warhorn, imported gear and POV | 144 |
+| `verify_equipment_system.gd` | `1600x900` | 1000 | `--procedural-roster` | Same loadout changes on procedural rigs | 137 |
+| `verify_audio_system.gd` | `1600x900` | 900 | | WAV imports, settings, pooled cues, music transitions and shutdown | 93 |
+| `verify_first_person_pov.gd` | `1600x900` | 1400 | | Input, reticle, shadows, mounts and succession | 147 |
+| `verify_perks_leveling.gd` | `1600x900` | 900 | | Progression, unlocks, recruitment and training | 68 |
+| `verify_campaign_ui.gd` | `1600x900` | 900 | `--large-ui` | Drawers, loadouts, focus, settings, load and Quit | 136 |
+| `verify_campaign_save.gd` | Default | 900 | | Legacy saves, live restore and combat regressions | 209 |
+| `verify_campaign_ui.gd` | `1280x720` | 900 | `--large-ui` | Arena drawer and inspector bounds at the smaller resolution | 136 |
+| `verify_first_person_pov.gd` | `1600x900` | 1400 | `--procedural-roster` | POV and mount checks on procedural rigs | 147 |
+| `verify_first_person_pov.gd` | `1600x900` | 1400 | `--skinned-tribesman-trial` | POV and mount checks on the original leader rig | 147 |
+
+Set `$env:GODOT_EXE` to the console executable and repeat this block with each row's values. Check the pass marker, exit code and engine diagnostics together.
+
+```powershell
+$suite = 'verify_arena_trials.gd'
+$resolution = '1600x900'
+$frameLimit = 1400
+$gameArgs = @()
+$qaRoot = (Resolve-Path -LiteralPath ([IO.Path]::GetTempPath())).ProviderPath.TrimEnd('\')
+$qa = Join-Path $qaRoot ('cf-audit-' + [guid]::NewGuid().ToString('N'))
+$oldAppData = $env:APPDATA
+$oldQaAppData = $env:CHRIST_FALLOW_QA_APPDATA
+New-Item -ItemType Directory -Path $qa -ErrorAction Stop | Out-Null
+try {
+    $env:APPDATA = $qa
+    $env:CHRIST_FALLOW_QA_APPDATA = $qa
+    $engineArgs = @('--path', (Get-Location).Path, '--rendering-method', 'forward_plus',
+        '--rendering-driver', 'vulkan', '--fixed-fps', '60', '--quit-after', $frameLimit,
+        '-s', "res://scripts/tools/$suite")
+    if ($resolution) { $engineArgs += @('--resolution', $resolution) }
+    if ($suite -in @('verify_first_person_pov.gd', 'verify_campaign_ui.gd')) {
+        $gameArgs += @("--out-dir=$qa/captures")
+    }
+    if ($gameArgs.Count) { $engineArgs += @('--') + $gameArgs }
+    & $env:GODOT_EXE @engineArgs
+    "EXIT_CODE=$LASTEXITCODE"
+} finally {
+    $env:APPDATA = $oldAppData
+    $env:CHRIST_FALLOW_QA_APPDATA = $oldQaAppData
+    $resolved = (Resolve-Path -LiteralPath $qa -ErrorAction Stop).ProviderPath
+    if ($resolved -eq $qa -and (Split-Path -Parent $resolved) -eq $qaRoot) {
+        Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction Stop
+    }
+}
+```
 
 ---
 

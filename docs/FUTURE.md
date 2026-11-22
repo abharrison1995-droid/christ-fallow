@@ -79,7 +79,7 @@ The Forward+ probe covers crop work and hauling, taming success and failure, tra
 
 ## Sequential Milestone Queue (Phases 7–9)
 
-> **Status: Delivered (22 November 2026)** — Executed in strict order on `main` with inter-phase reviews and Forward+ verification gates ([Roadmap](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews)).
+> **Delivered 22 November 2026.** These phases landed on `main` with a Forward+ gate between phases. [Roadmap](ROADMAP.md#phases-79-and-verification-gates)
 
 ### Phase 7 (Plan 1): Custom weapons & armor for Leader and tribesfolk
 - [x] **Catalog, crafting & loadouts.** Structured weapon (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and armor (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`) definitions in [GameData](../scripts/core/game_data.gd), reflected in [UnitStats](../scripts/entities/unit_stats.gd), [CampaignSave](../scripts/core/campaign_save.gd), 3D rigs/meshes ([CragBornTrial](../scripts/entities/crag_born_trial.gd), [HumanMeshBuilder](../scripts/core/human_mesh_builder.gd), [FirstPersonViewmodel](../scripts/entities/first_person_viewmodel.gd)), [PlayerController](../scripts/entities/player_controller.gd) attacks, and `ColonyDrawer` + `UnitInspector` loadout assignment ([Equipment verifier](../scripts/tools/verify_equipment_system.gd)).
