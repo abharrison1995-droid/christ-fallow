@@ -12,8 +12,8 @@ Awaken enlightened in a primeval Stone Age valley. Choose your tribal bloodline,
    $godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
    & $godot --headless --editor --path . --import
    ```
-3. Run directly from `project.godot` (`& $godot --path .` or **Import** `project.godot` in the Godot Project Manager and press **Run Project (`F5`)**). Do **not** launch `ChristFallow.exe`, which is a stale `2026-11-18` pre-Phase-1 binary artifact until rebuilt in [Slice 10C-4](docs/ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
-4. **Repository hygiene:** `.gitignore` excludes `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files while tracked `.import` metadata and `assets/` travel cleanly in Git.
+3. Run directly from `project.godot` (`& $godot --path .` or **Import** `project.godot` in the Godot Project Manager and press **Run Project (`F5`)**).
+4. **Repository hygiene:** `.gitignore` excludes `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, the legacy Windows launcher, and temporary files. The checkout includes game assets and their `.import` metadata.
 5. On the title screen, choose **Start**, then **New Game** to set up your tribe or **Continue** to resume your campaign save.
 
 ## Controls

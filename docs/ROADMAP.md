@@ -30,7 +30,7 @@
 
 ### Key architectural & hygiene bottlenecks
 - **Navigation**. The active layout defines river crossings and common scan distances. `HumanUnit` steering uses cached paths beyond 6 m from the target. [Valley navigation](../scripts/core/valley_navigation.gd)
-- **Repo hygiene**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.lnk`, and temp outputs. `ChristFallow.exe` (`2026-11-18`) is a pre-Phase-1 binary artifact until re-exported in [Slice 10C-4](#slice-10c--staged-3d-assets--release-packaging); always run `project.godot` directly.
+- **Repo hygiene**. Keep editor caches, launch artifacts, and test outputs local. Run the project through `project.godot`.
 
 ---
 
@@ -257,7 +257,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 
 ## First-person POV stabilization
 
-First-person POV landed on `main` in `b67dbbe`. [Controls](../README.md#controls) · [POV verifier](../scripts/tools/verify_first_person_pov.gd)
+First-person POV landed on `main` in `328f7e8`. [Controls](../README.md#controls) · [POV verifier](../scripts/tools/verify_first_person_pov.gd)
 
 | Work | Acceptance criteria | Status |
 | --- | --- | --- |
@@ -301,7 +301,7 @@ Run the POV suite with `--procedural-roster` and `--skinned-tribesman-trial` whe
 
 ### First-person and Phases 7–9 audit
 
-The audit started from `main` at `b512e92`. The Arena, skinned equipment, and campaign save suites printed pass markers alongside Forward+ `material` errors. Clearing surface overrides before destroying imported rigs and gear slots resolved the errors on Godot 4.3. [Skinned rig cleanup](../scripts/entities/skinned_tribesman_trial.gd) · [Godot issue #85817](https://github.com/godotengine/godot/issues/85817)
+The audit started from `main` at `0f6d6de`. The Arena, skinned equipment, and campaign save suites printed pass markers alongside Forward+ `material` errors. Clearing surface overrides before destroying imported rigs and gear slots resolved the errors on Godot 4.3. [Skinned rig cleanup](../scripts/entities/skinned_tribesman_trial.gd) · [Godot issue #85817](https://github.com/godotengine/godot/issues/85817)
 
 - The armory checks faction tier and stock before changing the loadout. Role changes and Warhorn preserve assigned gear, and hit cues use the equipped offhand. Entering first person refreshes the mesh cache after third-person swaps. [Stockpile actions](../scripts/core/game_state.gd) · [Gear and mesh state](../scripts/entities/human_unit.gd)
 - The title uses the pooled music crossfade and retains the Title ambience slider as a gain control for `TITLE`. [SoundManager](../scripts/core/sound_manager.gd)
@@ -433,7 +433,7 @@ try {
    - **Acceptance & Gate**: Run `--headless --editor --path . --import`, `verify_glb_assets.gd --require-gameplay-rig`, `verify_arena_trials.gd` (checking walkable pit floor, braziers, and 4 stages), and `verify_campaign_save.gd`.
 
 4. **`10C-4` — Refresh Exported `ChristFallow.exe` Release Binary**:
-   - **Scope**: Export a fresh Windows release executable (`ChristFallow.exe`) from Godot 4.3 once Phase 10A–10C targets stabilize, replacing the stale `2026-11-18` pre-Phase-1 binary artifact, and update `AGENTS.md`, `README.md`, and `docs/HANDOFF.md` with the verified export date and full 11-case Forward+ gate pass.
+   - **Scope**: Export a fresh Windows release executable (`ChristFallow.exe`) from Godot 4.3 once Phase 10A–10C targets stabilize and update `AGENTS.md`, `README.md`, and `docs/HANDOFF.md` with the verified export date and full 11-case Forward+ gate pass.
    - **Owned files**: Export configuration (`export_presets.cfg` if tracked), `ChristFallow.exe`, `AGENTS.md`, `README.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`.
    - **Acceptance & Gate**: Full sequential Forward+ verification suite passes (`EXIT_CODE=0`, 0 errors) and smoke-launching the exported `ChristFallow.exe` reaches the Title Screen, New Game, and Save/Load cleanly.
 
@@ -443,7 +443,7 @@ try {
 
 ### Repo hygiene pre-flight
 - **Local Git**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.lnk`, `*.tmp`, and local capture/save directories; checkpoint cleanly between slices for diff clarity and rollback safety.
-- **Ignore stale launcher binaries**: Run `project.godot` directly via Godot 4.3 console; `ChristFallow.exe` (`2026-11-18`) is a pre-Phase-1 binary artifact until rebuilt in [Slice 10C-4](#slice-10c--staged-3d-assets--release-packaging).
+- **Source launch**. Run `project.godot` through the Godot console. [Windows release plan](#slice-10c--staged-3d-assets--release-packaging)
 - **Keep paths portable**: Never commit personal home paths (`%USERPROFILE%\...`, `$HOME/...`) or `.lnk` shortcuts into scripts, docs, or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, `[IO.Path]::GetTempPath()`, and `--out-dir`.
 
 ### Standard autonomous slice loop

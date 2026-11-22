@@ -6,7 +6,7 @@
 ## Working in this project
 
 - **Fresh checkout & cross-device setup:** Start with the [Continuing on Another Device & Plan Map](docs/HANDOFF.md#continuing-on-another-device--plan-map) guide. On a new clone, run `$godot --headless --editor --path . --import` once so `.godot/` populates before launching Forward+ tests.
-- Run the source project from `project.godot` with the Godot 4.3 console executable (`$env:GODOT_EXE`). `ChristFallow.exe` is a stale `2026-11-18` pre-Phase-1 binary artifact until re-exported in [Slice 10C-4](docs/ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
+- Run the source project from `project.godot` with the Godot 4.3 console executable (`$env:GODOT_EXE`). [Windows release plan](docs/ROADMAP.md#slice-10c--staged-3d-assets--release-packaging)
 - Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files while tracked `.import` files and `assets/` travel cleanly in Git; checkpoint cleanly before multi-file refactors.
 - Follow the affected feature from its player-facing entry point through the state change and the HUD update. Several features have both a button and a hotkey. Check both when editing their shared behavior.
 - Use the smallest check that exercises the changed behavior. Record the command, gameplay path, and result so the next agent can reproduce it. Keep temporary probes, test saves, and showcase images outside the project unless they belong in a lasting test or asset.

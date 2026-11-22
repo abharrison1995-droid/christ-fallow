@@ -8,7 +8,11 @@
 
 ### New-Device Setup (PowerShell / Bash)
 
-1. **Clone the repository** and enter `<repo-root>`.
+1. Clone the project and open the checkout.
+   ```shell
+   git clone https://github.com/abharrison1995-droid/christ-fallow.git
+   cd christ-fallow
+   ```
 2. **Install Godot 4.3 console** (required) and **Blender 4.5 LTS** (optional, only needed to regenerate `.glb` assets):
    - **Windows (PowerShell):** Set `$env:GODOT_EXE` (default: `$env:LOCALAPPDATA\Godot\Godot_v4.3-stable_win64_console.exe`) and optionally `$env:BLENDER_EXE` (default: `$env:LOCALAPPDATA\Blender\blender-4.5.16-windows-x64\blender.exe`).
    - **Linux / macOS (Bash):** Export `GODOT_EXE` (e.g. `godot4` in `$PATH` on Linux, `/Applications/Godot.app/Contents/MacOS/Godot` on macOS) and optionally `BLENDER_EXE` (`blender` 4.5 LTS).
@@ -22,7 +26,7 @@
    # Bash (from <repo-root>)
    "${GODOT_EXE:-godot4}" --headless --editor --path . --import
    ```
-4. **Run from `project.godot` directly** (`& $godot --path .`). Never launch the stale `ChristFallow.exe` (`2026-11-18` pre-Phase-1 binary artifact), which lags the source until rebuilt in [Slice 10C-4](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
+4. Launch the game from `project.godot` with `& $godot --path .` in PowerShell or `godot4 --path .` in Bash. [Windows release plan](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging)
 5. **Repository hygiene:** `.gitignore` excludes `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files (`*.tmp`, `*.bak`, `*.log`, `__pycache__/`) while tracked `.import` files and `assets/` travel cleanly in Git. Keep test `APPDATA` / `CHRIST_FALLOW_QA_APPDATA` and `--out-dir` captures in OS temp directories outside `<repo-root>`.
 
 ### Master Document & Plan Directory
@@ -51,31 +55,31 @@
 - **Engine / Tooling:**
   - Godot 4.3 console: `$env:GODOT_EXE` (Windows default `$env:LOCALAPPDATA\Godot\Godot_v4.3-stable_win64_console.exe`; Linux `godot4`; macOS `/Applications/Godot.app/Contents/MacOS/Godot`).
   - Portable Blender 4.5 LTS (optional, asset pipeline only): `$env:BLENDER_EXE` (Windows default `$env:LOCALAPPDATA\Blender\blender-4.5.16-windows-x64\blender.exe`).
-  - Run from `project.godot` directly; `ChristFallow.exe` is a stale `2026-11-18` pre-Phase-1 binary artifact until re-exported in Slice `10C-4` (`*.lnk` desktop shortcuts are excluded via `.gitignore`).
+  - Run the source with the Godot console executable. Slice `10C-4` covers the Windows release export.
 - **Git history on `main`:**
-  - `5a2b437` — Baseline: pre-Phase 0 snapshot (`.gitignore` excludes `.godot/`, temp outputs, `__pycache__/`).
-  - `d2ff849` — **Phase 0A:** Fixed `RAZE` leader leak, third-party rival-wipe conquest softlock, wounded `being_rescued` limbo & defection defeat checks, paused/`campaign_finished` entity/rubble/cooldown leaks, `promote_to_player_leader()` ring/armor cleanup, replacement Campfire `camp_position`, shared `get_diplomatic_opinion_breakdown()`.
-  - `912f212` — **Phase 0D:** Fixed HUD/Inspector `Space`/Arrow focus hijack, `DiplomacyDrawer` opinion breakdown (`PEACEFUL_OFFERING` + state bounds) & unfunded faction-6 recovery, `--large-ui` drawer overlap, `Esc` vs open `OptionButton` popup, `BuildDrawer` discounted costs/`KRAG_UL` HP/GLB preview, `ColonyDrawer` Crafting refresh, `_raid_panel` z-order, silent `F10` pause error, mirrored Valley Radar river, Settings controls list.
-  - `f075540` — **Phase 0E:** Added `DUAL_SHEATH` back gear, GLB `Stage_Intact` blueprint & ghost holograms, PSX nearest/no-specular materials on scenery/wildlife GLBs, aligned `SkinnedTribesmanTrial` & `CragBornTrial` shaders/textures/spear snapping, cleaned up `asset_showcase.gd` & `verify_crag_born.gd`.
-  - `40e06ea` — **Phase 0B:** Fixed warrior & Watchtower defense against hostile wildlife, Stoneknapper `STONE`/`FLINT` balance, Warhorn child exclusion & militia/Crag-Born Forager parity, tech-tier stockpile consumption, AI/wildlife XZ clamping, scoped `ANCESTRAL_STONE` `-20%` discount to buildings only, swept projectile hits & vertical `look_at` guard, `FORAGER_LODGE` hunter yields, `VALK_TOR` knockback & nearest-N AoE, `fire_at_will` propagation, `preach_religion` stat recalc, Dusk-only non-stacking Campfire heal, recipe craft times, nearest-building lookup.
-  - `a4090bd` — **Phase 0C + Docs:** Reset/persisted `PlayerController` cooldowns, unit daily/buff/carry fields, faction AI timers, eliminated legacy `v1`/`v2` reload wildlife leaks, added live `KRAG_UL` building `max_hp` scaling & HP clamp, made leader succession synchronous, expanded `verify_campaign_save.gd`.
-  - `e138ad2` & `5218acd` — **Phase 1:** Added [spatial_index.gd](../scripts/core/spatial_index.gd), [valley_navigation.gd](../scripts/core/valley_navigation.gd), parameterized [world_layout.gd](../scripts/core/world_layout.gd), added 3 visual & navigable river fords, staggered AI/tower/wildlife scans, added [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) and [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) (**−56.6% to −66.1% physics median speedup** on seed `17394`).
-  - `baac676` — **Phase 2A:** Playable Opening Tutorial ([awakening_guide.gd](../scripts/core/awakening_guide.gd) `get_objective_target()`, [tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), HUD `[x]`/`[ ]` checklist & gold `Build`/`Colony` highlights, `BuildDrawer` `[RECOMMENDED]` auto-select, Valley Radar pulsing target ping, Step 4 constructed `SLEEPING_HUT`, [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd)).
-  - `d4b1261` — **Phase 2B:** Baked `Work`, `Wounded`, `Attack`, `Hit`, and `Death` skeletal clips in [generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py) & [generate_crag_born.py](../tools/assets/generate_crag_born.py), zero-swap animation & shader hit-flash in [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd) & [human_unit.gd](../scripts/entities/human_unit.gd), promoted [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) to **default-enabled** (`--procedural-roster` opt-out).
-  - `92ae7d0` — **Docs Sync:** Updated `ROADMAP.md`, `FUTURE.md`, `AGENTS.md`, `README.md`, `OVERHAUL.md`, `tools/assets/README.md`.
-  - `7e38544` — **Slice 2C-1.** Promoted Goliath and Swift-Kin skinned Foragers and adult Spearmen.
-  - `c225c07` — **Slice 2C-2.** Promoted Reed Granary, Ridge Signal Tower, Slateback Boar, and Reedjaw. Added golden damage fixtures.
-  - `f2d2ff2` — **Slice 3A.** Added the expanded valley, classic-compatible v4 saves, and paired layout benchmarks.
-  - `b5ac719` — **Slice 3B.** Added the World Map, waypoint projection, and updated controls.
-  - `6acd7fb` — **Phase 4.** Added named rival leaders, approach negotiation, truces, tribute, and succession.
-  - `039ff9b` — **Phase 5.** Added crop cycles, animal husbandry, mounting, and `v4` crop, herd, and rider persistence.
-  - `6090d74` through `971df84` — Promoted the gate, Flintmask Scout, settlement buildings, and additional skinned wildlife. [Production batches](../tools/assets/OVERHAUL.md#production-batches)
-  - `3b042dd` and `c7f3a72` — Added [six wildcard prototypes](../tools/assets/examples/WILDCARD.md) and [eighteen standalone dinosaur models](../tools/assets/examples/DINOSAURS.md) for asset review.
+  - `5a80538` — Baseline: pre-Phase 0 snapshot (`.gitignore` excludes `.godot/`, temp outputs, `__pycache__/`).
+  - `c201020` — **Phase 0A:** Fixed `RAZE` leader leak, third-party rival-wipe conquest softlock, wounded `being_rescued` limbo & defection defeat checks, paused/`campaign_finished` entity/rubble/cooldown leaks, `promote_to_player_leader()` ring/armor cleanup, replacement Campfire `camp_position`, shared `get_diplomatic_opinion_breakdown()`.
+  - `30ce2e3` — **Phase 0D:** Fixed HUD/Inspector `Space`/Arrow focus hijack, `DiplomacyDrawer` opinion breakdown (`PEACEFUL_OFFERING` + state bounds) & unfunded faction-6 recovery, `--large-ui` drawer overlap, `Esc` vs open `OptionButton` popup, `BuildDrawer` discounted costs/`KRAG_UL` HP/GLB preview, `ColonyDrawer` Crafting refresh, `_raid_panel` z-order, silent `F10` pause error, mirrored Valley Radar river, Settings controls list.
+  - `20a1353` — **Phase 0E:** Added `DUAL_SHEATH` back gear, GLB `Stage_Intact` blueprint & ghost holograms, PSX nearest/no-specular materials on scenery/wildlife GLBs, aligned `SkinnedTribesmanTrial` & `CragBornTrial` shaders/textures/spear snapping, cleaned up `asset_showcase.gd` & `verify_crag_born.gd`.
+  - `033189d` — **Phase 0B:** Fixed warrior & Watchtower defense against hostile wildlife, Stoneknapper `STONE`/`FLINT` balance, Warhorn child exclusion & militia/Crag-Born Forager parity, tech-tier stockpile consumption, AI/wildlife XZ clamping, scoped `ANCESTRAL_STONE` `-20%` discount to buildings only, swept projectile hits & vertical `look_at` guard, `FORAGER_LODGE` hunter yields, `VALK_TOR` knockback & nearest-N AoE, `fire_at_will` propagation, `preach_religion` stat recalc, Dusk-only non-stacking Campfire heal, recipe craft times, nearest-building lookup.
+  - `76e6543` — **Phase 0C + Docs:** Reset/persisted `PlayerController` cooldowns, unit daily/buff/carry fields, faction AI timers, eliminated legacy `v1`/`v2` reload wildlife leaks, added live `KRAG_UL` building `max_hp` scaling & HP clamp, made leader succession synchronous, expanded `verify_campaign_save.gd`.
+  - `19ebf54` & `b939303` — **Phase 1:** Added [spatial_index.gd](../scripts/core/spatial_index.gd), [valley_navigation.gd](../scripts/core/valley_navigation.gd), parameterized [world_layout.gd](../scripts/core/world_layout.gd), added 3 visual & navigable river fords, staggered AI/tower/wildlife scans, added [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) and [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) (**−56.6% to −66.1% physics median speedup** on seed `17394`).
+  - `d786b8e` — **Phase 2A:** Playable Opening Tutorial ([awakening_guide.gd](../scripts/core/awakening_guide.gd) `get_objective_target()`, [tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), HUD `[x]`/`[ ]` checklist & gold `Build`/`Colony` highlights, `BuildDrawer` `[RECOMMENDED]` auto-select, Valley Radar pulsing target ping, Step 4 constructed `SLEEPING_HUT`, [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd)).
+  - `baeaf06` — **Phase 2B:** Baked `Work`, `Wounded`, `Attack`, `Hit`, and `Death` skeletal clips in [generate_tribesman_rig.py](../tools/assets/generate_tribesman_rig.py) & [generate_crag_born.py](../tools/assets/generate_crag_born.py), zero-swap animation & shader hit-flash in [skinned_tribesman_trial.gd](../scripts/entities/skinned_tribesman_trial.gd) & [human_unit.gd](../scripts/entities/human_unit.gd), promoted [crag_born_trial.gd](../scripts/entities/crag_born_trial.gd) to **default-enabled** (`--procedural-roster` opt-out).
+  - `9d83547` — **Docs Sync:** Updated `ROADMAP.md`, `FUTURE.md`, `AGENTS.md`, `README.md`, `OVERHAUL.md`, `tools/assets/README.md`.
+  - `d6afedf` — **Slice 2C-1.** Promoted Goliath and Swift-Kin skinned Foragers and adult Spearmen.
+  - `809c7e0` — **Slice 2C-2.** Promoted Reed Granary, Ridge Signal Tower, Slateback Boar, and Reedjaw. Added golden damage fixtures.
+  - `9cc52ab` — **Slice 3A.** Added the expanded valley, classic-compatible v4 saves, and paired layout benchmarks.
+  - `7d2742a` — **Slice 3B.** Added the World Map, waypoint projection, and updated controls.
+  - `0ce07b5` — **Phase 4.** Added named rival leaders, approach negotiation, truces, tribute, and succession.
+  - `abe0fe0` — **Phase 5.** Added crop cycles, animal husbandry, mounting, and `v4` crop, herd, and rider persistence.
+  - `1c15eac` through `3f1706c` — Promoted the gate, Flintmask Scout, settlement buildings, and additional skinned wildlife. [Production batches](../tools/assets/OVERHAUL.md#production-batches)
+  - `5116026` and `c76cf55` — Added [six wildcard prototypes](../tools/assets/examples/WILDCARD.md) and [eighteen standalone dinosaur models](../tools/assets/examples/DINOSAURS.md) for asset review.
   - `3abde8c` — **Performance baseline:** Recorded rendered/fixed-step frame attribution in [PERFORMANCE.md](PERFORMANCE.md) and ordered optimization plan in [PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
-  - `b67dbbe` — First-person POV, Phase 6 perks and tutorial polish, and Refactor Pass 2.
-  - `15fef27` — Phase 7 custom weapons and armor.
-  - `6b3a7d4` — Phase 8 Stone Age SFX and dynamic music.
-  - `b512e92` — Phase 9 Blood-Pit Trial Arena.
+  - `328f7e8` — First-person POV, Phase 6 perks and tutorial polish, and Refactor Pass 2.
+  - `ea441c1` — Phase 7 custom weapons and armor.
+  - `95e1c00` — Phase 8 Stone Age SFX and dynamic music.
+  - `0f6d6de` — Phase 9 Blood-Pit Trial Arena.
 
 ---
 
@@ -184,7 +188,7 @@ Full scope, owned files, acceptance criteria, and verification gates live in [do
 | **10C** | `10C-1` | **Dinosaur Lineup Campaign/Arena Integration:** Wire selected 18-model dinosaur GLBs (`Velociraptor`..`Brachiosaurus`) into Valley territories and/or Blood-Pit Arena tiers. | [DINOSAURS](../tools/assets/examples/DINOSAURS.md) |
 | **10C** | `10C-2` | **Selected Wildcard Prototype Promotions:** Promote chosen wildcard GLBs (`Antler Beacon`, `Mossback Ibex`, `Obsidian Cache`, `Shell Courier Kit`, `Mammoth-Bone Sled`) beyond `10A-4`. | [WILDCARD](../tools/assets/examples/WILDCARD.md) |
 | **10C** | `10C-3` | **Blender-Exported `arena_pit_stages.glb`:** Replace procedural `ARENA_PIT` stages with a Blender 4.5 LTS 4-stage + collider GLB matching the building contract. | [ROADMAP](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging) |
-| **10C** | `10C-4` | **Refresh `ChristFallow.exe` Release Binary:** Re-export `ChristFallow.exe` from Godot 4.3 after Phase 10 features stabilize (replacing the `2026-11-18` pre-Phase-1 binary). | [ROADMAP](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging) |
+| **10C** | `10C-4` | **Refresh `ChristFallow.exe` Release Binary:** Export `ChristFallow.exe` from Godot 4.3 after Phase 10 features stabilize. | [ROADMAP](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging) |
 
 ---
 

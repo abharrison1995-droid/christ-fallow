@@ -84,7 +84,7 @@ Each cell is elapsed median / p95 / p99 in ms. The 60 FPS reference is 16.7 ms. 
 
 The after-run settlement still submitted about 8,325 draw calls at median. Opening frame p95 fell more than p99 because isolated spikes survived the refactor. Every sampled rendered frame remained above 16.7 ms in all four scenarios.
 
-The measurements describe this laptop and these scenarios. Some first-pass baselines overlapped QA or diagnostic processes. The corrected battle comparison ran serially with matching sample counts. Its before build used a scratch source copy with the four changed runtime files restored to their starting content, including the uncommitted mount changes present over HEAD `c7f3a72`. Both views sampled 171 unit nodes at the start and 116 at the end before the refactor, then 171 and 106 after it. Fixed-step results measure scene tick time with drawing disabled.
+The measurements describe this laptop and these scenarios. Some first-pass baselines overlapped QA or diagnostic processes. The corrected battle comparison ran serially with matching sample counts. Its before build used a scratch source copy with the four changed runtime files restored to their starting content, including the uncommitted mount changes present over HEAD `c76cf55`. Both views sampled 171 unit nodes at the start and 116 at the end before the refactor, then 171 and 106 after it. Fixed-step results measure scene tick time with drawing disabled.
 
 ## Directional shadow attribution
 
@@ -243,7 +243,7 @@ Scratch guard checks forced manual pause and campaign finish separately as sampl
 
 22 November 2026. **Rolled back.** The candidate skipped all eligible numbers in the off-camera fixtures. The fixed-step result was mixed, and both off-camera rendered runs had higher wall medians, p95s, and p99s than their neighboring controls. The focused gameplay checks passed.
 
-The fresh control is scratch commit `af1725476e20ba8b443db23f2777010362c42980` over `c7f3a72`. It captures the working source at the start of the experiment, including the later perk, combat, and refactor work. Both variants used this checkpoint and identical counter and timing instrumentation. The candidate patch marks the ordinary number in `HumanUnit.take_damage()` for culling and checks the jittered label against the anchor viewport's active camera before allocating a label or tween. It bounds the outlined number along its full rise, accounts for Reduced Motion, and consumes both jitter draws on every valid request. The clean candidate diff is `popup-candidate.patch` in the run folder. [Human damage path](../scripts/entities/human_unit.gd) · [Popup helper](../scripts/core/combat_vfx.gd) · [Godot 4.3 camera projection](https://docs.godotengine.org/en/4.3/classes/class_camera3d.html#class-camera3d-method-unproject-position)
+The fresh control is scratch commit `af1725476e20ba8b443db23f2777010362c42980` over `c76cf55`. It captures the working source at the start of the experiment, including the later perk, combat, and refactor work. Both variants used this checkpoint and identical counter and timing instrumentation. The candidate patch marks the ordinary number in `HumanUnit.take_damage()` for culling and checks the jittered label against the anchor viewport's active camera before allocating a label or tween. It bounds the outlined number along its full rise, accounts for Reduced Motion, and consumes both jitter draws on every valid request. The clean candidate diff is `popup-candidate.patch` in the run folder. [Human damage path](../scripts/entities/human_unit.gd) · [Popup helper](../scripts/core/combat_vfx.gd) · [Godot 4.3 camera projection](https://docs.godotengine.org/en/4.3/classes/class_camera3d.html#class-camera3d-method-unproject-position)
 
 ### Commands
 
@@ -323,7 +323,7 @@ Logs and captures are in `qa-control-1280x720-3b86`, `qa-candidate-1280x720-c688
 
 22 November 2026. Profiled a fresh control and screened a lower collision slide limit in scratch. The cap raised scene callback medians in both comparisons and changed the battle outcome. The next movement trial targets Guard Base warriors whose approach is blocked by allies.
 
-The scratch checkpoint is `c45e76abd1036d54af0c4cff2afe6e94f48930a4` over `c7f3a72`, including the first-person work in the checkout. All seven launches used Godot 4.3 stable `77dcf97d8`, Forward+ and Vulkan 1.3.215 on Intel UHD Graphics 620 at 1280×720. They used the active 171-unit `battle-off` fixture, seed `17394`, 45 warm-up ticks, and 600 samples at one physics tick per frame with drawing disabled. All returned `CAMPAIGN FRAME BENCHMARK COMPLETE` with the active-campaign checks in place.
+The scratch checkpoint is `c45e76abd1036d54af0c4cff2afe6e94f48930a4` over `c76cf55`, including the first-person work in the checkout. All seven launches used Godot 4.3 stable `77dcf97d8`, Forward+ and Vulkan 1.3.215 on Intel UHD Graphics 620 at 1280×720. They used the active 171-unit `battle-off` fixture, seed `17394`, 45 warm-up ticks, and 600 samples at one physics tick per frame with drawing disabled. All returned `CAMPAIGN FRAME BENCHMARK COMPLETE` with the active-campaign checks in place.
 
 ### Native movement profile
 
