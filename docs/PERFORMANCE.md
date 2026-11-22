@@ -5,7 +5,7 @@
 Run the Godot 4.3 console executable against `project.godot` in PowerShell. Start with an empty scratch directory for `APPDATA` and `CHRIST_FALLOW_QA_APPDATA`. Run one rendering job at a time for a comparison on your machine.
 
 ```powershell
-$godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
+$godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
 $project = (Get-Location).Path
 $qa = Join-Path ([IO.Path]::GetTempPath()) ('cf-' + [guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $qa | Out-Null
@@ -252,7 +252,7 @@ Godot 4.3 stable `77dcf97d8` used Forward+ and Vulkan 1.3.215 on Intel UHD Graph
 The first `--scenario=battle` launch exited with native status `0xc0000005` during its second view. A subsequent launch with nested `APPDATA` logged a shader-cache write error. Both attempts were excluded. The measured series used a fresh process per view and a new short `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` for each launch. All 12 accepted launches passed the active-campaign guard and printed `CAMPAIGN FRAME BENCHMARK COMPLETE` without script or renderer errors.
 
 ```powershell
-$review = '<USERPROFILE>\AppData\Local\Temp\cf-pop-2f0340'
+$review = Join-Path ([IO.Path]::GetTempPath()) 'cf-pop-2f0340'
 & "$review\run-benchmark.ps1" -Variant control -Repeat 1
 & "$review\run-benchmark.ps1" -Variant candidate -Repeat 1
 & "$review\run-benchmark.ps1" -Variant candidate -Repeat 2
@@ -358,7 +358,7 @@ Test a short lateral approach for melee guards repeatedly blocked by an ally whi
 
 ### Reproduce
 
-The scratch root is `<USERPROFILE>\AppData\Local\Temp\cf-move-d757b8`. The launchers exercise `res://scripts/tools/benchmark_campaign_frames.gd` with `--rendering-method forward_plus --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 --quit-after 1100` and `--scenario=battle-off --fixed-step --warmup=45 --samples=600`. Each launch uses fresh, short `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` directories.
+The scratch root is `Join-Path ([IO.Path]::GetTempPath()) 'cf-move-d757b8'` (under `$env:TEMP\cf-move-d757b8`). The launchers exercise `res://scripts/tools/benchmark_campaign_frames.gd` with `--rendering-method forward_plus --rendering-driver vulkan --resolution 1280x720 --fixed-fps 60 --quit-after 1100` and `--scenario=battle-off --fixed-step --warmup=45 --samples=600`. Each launch uses fresh, short `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` directories.
 
 Install the patch and matching GDScript probe in the scratch checkpoint's `source` directory for the chosen run. Place the probe at `source/scripts/tools/npc_movement_probe.gd`. Use a fresh `-Label` for each rerun. Each recorded directory contains `profile.log` and `movement.csv`.
 

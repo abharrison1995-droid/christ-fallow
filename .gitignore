@@ -15,7 +15,8 @@ tmp/
 __pycache__/
 *.py[cod]
 
-# OS clutter
+# OS clutter & personal shortcuts
 Thumbs.db
 Desktop.ini
 .DS_Store
+*.lnk

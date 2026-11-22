@@ -1,16 +1,57 @@
 # Christ Fallow — Engineering Handoff (22 November 2026)
 
-> **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously (e.g., via Codex). Read this file first alongside [AGENTS.md](../AGENTS.md), [docs/ROADMAP.md](ROADMAP.md), and [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
+> **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously on any machine. Read this file first alongside [AGENTS.md](../AGENTS.md), [docs/ROADMAP.md](ROADMAP.md), and [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
+
+---
+
+## Continuing on Another Device & Plan Map
+
+### New-Device Setup (PowerShell / Bash)
+
+1. **Clone the repository** and enter `<repo-root>`.
+2. **Install Godot 4.3 console** (required) and **Blender 4.5 LTS** (optional, only needed to regenerate `.glb` assets):
+   - **Windows (PowerShell):** Set `$env:GODOT_EXE` (default: `$env:LOCALAPPDATA\Godot\Godot_v4.3-stable_win64_console.exe`) and optionally `$env:BLENDER_EXE` (default: `$env:LOCALAPPDATA\Blender\blender-4.5.16-windows-x64\blender.exe`).
+   - **Linux / macOS (Bash):** Export `GODOT_EXE` (e.g. `godot4` in `$PATH` on Linux, `/Applications/Godot.app/Contents/MacOS/Godot` on macOS) and optionally `BLENDER_EXE` (`blender` 4.5 LTS).
+3. **Populate `.godot/` on a fresh checkout** before running Forward+ verification suites or opening the editor:
+   ```powershell
+   # PowerShell (from <repo-root>)
+   $godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
+   & $godot --headless --editor --path . --import
+   ```
+   ```bash
+   # Bash (from <repo-root>)
+   "${GODOT_EXE:-godot4}" --headless --editor --path . --import
+   ```
+4. **Run from `project.godot` directly** (`& $godot --path .`). Never launch the stale `ChristFallow.exe` (`2026-11-18` pre-Phase-1 binary artifact), which lags the source until rebuilt in [Slice 10C-4](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
+5. **Repository hygiene:** `.gitignore` excludes `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files (`*.tmp`, `*.bak`, `*.log`, `__pycache__/`) while tracked `.import` files and `assets/` travel cleanly in Git. Keep test `APPDATA` / `CHRIST_FALLOW_QA_APPDATA` and `--out-dir` captures in OS temp directories outside `<repo-root>`.
+
+### Master Document & Plan Directory
+
+| Document | Scope & When to Read |
+| :--- | :--- |
+| [AGENTS.md](../AGENTS.md) | Runtime flow, Quick File Router, game invariants, Godot 4.3 GDScript strictness rules, and verification commands. |
+| [README.md](../README.md) | Player-facing overview, controls, implemented systems, fresh-checkout setup, and project guide links. |
+| [docs/HANDOFF.md](HANDOFF.md) | Completed Phases 0–9 baseline, verified test matrix, cross-device setup, and Phase 10 handover queue. |
+| [docs/ROADMAP.md](ROADMAP.md) | Phase-by-phase engineering history (Phases 0–9), First-Person/Phases 7–9 audit table, formalized Phase 10A–10C slices, and sequential Forward+ verification commands. |
+| [docs/FUTURE.md](FUTURE.md) | Gameplay design specs for completed Phases 2–9 plus Phase 10A proposals (`10A-1` through `10A-5`). |
+| [docs/PERFORMANCE.md](PERFORMANCE.md) | Forward+ rendered and fixed-step frame-time telemetry, bottleneck attribution, and rolled-back/screened experiments. |
+| [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md) | Ordered Phase 10B performance experiments, benchmark protocol, and pass/rollback criteria. |
+| [docs/REFACTOR.md](REFACTOR.md) | Architecture extraction boundaries from Pass 1 (20 Nov 2026) and Pass 2 (22 Nov 2026). |
+| [tools/assets/OVERHAUL.md](../tools/assets/OVERHAUL.md) | Blender 4.5 LTS production batches (1–16), asset overhaul design, and combat balance notes. |
+| [tools/assets/CATALOG.md](../tools/assets/CATALOG.md) | Live `.glb` asset inventory across all 7 lineages, 14 kits, 14 buildings, 8 wildlife species, and scenery. |
+| [tools/assets/README.md](../tools/assets/README.md) | Blender generation scripts, GLB node/material contracts, and asset verification commands. |
+| [tools/assets/examples/WILDCARD.md](../tools/assets/examples/WILDCARD.md) | Staged wildcard prototype GLBs (`Antler Beacon`, `River Fish Weir`, `Mossback Ibex`, `Obsidian Cache`, `Shell Courier Kit`, `Mammoth-Bone Sled`) for Slices `10A-4` & `10C-2`. |
+| [tools/assets/examples/DINOSAURS.md](../tools/assets/examples/DINOSAURS.md) | Staged 18-model rigged dinosaur lineup (6 types × 3 sizes) for Slice `10C-1`. |
 
 ---
 
 ## 1. Current Repository & Environment State
 
-- **Workspace:** `<USERPROFILE>\Desktop\Christ Fallow`
-- **Engine / Tooling (Windows):**
-  - Godot 4.3 console: `<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe`
-  - Portable Blender 4.5 LTS: `<USERPROFILE>\AppData\Local\Blender\blender-4.5.16-windows-x64\blender.exe`
-  - Run from `project.godot` directly; ignore `ChristFallow.exe` and `Christ Fallow.lnk` (`2026-11-18`, stale).
+- **Workspace:** `<repo-root>` (portable checkout; no machine-specific paths in tracked code or docs).
+- **Engine / Tooling:**
+  - Godot 4.3 console: `$env:GODOT_EXE` (Windows default `$env:LOCALAPPDATA\Godot\Godot_v4.3-stable_win64_console.exe`; Linux `godot4`; macOS `/Applications/Godot.app/Contents/MacOS/Godot`).
+  - Portable Blender 4.5 LTS (optional, asset pipeline only): `$env:BLENDER_EXE` (Windows default `$env:LOCALAPPDATA\Blender\blender-4.5.16-windows-x64\blender.exe`).
+  - Run from `project.godot` directly; `ChristFallow.exe` is a stale `2026-11-18` pre-Phase-1 binary artifact until re-exported in Slice `10C-4` (`*.lnk` desktop shortcuts are excluded via `.gitignore`).
 - **Git history on `main`:**
   - `5a2b437` — Baseline: pre-Phase 0 snapshot (`.gitignore` excludes `.godot/`, temp outputs, `__pycache__/`).
   - `d2ff849` — **Phase 0A:** Fixed `RAZE` leader leak, third-party rival-wipe conquest softlock, wounded `being_rescued` limbo & defection defeat checks, paused/`campaign_finished` entity/rubble/cooldown leaks, `promote_to_player_leader()` ring/armor cleanup, replacement Campfire `camp_position`, shared `get_diplomatic_opinion_breakdown()`.
@@ -125,7 +166,29 @@ Imported human rigs skip hidden procedural poses, Guard Base reuses camp-centere
 
 ---
 
-## 4. Non-Negotiable Engineering & Verification Rules
+## 4. Next Execution Queue: Phase 10 (Slices 10A–10C)
+
+Full scope, owned files, acceptance criteria, and verification gates live in [docs/ROADMAP.md](ROADMAP.md#phase-10-next-execution-queue-slices-10a10c), [docs/FUTURE.md](FUTURE.md#phase-10a-gameplay--world-map-follow-ups), and [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
+
+| Track | Slice | Summary | Primary Spec |
+| :--- | :--- | :--- | :--- |
+| **10A** | `10A-1` | **Warband Rally Marker:** Squad rally destination marker, reform window, and brief warhorn/HUD confirmation across fords and gates. | [ROADMAP](ROADMAP.md#slice-10a--gameplay--world-map-follow-ups) · [FUTURE](FUTURE.md#10a-1-warband-rally-marker) |
+| **10A** | `10A-2` | **Colony Job Visibility & Crop Reservations:** Surface active Field/Herds job telemetry and transient Farmer field claims (modeled on Shaman rescue leases). | [ROADMAP](ROADMAP.md#slice-10a--gameplay--world-map-follow-ups) · [FUTURE](FUTURE.md#10a-2-colony-job-visibility--crop-reservations) |
+| **10A** | `10A-3` | **Large-Battle Command-Zoom Readability:** Distinct ranged release cue and readable heavy-impact visual/audio readability at command zoom. | [ROADMAP](ROADMAP.md#slice-10a--gameplay--world-map-follow-ups) · [FUTURE](FUTURE.md#10a-3-large-battle-command-zoom-readability) |
+| **10A** | `10A-4` | **River Fish Weir Promotion:** Promote `river_fish_weir.glb` to a 4-stage bank structure with legal bank placement, unblocked fords, worker job, and hauling. | [ROADMAP](ROADMAP.md#slice-10a--gameplay--world-map-follow-ups) · [WILDCARD](../tools/assets/examples/WILDCARD.md) |
+| **10A** | `10A-5` | **Optional World Map Fog of War:** Toggleable/campaign-tracked exploration shroud over the `760×760 m` World Map revealing camps, caves, and landmarks as units scout. | [ROADMAP](ROADMAP.md#slice-10a--gameplay--world-map-follow-ups) · [FUTURE](FUTURE.md#10a-5-optional-world-map-fog-of-war) |
+| **10B** | `10B-1` | **Lateral Guard Base Approach:** Short lateral offset for melee guards blocked by allies outside attack range (`2,421/2,424` stalled approaches). | [PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#crowded-npc-movement) |
+| **10B** | `10B-2` | **Distant Off-Camera Pose Cadence Sampling:** Lower `AnimationPlayer` sampling cadence for distant off-camera locomotion with prompt resampling on camera return. | [PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#imported-pose-sampling) |
+| **10B** | `10B-3` | **Directional Shadow Distance & Cascade Comparison:** Test shorter directional shadow distance and separate cascade-count reduction against stock sun (`59%–73%` draw share). | [PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#directional-shadows-and-worker-allocation) |
+| **10B** | `10B-4` | **Settlement Gatherer Target Allocation:** Break up 30-worker pileups on a single gather node with blocked-approach handling and transient reservations. | [PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#directional-shadows-and-worker-allocation) |
+| **10C** | `10C-1` | **Dinosaur Lineup Campaign/Arena Integration:** Wire selected 18-model dinosaur GLBs (`Velociraptor`..`Brachiosaurus`) into Valley territories and/or Blood-Pit Arena tiers. | [DINOSAURS](../tools/assets/examples/DINOSAURS.md) |
+| **10C** | `10C-2` | **Selected Wildcard Prototype Promotions:** Promote chosen wildcard GLBs (`Antler Beacon`, `Mossback Ibex`, `Obsidian Cache`, `Shell Courier Kit`, `Mammoth-Bone Sled`) beyond `10A-4`. | [WILDCARD](../tools/assets/examples/WILDCARD.md) |
+| **10C** | `10C-3` | **Blender-Exported `arena_pit_stages.glb`:** Replace procedural `ARENA_PIT` stages with a Blender 4.5 LTS 4-stage + collider GLB matching the building contract. | [ROADMAP](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging) |
+| **10C** | `10C-4` | **Refresh `ChristFallow.exe` Release Binary:** Re-export `ChristFallow.exe` from Godot 4.3 after Phase 10 features stabilize (replacing the `2026-11-18` pre-Phase-1 binary). | [ROADMAP](ROADMAP.md#slice-10c--staged-3d-assets--release-packaging) |
+
+---
+
+## 5. Non-Negotiable Engineering & Verification Rules
 
 1. **Godot 4.3 strictness ([AGENTS.md](../AGENTS.md)):**
    - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `PerkSystem`, `ArenaRules`, `DiplomacyConquestRules`, `UnitStats`, `UnitAIRoutines`, `UnitCombatAI`, `BlessingEffects`, `HUDPanels`, etc.).

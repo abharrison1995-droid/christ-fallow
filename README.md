@@ -3,9 +3,18 @@
 Awaken enlightened in a primeval Stone Age valley. Choose your tribal bloodline, gather wandering men and women, light your first Campfire, construct a living village, craft Stone Age weaponry, worship a Patron Deity, negotiate or war with rival AI tribes, capture and enlighten feral Nomadic Cavemen, and hunt prehistoric megafauna to unite the valley.
 
 ## How to Open & Play
-1. Install or open **Godot Engine 4.3** (Standard GDScript version).
-2. Click **Import** in the Godot Project Manager and select `project.godot` inside this folder (`Christ Fallow`).
-3. Click **Run Project (`F5`)** to open the Christ Fallow title screen. Choose **Start**, then **New Game** to set up your tribe or **Continue** to resume your campaign save.
+
+> **Cross-device & CLI setup:** See [Continuing on Another Device & Plan Map](docs/HANDOFF.md#continuing-on-another-device--plan-map) for full PowerShell/Bash environment variables, verification commands, and the repository document directory.
+
+1. Install **Godot Engine 4.3** (Standard GDScript console/editor; optionally **Blender 4.5 LTS** if regenerating `.glb` assets).
+2. On a **fresh checkout**, run one headless import pass before launching Forward+ tests or opening the project:
+   ```powershell
+   $godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
+   & $godot --headless --editor --path . --import
+   ```
+3. Run directly from `project.godot` (`& $godot --path .` or **Import** `project.godot` in the Godot Project Manager and press **Run Project (`F5`)**). Do **not** launch `ChristFallow.exe`, which is a stale `2026-11-18` pre-Phase-1 binary artifact until rebuilt in [Slice 10C-4](docs/ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
+4. **Repository hygiene:** `.gitignore` excludes `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files while tracked `.import` metadata and `assets/` travel cleanly in Git.
+5. On the title screen, choose **Start**, then **New Game** to set up your tribe or **Continue** to resume your campaign save.
 
 ## Controls
 | Action | Key / Input |
@@ -52,7 +61,10 @@ Awaken enlightened in a primeval Stone Age valley. Choose your tribal bloodline,
 
 ## Project guides
 
+- [Engineering handoff & cross-device setup](docs/HANDOFF.md#continuing-on-another-device--plan-map)
 - [Agent guide and codebase map](AGENTS.md)
-- [Master roadmap and stabilization plan](docs/ROADMAP.md)
+- [Master roadmap, Phase 10 queue & verification gates](docs/ROADMAP.md)
 - [Codebase refactor plan](docs/REFACTOR.md) and [future development](docs/FUTURE.md)
-- [Asset pipeline](tools/assets/README.md) and [asset rollout](tools/assets/OVERHAUL.md)
+- [Campaign performance review](docs/PERFORMANCE.md) and [performance handover](docs/PERFORMANCE_HANDOVER.md)
+- [Asset pipeline](tools/assets/README.md), [asset rollout](tools/assets/OVERHAUL.md), and [asset catalog](tools/assets/CATALOG.md)
+- [Staged wildcard prototypes](tools/assets/examples/WILDCARD.md) and [dinosaur lineup](tools/assets/examples/DINOSAURS.md)

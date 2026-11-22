@@ -5,15 +5,16 @@
 
 ## Working in this project
 
-- Run the source project from `project.godot` with the Godot 4.3 console executable. `ChristFallow.exe` and `Christ Fallow.lnk` are separate launch artifacts (`2026-11-18`) and lag the source.
-- Local Git is initialized on `main` with `.gitignore` excluding `.godot/` and temp outputs; checkpoint cleanly before multi-file refactors.
+- **Fresh checkout & cross-device setup:** Start with the [Continuing on Another Device & Plan Map](docs/HANDOFF.md#continuing-on-another-device--plan-map) guide. On a new clone, run `$godot --headless --editor --path . --import` once so `.godot/` populates before launching Forward+ tests.
+- Run the source project from `project.godot` with the Godot 4.3 console executable (`$env:GODOT_EXE`). `ChristFallow.exe` is a stale `2026-11-18` pre-Phase-1 binary artifact until re-exported in [Slice 10C-4](docs/ROADMAP.md#slice-10c--staged-3d-assets--release-packaging).
+- Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `captures/`, `qa_out/`, `tmp/`, `*.lnk`, and temp/cache files while tracked `.import` files and `assets/` travel cleanly in Git; checkpoint cleanly before multi-file refactors.
 - Follow the affected feature from its player-facing entry point through the state change and the HUD update. Several features have both a button and a hotkey. Check both when editing their shared behavior.
 - Use the smallest check that exercises the changed behavior. Record the command, gameplay path, and result so the next agent can reproduce it. Keep temporary probes, test saves, and showcase images outside the project unless they belong in a lasting test or asset.
 
 ## Planning files
 
-- [Engineering handoff](docs/HANDOFF.md) summarizes the current `main` baseline, completed slices through Phases 7–9 and Refactor Pass 2, verified suites, and engineering invariants.
-- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks stabilization, simulation and navigation, the opening tutorial and asset rollout, valley expansion and mapping, tribal diplomacy, farming and mounts, tribal progression, and [first-person POV](docs/ROADMAP.md#first-person-pov-stabilization). It also contains the regression commands for future slices.
+- [Engineering handoff](docs/HANDOFF.md) — **Start here** for [cross-device setup & plan map](docs/HANDOFF.md#continuing-on-another-device--plan-map), the current `main` baseline through Phases 0–9 and Refactor Pass 2, verified suites, Phase 10 queue summary, and engineering invariants.
+- [Master roadmap and bug-fix plan](docs/ROADMAP.md) tracks stabilization, simulation and navigation, the opening tutorial and asset rollout, valley expansion and mapping, tribal diplomacy, farming and mounts, tribal progression, [first-person POV](docs/ROADMAP.md#first-person-pov-stabilization), and the formalized [Phase 10 execution queue (Slices 10A–10C)](docs/ROADMAP.md#phase-10-next-execution-queue-slices-10a10c). It also contains the regression commands for future slices.
 - [Codebase refactor](docs/REFACTOR.md) records the completed 20 November 2026 and 22 November 2026 architecture extraction passes and verification baseline (spatial indexing was delivered in [Phase 1](docs/ROADMAP.md#phase-1-simulation-performance--navigation-foundation)).
 - [Campaign performance review](docs/PERFORMANCE.md) records elapsed Forward+ frame times, fixed-step stress runs, attribution, and the next AI work; [Performance plan and handover](docs/PERFORMANCE_HANDOVER.md) details the ordered optimization experiments and matched benchmark protocol.
 - [Future development](docs/FUTURE.md) details the playable opening tutorial, valley expansion, full-screen map, tribal leaders and diplomacy, animal taming, farming, mounts, and tribal leveling/perks.
@@ -128,7 +129,7 @@
    - Blueprints (`is_constructed == false`) always display their cyan build progress bar and flash red when damaged without breaking `_flash_timer` recovery.
    - Save/load persistence: `sync_visual_from_state()` derives completed-building damage stages from HP. Unfinished blueprints retain intact holograms. `_combat_timer` defaults to 0.0, keeping completed-building health bars hidden upon loading.
 6. **Headless Blender 4.5 LTS Asset Toolchain & `.glb` Contracts**:
-   - Portable Blender 4.5 LTS is installed outside the repo at `<USERPROFILE>\AppData\Local\Blender\blender-4.5.16-windows-x64\blender.exe`.
+   - Portable Blender 4.5 LTS is configured via `$env:BLENDER_EXE` (default Windows location `$env:LOCALAPPDATA\Blender\blender-4.5.16-windows-x64\blender.exe`).
    - `tools/assets/build_assets.ps1` stages the Sleeping Hut, Palisade, and base tribesman. Use `-VerifyOnly -RequireGameplayRig` for strict review without publishing. The Crag-Born and valley batches have separate commands in the [asset pipeline guide](tools/assets/README.md).
    - Current GLB coverage includes fourteen buildings, six bodies for each of seven lineages, fourteen role kits, Flintmask Scout, four scenery props, and all eight wildlife species. The Blood-Pit Arena uses procedural meshes. [Asset catalog](tools/assets/CATALOG.md)
    - Building `.glb` node contract: Root Node3D -> children `Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble` + `Collider-convcolonly` (plus `CampfireLight`, `ShamanLight`, `FlameMesh` when applicable). `FactionTrim` material slots are tinted at runtime with faction colors.
@@ -170,10 +171,10 @@
 
 ## Verification on Windows
 
-Run these from the project root. Adjust `$godot` if the console executable is installed elsewhere.
+Run these from the project root. Set `$env:GODOT_EXE` if Godot 4.3 console is installed outside the default Windows location (`$env:LOCALAPPDATA\Godot\Godot_v4.3-stable_win64_console.exe`; on Linux `godot4` in `$PATH`, on macOS `/Applications/Godot.app/Contents/MacOS/Godot`).
 
 ```powershell
-$godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
+$godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
 $project = (Get-Location).Path
 
 # Import assets in a fresh checkout.

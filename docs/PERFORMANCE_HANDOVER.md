@@ -60,7 +60,7 @@ Run the Godot 4.3 source project on the same machine, one launch at a time. The 
 For the popup experiment, add `_summarize("unrendered fixed loop ms", elapsed)` immediately before the fixed-step early return in `_measure()` in the benchmark or its scratch copy. The fixed branch already collects intervals between `physics_frame` signals. Report this series alongside `scene physics tick ms`, which measures the scene callbacks. Keep the existing active-campaign check and the 171-unit setup check. Use the same instrumentation in the control and candidate. [Frame benchmark](../scripts/tools/benchmark_campaign_frames.gd)
 
 ```powershell
-$godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
+$godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
 $project = (Get-Location).Path
 
 function Invoke-FallowBenchmark {

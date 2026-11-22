@@ -30,7 +30,7 @@
 
 ### Key architectural & hygiene bottlenecks
 - **Navigation**. The active layout defines river crossings and common scan distances. `HumanUnit` steering uses cached paths beyond 6 m from the target. [Valley navigation](../scripts/core/valley_navigation.gd)
-- **Repo hygiene**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/` and temp outputs. `ChristFallow.exe` (dated `2026-11-18`) and `Christ Fallow.lnk` lag the `2026-11-20` source.
+- **Repo hygiene**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.lnk`, and temp outputs. `ChristFallow.exe` (`2026-11-18`) is a pre-Phase-1 binary artifact until re-exported in [Slice 10C-4](#slice-10c--staged-3d-assets--release-packaging); always run `project.godot` directly.
 
 ---
 
@@ -360,15 +360,94 @@ try {
 
 ---
 
+## Phase 10: Next Execution Queue (Slices 10A–10C)
+
+> **Status: Queued (`main` after Phase 9)** — Each slice is scoped with concrete owned files, acceptance criteria, and Forward+ verification gates so a fresh session on any device can execute it independently. See [docs/FUTURE.md](FUTURE.md#phase-10a-gameplay--world-map-follow-ups) for gameplay specs and [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md) for the matched benchmark protocol.
+
+### Slice 10A — Gameplay & World-Map Follow-ups
+
+1. **`10A-1` — Warband Rally Marker** ([FUTURE](FUTURE.md#10a-1-warband-rally-marker)):
+   - **Scope**: Allow the selected player squad (`1..6`) to set a visible 3D rally marker and bounded reform window on top of existing hold/squad orders and ford-aware `ValleyNavigation`, emitting a brief order-confirmation cue via `SoundManager`. Keep the first release focused on a single selected squad so formation shifts stay readable at gates and river fords.
+   - **Owned files**: `scripts/systems/combat_command_system.gd`, `scripts/entities/unit_combat_ai.gd`, `scripts/entities/human_unit.gd`, `scripts/ui/hud_controller.gd`, `scripts/core/sound_manager.gd`, plus a focused verification probe or addition to `verify_expanded_valley.gd` / `verify_phase1_nav.gd`.
+   - **Acceptance & Gate**: Verify a scattered squad rallies across a ford, accepts a mid-route replacement order, respects truces during approach, and traverses `STANDING_STONE_GATE` without stalling; run `verify_phase1_nav.gd`, `verify_expanded_valley.gd`, `verify_audio_system.gd`, and `verify_campaign_ui.gd -- --large-ui` (`EXIT_CODE=0`, 0 errors).
+
+2. **`10A-2` — Colony Job Visibility & Crop Reservations** ([FUTURE](FUTURE.md#10a-2-colony-job-visibility--crop-reservations)):
+   - **Scope**: Display active worker/crop job telemetry in `ColonyDrawer` → `Fields & Herds` / `Workforce` (including idle reasons and blocked-approach feedback) and add short-lived, expiring crop-field reservations for Farmers modeled on the Shaman rescue lease pattern (`being_rescued`), releasing claims cleanly on role change, field destruction, or expiry.
+   - **Owned files**: `scripts/entities/unit_ai_routines.gd`, `scripts/entities/building_entity.gd`, `scripts/core/farming_rules.gd`, `scripts/ui/drawers/colony_drawer.gd`, `scripts/tools/verify_farming_taming.gd`.
+   - **Acceptance & Gate**: Verify three Farmers distribute across two reachable `CROP_FIELD`s without crowding, cleanly reassign when one field is destroyed or a Farmer's role changes, and persist Food in transit across save/load; run `verify_farming_taming.gd`, `verify_campaign_save.gd`, and `verify_campaign_ui.gd -- --large-ui`.
+
+3. **`10A-3` — Large-Battle Command-Zoom Readability** ([FUTURE](FUTURE.md#10a-3-large-battle-command-zoom-readability)):
+   - **Scope**: Improve combat readability at command zoom by adding a distinct ranged bow/javelin release audio-visual cue and a readable heavy-impact effect (e.g., Club Brute / Cleaver strike) while respecting `SoundManager` concurrent cue throttling and Reduced Motion preferences.
+   - **Owned files**: `scripts/entities/unit_combat_ai.gd`, `scripts/entities/player_controller.gd`, `scripts/core/combat_vfx.gd`, `scripts/core/sound_manager.gd`, `scripts/tools/verify_audio_system.gd`.
+   - **Acceptance & Gate**: Test Archers and Club Brutes together in a multi-faction fight at both near and command zoom, confirm zero frame-time regression via `benchmark_campaign_frames.gd --scenario=battle`, and pass `verify_audio_system.gd` + `verify_equipment_system.gd`.
+
+4. **`10A-4` — River Fish Weir Promotion** ([FUTURE](FUTURE.md#10a-4-river-fish-weir-promotion) · [WILDCARD](../tools/assets/examples/WILDCARD.md)):
+   - **Scope**: Promote the reviewed `river_fish_weir.glb` prototype into a 4-stage `RIVER_FISH_WEIR` building (`Stage_Intact`..`Stage_Rubble` + collider) with legal river-bank placement validation that keeps `WorldLayout.river_crossings()` fords unblocked, a worker/Forager fishing job with harvest pose, and Food hauling to storage.
+   - **Owned files**: `tools/assets/generate_wildcard_models.py` (or dedicated stages export), `assets/models/buildings/river_fish_weir_stages.glb`, `scripts/core/game_data.gd`, `scripts/core/world_layout.gd`, `scripts/entities/building_entity.gd`, `scripts/entities/player_controller.gd`, `scripts/entities/unit_ai_routines.gd`, `scripts/ui/drawers/build_drawer.gd`, `tools/assets/CATALOG.md`.
+   - **Acceptance & Gate**: Verify legal bank placement at multiple rotations, unblocked ford navigation (`verify_phase1_nav.gd`), Food delivery to stockpile, 4-stage damage/rubble cleanup, and `v4` save/load persistence (`verify_valley_assets.gd`, `verify_campaign_save.gd`, `verify_campaign_ui.gd -- --large-ui`).
+
+5. **`10A-5` — Optional World Map Fog of War** ([FUTURE](FUTURE.md#10a-5-optional-world-map-fog-of-war)):
+   - **Scope**: Add an optional exploration shroud / Fog of War mode for the `760×760 m` World Map (`world_map_overlay.gd` and `minimap_widget.gd`) that tracks explored valley sectors from player leader, unit, and Watchtower vision radii, toggles cleanly in Settings/Campaign setup without breaking unshrouded existing saves, and persists exploration state in `v4` saves.
+   - **Owned files**: `scripts/ui/world_map_overlay.gd`, `scripts/ui/minimap_widget.gd`, `scripts/core/game_state.gd`, `scripts/core/campaign_save.gd`, `scripts/ui/awakening_screen.gd` / `scripts/ui/preferences.gd`, `scripts/tools/verify_expanded_valley.gd`, `scripts/tools/verify_campaign_ui.gd`.
+   - **Acceptance & Gate**: Verify unexplored rival camps/caves remain veiled until scouted when enabled, unshrouded mode and legacy `v1`–`v4` saves remain unaffected, waypoints work in revealed/shrouded regions, and `verify_expanded_valley.gd`, `verify_campaign_save.gd`, and `verify_campaign_ui.gd -- --large-ui` pass.
+
+### Slice 10B — Performance Optimization Trials
+
+> **Reference:** Follow the matched-control protocol and scratch-log handover rules in [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md) and [docs/PERFORMANCE.md](PERFORMANCE.md).
+
+1. **`10B-1` — Lateral Guard Base Approach for Stalled Melee Allies** ([PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#crowded-npc-movement)):
+   - **Scope**: Prototype a short engagement-scoped lateral approach offset in `UnitCombatAI` / `HumanUnit` when a melee Guard Base warrior reports repeated low-progress ally contact (`2,421/2,424` stalled approaches in baseline capture) toward a live hostile outside attack range; release cleanly on reaching range, target change, or order replacement.
+   - **Owned files**: `scripts/entities/unit_combat_ai.gd`, `scripts/entities/human_unit.gd`.
+   - **Acceptance & Gate**: Measure failed movement requests, time-to-attack, native `move_and_slide()` ms, and scene callback ms on `battle-off --fixed-step --samples=600` + rendered `battle` pair; verify `verify_phase1_nav.gd` and `verify_expanded_valley.gd` (for Retreat, knockback, fords, `STANDING_STONE_GATE`, and solid building routing).
+
+2. **`10B-2` — Distant Off-Camera `AnimationPlayer` Pose Cadence Sampling** ([PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#imported-pose-sampling)):
+   - **Scope**: Reduce `AnimationPlayer.advance()` / `seek()` sampling cadence for distant off-camera imported locomotion (`3.52 ms/tick` baseline) with accumulated delta and immediate resampling on camera return or one-shot clip transitions (`Attack`, `Hit`, `Wounded`, `Death`).
+   - **Owned files**: `scripts/entities/skinned_tribesman_trial.gd`, `scripts/entities/crag_born_trial.gd`, `scripts/entities/human_unit.gd`.
+   - **Acceptance & Gate**: Confirm improvements on `battle-off --fixed-step` and rendered `battle`, plus clean visual poses and shadow silhouettes across default rig, mounted POV (`verify_farming_taming.gd`), `verify_skinned_lineages.gd`, and `verify_first_person_pov.gd`.
+
+3. **`10B-3` — Directional Shadow Distance & Cascade Comparison** ([PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#directional-shadows-and-worker-allocation)):
+   - **Scope**: Compare one shorter `DirectionalLight3D` shadow distance against the stock sun (`59%–73%` of total draw submissions) and evaluate a separate cascade-count reduction as an isolated trial using matched `benchmark_campaign_frames.gd` runs.
+   - **Owned files**: `scripts/systems/world_generator.gd` (or `Preferences` if exposed as a quality tier).
+   - **Acceptance & Gate**: Inspect dawn/dusk/night, close and command zoom, weapon silhouettes, and camera-motion cascade transitions; retain only if GPU/wall times improve without unacceptable silhouette loss.
+
+4. **`10B-4` — Settlement Gatherer Target Allocation** ([PERFORMANCE_HANDOVER](PERFORMANCE_HANDOVER.md#directional-shadows-and-worker-allocation)):
+   - **Scope**: Break up the 30-worker pileup on a single gather node observed in `--scenario=settlement --fixed-step --samples=540` by spreading gather target selection, handling blocked approaches explicitly, and avoiding redundant crowding around depleted or blocked nodes.
+   - **Owned files**: `scripts/entities/unit_ai_routines.gd`, `scripts/entities/human_unit.gd`.
+   - **Acceptance & Gate**: Compare largest shared gather target count, active haulers, and Wood/Food delivered over 540 fixed ticks in `settlement` while keeping `verify_opening_tutorial.gd`, `verify_expanded_valley.gd`, and `verify_campaign_save.gd` green.
+
+### Slice 10C — Staged 3D Assets & Release Packaging
+
+1. **`10C-1` — Dinosaur Lineup Campaign / Arena Integration** ([DINOSAURS](../tools/assets/examples/DINOSAURS.md)):
+   - **Scope**: Promote selected rigged dinosaur GLBs from the 18-model lineup (`Velociraptor`, `Parasaurolophus`, `Stegosaurus`, `Triceratops`, `Tyrannosaurus`, `Brachiosaurus`; each with `Idle`, `Walk`, and a signature one-shot clip) into `GameData.WILDLIFE_DATA`, `WorldMeshBuilder`, `WildlifeEntity`, and/or Blood-Pit Arena high-tier encounters (`ArenaRules`) with tuned colliders, hit volumes, and save IDs.
+   - **Owned files**: `scripts/core/game_data.gd`, `scripts/core/world_layout.gd`, `scripts/core/world_mesh_builder.gd`, `scripts/entities/wildlife_entity.gd`, `scripts/core/arena_rules.gd`, `tools/assets/CATALOG.md`, `tools/assets/OVERHAUL.md`.
+   - **Acceptance & Gate**: Run `--headless --editor --path . --import`, `verify_dinosaur_lineup.gd`, `verify_valley_assets.gd`, `verify_arena_trials.gd`, and `verify_campaign_save.gd` (`EXIT_CODE=0`, 0 errors).
+
+2. **`10C-2` — Selected Wildcard Prototype Promotions** ([WILDCARD](../tools/assets/examples/WILDCARD.md)):
+   - **Scope**: Integrate selected remaining prototypes from the 6-model wildcard round (`Antler Beacon` warded trail/ford marker, `Mossback Ibex` rim herd animal, `Obsidian Cache` one-use cave reward, `Shell Courier Kit` diplomatic/trader pack, `Mammoth-Bone Sled` heavy hauler) once chosen for gameplay.
+   - **Owned files**: Respective asset generators/GLBs under `tools/assets/` & `assets/models/`, `scripts/core/game_data.gd`, `scripts/core/world_mesh_builder.gd`, entity/UI hooks per pick, and `tools/assets/CATALOG.md`.
+   - **Acceptance & Gate**: Run `verify_wildcard_models.gd`, `--headless --editor --path . --import`, `verify_valley_assets.gd`, and feature-specific Forward+ regression checks.
+
+3. **`10C-3` — Blender-Exported 4-Stage `arena_pit_stages.glb` for `ARENA_PIT`**:
+   - **Scope**: Replace the procedural fallback meshes on `ARENA_PIT` (`WorldMeshBuilder` / `BuildingEntity`) with a Blender 4.5 LTS exported `assets/models/buildings/arena_pit_stages.glb` conforming to the 4-stage building contract (`Stage_Intact`, `Stage_Damaged`, `Stage_Critical`, `Stage_Rubble`, `Collider-convcolonly`, `FactionTrim`, and preserved walkable floor + pulsing brazier mounts).
+   - **Owned files**: `tools/assets/` building generator script, `assets/models/buildings/arena_pit_stages.glb` (+ `.import`), `scripts/core/world_mesh_builder.gd`, `scripts/entities/building_entity.gd`, `tools/assets/CATALOG.md`.
+   - **Acceptance & Gate**: Run `--headless --editor --path . --import`, `verify_glb_assets.gd --require-gameplay-rig`, `verify_arena_trials.gd` (checking walkable pit floor, braziers, and 4 stages), and `verify_campaign_save.gd`.
+
+4. **`10C-4` — Refresh Exported `ChristFallow.exe` Release Binary**:
+   - **Scope**: Export a fresh Windows release executable (`ChristFallow.exe`) from Godot 4.3 once Phase 10A–10C targets stabilize, replacing the stale `2026-11-18` pre-Phase-1 binary artifact, and update `AGENTS.md`, `README.md`, and `docs/HANDOFF.md` with the verified export date and full 11-case Forward+ gate pass.
+   - **Owned files**: Export configuration (`export_presets.cfg` if tracked), `ChristFallow.exe`, `AGENTS.md`, `README.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`.
+   - **Acceptance & Gate**: Full sequential Forward+ verification suite passes (`EXIT_CODE=0`, 0 errors) and smoke-launching the exported `ChristFallow.exe` reaches the Title Screen, New Game, and Save/Load cleanly.
+
+---
+
 ## Agentic Continuation Protocol
 
 ### Repo hygiene pre-flight
-- **Local Git**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.tmp`, and local capture/save directories; checkpoint cleanly between slices for diff clarity and rollback safety.
-- **Ignore stale launcher binaries**: Run `project.godot` directly via Godot 4.3 console; `ChristFallow.exe` and `Christ Fallow.lnk` are stale (`2026-11-18`) and should be rebuilt or removed when packaging.
-- **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
+- **Local Git**: Local Git is initialized on `main` with `.gitignore` excluding `.godot/`, `*.lnk`, `*.tmp`, and local capture/save directories; checkpoint cleanly between slices for diff clarity and rollback safety.
+- **Ignore stale launcher binaries**: Run `project.godot` directly via Godot 4.3 console; `ChristFallow.exe` (`2026-11-18`) is a pre-Phase-1 binary artifact until rebuilt in [Slice 10C-4](#slice-10c--staged-3d-assets--release-packaging).
+- **Keep paths portable**: Never commit personal home paths (`%USERPROFILE%\...`, `$HOME/...`) or `.lnk` shortcuts into scripts, docs, or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, `[IO.Path]::GetTempPath()`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** The queue through Phase 6 is complete. Review the stress results, ordered optimization experiments, and ranked playable proposals before choosing the next slice. [Performance review](PERFORMANCE.md) · [Performance handover](PERFORMANCE_HANDOVER.md) · [Gameplay proposals](FUTURE.md#ranked-gameplay-and-asset-proposals)
+1. **Pick one slice.** The queue through Phase 9 is complete. Pick one slice from [Phase 10](#phase-10-next-execution-queue-slices-10a10c), reviewing the stress results, ordered optimization experiments, and ranked playable proposals first. [Performance review](PERFORMANCE.md) · [Performance handover](PERFORMANCE_HANDOVER.md) · [Gameplay proposals](FUTURE.md#ranked-gameplay-and-asset-proposals)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
@@ -379,9 +458,10 @@ try {
 Run each Godot command sequentially. Repeat the `$qa` setup before each invocation so it starts with fresh preferences and saves. The benchmark reports `SIMULATION BENCHMARK COMPLETE`, and the showcase gate requires seven PNGs with successful capture messages.
 
 ```powershell
-$godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
+# Portable Godot 4.3 console lookup (Windows PowerShell; on Linux/macOS export GODOT_EXE or use godot4 / /Applications/Godot.app/Contents/MacOS/Godot)
+$godot = if ($env:GODOT_EXE) { $env:GODOT_EXE } else { Join-Path $env:LOCALAPPDATA 'Godot\Godot_v4.3-stable_win64_console.exe' }
 $project = (Get-Location).Path
-$qa = Join-Path $env:USERPROFILE ('cf-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+$qa = Join-Path ([IO.Path]::GetTempPath()) ('cf-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
 New-Item -ItemType Directory -Path $qa -Force | Out-Null
 $env:APPDATA = $qa
 $env:CHRIST_FALLOW_QA_APPDATA = $qa
