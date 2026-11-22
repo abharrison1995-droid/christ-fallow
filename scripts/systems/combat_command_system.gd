@@ -11,6 +11,12 @@ func _ready() -> void:
 	GameState.combat_command_system = self
 
 
+func _play_ui_sfx(cue: String, pitch_jitter: float = 0.04) -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_ui_sfx(cue, pitch_jitter)
+
+
 func serialize() -> Dictionary:
 	return {
 		"selected_warrior_class": selected_warrior_class,
@@ -28,6 +34,7 @@ func restore_from_save(saved: Dictionary) -> void:
 
 func select_squad(w_class: int) -> void:
 	selected_warrior_class = w_class
+	_play_ui_sfx("ui_click", 0.04)
 	var label := "All Warriors"
 	if w_class >= 0:
 		label = GameData.WARRIOR_CLASS_NAMES.get(w_class, "Warriors") + "s"
@@ -36,6 +43,7 @@ func select_squad(w_class: int) -> void:
 
 
 func issue_player_order(order: int) -> void:
+	_play_ui_sfx("ui_click", 0.04)
 	var leader := GameState.get_faction_leader(0)
 	var origin: Vector3 = leader.global_position if leader != null else Vector3.ZERO
 	issue_order(order, origin)
@@ -64,6 +72,7 @@ func issue_order(order: int, leader_pos: Vector3) -> void:
 
 func toggle_fire_at_will() -> void:
 	global_fire_at_will = not global_fire_at_will
+	_play_ui_sfx("ui_click", 0.04)
 	for u in GameState.get_faction_units(0, true):
 		if u.get("is_leader") != true:
 			u.fire_at_will = global_fire_at_will
@@ -78,8 +87,10 @@ func toggle_warhorn() -> void:
 		if GameState.warhorn_active and u.get("role") != GameData.Role.WARRIOR and u.get("is_leader") != true and u.get("is_child") != true:
 			u.squad_order = GameData.SquadOrder.GUARD_BASE
 	if GameState.warhorn_active:
+		_play_ui_sfx("warhorn", 0.03)
 		GameState.push_log("WARHORN SOUNDED! All civilians armed to defend the colony!", "warning")
 	else:
+		_play_ui_sfx("ui_click", 0.04)
 		GameState.push_log("Warhorn stood down. Civilians return to their tasks.", "info")
 	selection_changed.emit(selected_warrior_class, last_issued_order, global_fire_at_will, GameState.warhorn_active)
 

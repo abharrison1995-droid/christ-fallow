@@ -19,6 +19,8 @@ func _ready() -> void:
 	_toggle("Reduce interface motion", "reduced_motion")
 	_rows = _tab(tabs, "Audio")
 	_slider("Master volume", "master", 0.0, 1.0, 0.05)
+	_slider("Music volume", "music", 0.0, 1.0, 0.05)
+	_slider("SFX volume", "sfx", 0.0, 1.0, 0.05)
 	_slider("Title ambience", "ambience", 0.0, 1.0, 0.05)
 	_rows = _tab(tabs, "Controls")
 	for binding in [

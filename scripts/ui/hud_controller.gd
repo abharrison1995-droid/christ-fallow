@@ -94,7 +94,7 @@ func _ready() -> void:
 	add_child(_inspector_panel)
 	_world_map = WorldMap.new()
 	add_child(_world_map)
-	_world_map.close_requested.connect(_world_map.close)
+	_world_map.close_requested.connect(_close_world_map_with_sfx)
 	_overlays.cover_requested.connect(func():
 		_dismiss_open_popup()
 		close_drawer()
@@ -174,6 +174,7 @@ func _input(event: InputEvent) -> void:
 	if _world_map.visible:
 		match key:
 			KEY_M, KEY_ESCAPE:
+				_play_ui_sfx()
 				_world_map.close()
 			KEY_P:
 				_world_map.close()
@@ -202,6 +203,7 @@ func _input(event: InputEvent) -> void:
 		elif _dismiss_open_popup():
 			pass
 		elif _drawer_panel.visible:
+			_play_ui_sfx()
 			close_drawer()
 		elif is_instance_valid(GameState.player_controller) and GameState.player_controller.is_build_mode:
 			GameState.player_controller.exit_build_mode()
@@ -240,12 +242,26 @@ func blocks_world_input() -> bool:
 	return _world_map.visible or _drawer_panel.visible or _overlays.blocks_world_input()
 
 
+func _play_ui_sfx(cue: String = "ui_click") -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_ui_sfx(cue, 0.04)
+
+
+func _close_world_map_with_sfx() -> void:
+	if _world_map.visible:
+		_play_ui_sfx()
+	_world_map.close()
+
+
 func toggle_world_map() -> void:
 	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished or _overlays.blocks_world_input():
 		return
 	if _world_map.visible:
+		_play_ui_sfx()
 		_world_map.close()
 		return
+	_play_ui_sfx()
 	_dismiss_open_popup()
 	close_drawer()
 	_close_inspector()
@@ -412,6 +428,7 @@ func _on_campaign_loaded() -> void:
 func toggle_drawer(tab_key: String) -> void:
 	if _overlays.blocks_world_input():
 		return
+	_play_ui_sfx()
 	_dismiss_open_popup()
 	if _drawer_panel.visible and _active_tab == tab_key:
 		close_drawer()

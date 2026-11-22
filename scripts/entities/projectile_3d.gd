@@ -105,6 +105,8 @@ func _physics_process(delta: float) -> void:
 				continue
 			var hit_center: Vector3 = (u as Node3D).global_position + Vector3(0.0, 1.0, 0.0)
 			if _segment_distance_to_point(prev_pos, next_pos, hit_center) < UNIT_HIT_RADIUS:
+				if not u.has_method("play_attack_animation"):
+					_play_impact_sfx()
 				u.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return
@@ -115,6 +117,7 @@ func _physics_process(delta: float) -> void:
 			if not is_instance_valid(w) or w.get("is_dead") == true or w.is_protected_from(faction_id):
 				continue
 			if _segment_distance_to_point(prev_pos, next_pos, w.projectile_hit_center()) < w.projectile_hit_radius:
+				_play_impact_sfx()
 				w.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return
@@ -128,6 +131,7 @@ func _physics_process(delta: float) -> void:
 				continue
 			var b_pos: Vector3 = (b as Node3D).global_position + Vector3(0.0, 1.2, 0.0)
 			if _segment_distance_to_point(prev_pos, next_pos, b_pos) < 1.9:
+				_play_impact_sfx()
 				b.take_damage(damage, faction_id)
 				queue_free()
 				return
@@ -135,3 +139,9 @@ func _physics_process(delta: float) -> void:
 	if global_position.y <= 0.1:
 		queue_free()
 		return
+
+
+func _play_impact_sfx() -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d("melee_hit", global_position, 0.08, -1.0)

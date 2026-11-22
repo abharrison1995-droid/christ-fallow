@@ -124,6 +124,7 @@ var _nav_progress_pos := Vector3.INF
 var _last_label_text: String = ""
 var _last_move_idle: bool = false
 var _work_timer: float = 0.0
+var _work_sfx_cd: float = 0.0
 var _swing_timer: float = 0.0
 var _swing_duration: float = 0.34
 var _active_attack_anim: String = ""
@@ -906,6 +907,14 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	var ckey := _get_class_key()
 	var has_shield: bool = (ckey == "SPEARMAN" or ckey == "JAVELINEER" or ckey == "LEADER" or ckey == "TRAINEE")
 	var is_heavy: bool = (mitigated >= max_hp * 0.16) or atk_is_boss or atk_is_brute
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		var blocked_dmg := amount - mitigated
+		var is_shielded_block: bool = (has_shield or has_armor) and (blocked_dmg >= 2.0 or (has_shield and not is_heavy))
+		var hit_cue := "shield_block" if is_shielded_block else "melee_hit"
+		sm.play_sfx_3d(hit_cue, global_position, 0.08, -1.0)
+	if (faction_id == 0 and attacker_faction != 0 and (attacker == null or attacker.get("is_child") != true)) or (attacker_faction == 0 and faction_id != 0 and not is_child):
+		GameState.notify_combat_audio(14.0)
 	_animator.trigger_damage(hit_dir_body, is_heavy, has_shield)
 	_skinned_hit_priority = true
 	if _skinned_trial != null:
@@ -1288,6 +1297,7 @@ func _physics_process(delta: float) -> void:
 	_scan_wild_cd -= delta
 	_scan_bld_cd -= delta
 	_attack_cd = maxf(0.0, _attack_cd - delta)
+	_work_sfx_cd = maxf(0.0, _work_sfx_cd - delta)
 	_leader_blessing_cd = maxf(0.0, _leader_blessing_cd - delta)
 	_campfire_heal_cd = maxf(0.0, _campfire_heal_cd - delta)
 	_self_defense_timer = maxf(0.0, _self_defense_timer - delta)
@@ -1412,7 +1422,31 @@ func _physics_process(delta: float) -> void:
 	if not _kiting_this_frame and Vector2(velocity.x, velocity.z).length() > 0.25:
 		var look_p := global_position + Vector3(velocity.x, 0.0, velocity.z)
 		look_at(look_p, Vector3.UP)
+	if _is_working_this_frame:
+		play_work_sound()
 	_update_procedural_animation(delta)
+
+
+func play_work_sound() -> void:
+	if _work_sfx_cd > 0.0 or is_dead or is_wounded or is_player_controlled:
+		return
+	var cue := ""
+	match role:
+		GameData.Role.BUILDER_CRAFTER:
+			cue = "build_hammer"
+		GameData.Role.LUMBERJACK, GameData.Role.FORAGER, GameData.Role.FARMER:
+			cue = "wood_chop"
+		GameData.Role.STONEKNAPPER:
+			cue = "stone_mine"
+		_:
+			return
+	_work_sfx_cd = randf_range(0.75, 1.15)
+	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
+	if cam != null and global_position.distance_squared_to(cam.global_position) > 38.0 * 38.0:
+		return
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d(cue, global_position, 0.10, -8.0)
 
 
 func _clamp_to_world_bounds() -> void:

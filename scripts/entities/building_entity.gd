@@ -454,6 +454,9 @@ func advance_construction(amount: float) -> void:
 		damage_stage = 0
 		_rebuild_visual()
 		_sync_nav_obstacle()
+		var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+		if sm != null:
+			sm.play_sfx_3d("building_complete", global_position, 0.04, 0.0)
 		if building_type == "CAMPFIRE" and GameState.factions.has(faction_id):
 			if not bool(GameState.factions[faction_id].get("is_founded", false)) or not had_constructed_campfire:
 				GameState.factions[faction_id]["camp_position"] = global_position
@@ -492,6 +495,8 @@ func take_damage(amount: float, attacker_faction: int) -> void:
 
 	if attacker_faction != faction_id and GameState.is_hostile(faction_id, attacker_faction):
 		_combat_timer = 5.0
+		if faction_id == 0:
+			GameState.notify_combat_audio(14.0)
 		if not is_constructed:
 			CombatVFX.spawn_damage_popup(self, "BLUEPRINT DAMAGED!", Color(1.0, 0.35, 0.2), 1.2)
 
@@ -839,6 +844,9 @@ func _fire_watchtower_arrow(target: Node3D) -> void:
 	if GameState.factions.has(faction_id):
 		tier = int(GameState.factions[faction_id].get("tech_tier", 1))
 	Projectile3D.spawn(self, faction_id, origin, aim, dmg, 30.0, "ARROW", tier, false)
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d("bow_release", origin, 0.08, -1.5)
 
 
 func recalculate_max_hp(preserve_ratio: bool = true) -> void:

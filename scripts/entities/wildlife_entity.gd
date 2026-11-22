@@ -27,6 +27,7 @@ var rider_unit_id := 0
 var mount_profile: Dictionary
 
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
+const ROARING_SPECIES := ["SABERTOOTH", "CAVE_BEAR", "MAMMOTH", "WOLF", "REEDJAW"]
 
 var _visual_root: Node3D = null
 var _animal_pivot: Node3D = null
@@ -55,6 +56,7 @@ var _flee_timer: float = 0.0
 var _flee_dir: Vector3 = Vector3.ZERO
 var _index_registered: bool = false
 var _prey_scan_cd: float = 0.0
+var _has_roared_aggro: bool = false
 var _last_move_idle: bool = false
 var _collider: CollisionShape3D
 var _interaction_label: Label3D
@@ -243,7 +245,7 @@ func attempt_tame(leader: Node3D) -> bool:
 			_flee_timer = 4.0
 			_flee_dir = (global_position - leader.global_position).normalized()
 		else:
-			_target_unit = leader
+			_set_aggro_target(leader)
 		GameState.push_log("%s rejected the food." % animal_name, "warning")
 		return false
 	domesticate(faction, pen.global_position)
@@ -260,7 +262,7 @@ func domesticate(faction: int, destination: Vector3, young_for: float = 0.0) -> 
 	_roam_target = home_pos
 	is_aggro = false
 	flees_when_hit = false
-	_target_unit = null
+	_set_aggro_target(null)
 	_bite_target = null
 	_bite_remaining = 0.0
 	_flee_timer = 0.0
@@ -412,7 +414,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		away.y = 0.0
 		_flee_dir = away.normalized() if away.length() > 0.1 else Vector3(1, 0, 0)
 	elif owner_faction < 0 and attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
-		_target_unit = attacker
+		_set_aggro_target(attacker)
 
 	if hp <= 0.0:
 		_die(attacker, attacker_faction)
@@ -583,11 +585,11 @@ func _physics_process(delta: float) -> void:
 		desired_vel = _flee_dir * move_speed * 1.25
 	else:
 		if _target_unit != null and (not is_instance_valid(_target_unit) or _target_unit.get("is_dead") or global_position.distance_to(_target_unit.global_position) > 28.0):
-			_target_unit = null
+			_set_aggro_target(null)
 
 		if _target_unit == null and is_aggro and _prey_scan_cd <= 0.0:
 			_prey_scan_cd = randf_range(0.18, 0.28)
-			_target_unit = _scan_for_prey(16.0 if is_boss else 14.0)
+			_set_aggro_target(_scan_for_prey(16.0 if is_boss else 14.0))
 
 		if _target_unit != null:
 			var diff: Vector3 = _target_unit.global_position - global_position
@@ -718,6 +720,7 @@ func _perform_attack(target: Node) -> void:
 		_bite_remaining = _attack_windup
 		return
 	if is_boss:
+		_play_roar_sfx()
 		# Megafauna AoE stomp/swipe
 		var stomp_targets: Array = []
 		if GameState.spatial_index.is_populated():
@@ -742,3 +745,25 @@ func _land_bite() -> void:
 	delta.y = 0.0
 	if delta.length_squared() <= _attack_reach * _attack_reach:
 		target.take_damage(damage, self, -1)
+
+
+func _play_roar_sfx() -> void:
+	if animal_type not in ROARING_SPECIES:
+		return
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d("animal_roar", global_position, 0.08, 0.0)
+
+
+func _set_aggro_target(new_target: Node) -> void:
+	if new_target == null:
+		_target_unit = null
+		_has_roared_aggro = false
+		return
+	var was_null := (_target_unit == null)
+	_target_unit = new_target
+	if was_null and not _has_roared_aggro:
+		_has_roared_aggro = true
+		_play_roar_sfx()
+	if _target_unit.get("faction_id") == 0:
+		GameState.notify_combat_audio(14.0)

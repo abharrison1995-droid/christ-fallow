@@ -8,6 +8,12 @@ const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
 const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
 
 
+static func _play_sfx_3d(cue: String, pos: Vector3, pitch_jitter: float = 0.08, volume_db: float = -2.0) -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d(cue, pos, pitch_jitter, volume_db)
+
+
 static func process_wild_wanderer(u: Node, _delta: float) -> void:
 	# Gently face player leader and recruit on proximity
 	var p_leader: Node = GameState.get_faction_leader(0)
@@ -311,7 +317,11 @@ static func engage_building(u: Node, b: Node) -> void:
 			elif is_ranged_atk and proj_type == "JAVELIN" and GameState.projectiles_container != null:
 				fire_javelin_at(u, b_pos + Vector3(0.0, 1.2, 0.0), dmg)
 			else:
+				var b_swing_cue: String = "club_smash" if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE or str(wdef.get("id", "")) in ["WAR_CLUB", "OBSIDIAN_CLEAVER"]) else "melee_swing"
+				_play_sfx_3d(b_swing_cue, u_body.global_position, 0.08, -2.0)
 				b.take_damage(dmg, fid)
+			if fid == 0 or int(b.get("faction_id")) == 0:
+				GameState.notify_combat_audio(14.0)
 
 
 static func execute_attack_on(u: Node, target: Node) -> void:
@@ -344,6 +354,8 @@ static func execute_attack_on(u: Node, target: Node) -> void:
 	elif is_ranged_atk and proj_type == "JAVELIN" and GameState.projectiles_container != null and u3d.global_position.distance_to(t_pos) > 3.2:
 		fire_javelin_at(u, t_pos + Vector3(0.0, 1.0, 0.0), dmg)
 	else:
+		var swing_cue: String = "club_smash" if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE or str(wdef.get("id", "")) in ["WAR_CLUB", "OBSIDIAN_CLEAVER"]) else "melee_swing"
+		_play_sfx_3d(swing_cue, u3d.global_position, 0.08, -2.0)
 		var arc_scale: float = 1.25 if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE or u.is_leader == true) else 0.95
 		CombatVFX.spawn_slash_arc(
 			GameState.world_node if GameState.world_node != null else u,
@@ -353,16 +365,22 @@ static func execute_attack_on(u: Node, target: Node) -> void:
 			arc_scale
 		)
 		target.take_damage(dmg, u, fid)
+	if fid == 0 and ((target.get("faction_id") != null and int(target.get("faction_id")) != 0 and target.get("is_child") != true) or target.get("is_aggro") == true or target.get("is_boss") == true):
+		GameState.notify_combat_audio(14.0)
 	if GameState.factions.has(fid) and PerkSystem.has_battle_veterans(GameState.factions[fid]):
 		u._gain_training_xp(2.5)
 
 
 static func fire_arrow_at(u: Node, aim_pos: Vector3, dmg: float) -> void:
-	Projectile3D.spawn(u, int(u.faction_id), (u as Node3D).global_position + Vector3(0.0, 1.35, 0.0), aim_pos, dmg, 26.0, "ARROW", int(u.weapon_tier), false)
+	var pos: Vector3 = (u as Node3D).global_position
+	_play_sfx_3d("bow_release", pos, 0.08, -2.0)
+	Projectile3D.spawn(u, int(u.faction_id), pos + Vector3(0.0, 1.35, 0.0), aim_pos, dmg, 26.0, "ARROW", int(u.weapon_tier), false)
 
 
 static func fire_javelin_at(u: Node, aim_pos: Vector3, dmg: float) -> void:
-	Projectile3D.spawn(u, int(u.faction_id), (u as Node3D).global_position + Vector3(0.0, 1.45, 0.0), aim_pos, dmg, 29.0, "JAVELIN", int(u.weapon_tier), false)
+	var pos: Vector3 = (u as Node3D).global_position
+	_play_sfx_3d("javelin_throw", pos, 0.08, -2.0)
+	Projectile3D.spawn(u, int(u.faction_id), pos + Vector3(0.0, 1.45, 0.0), aim_pos, dmg, 29.0, "JAVELIN", int(u.weapon_tier), false)
 
 
 static func engage_unarmed_self_defense(u: Node, target: Node) -> void:
@@ -386,4 +404,5 @@ static func engage_unarmed_self_defense(u: Node, target: Node) -> void:
 			u._unarmed_punch_vis_timer = 0.36
 			u._set_hand_mounts_visible(false)
 			u.play_attack_animation("UNARMED_PUNCH", 0.36)
+			_play_sfx_3d("melee_swing", u_body.global_position, 0.08, -4.0)
 			target.take_damage(float(u.unarmed_attack_damage), u, int(u.faction_id))

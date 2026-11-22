@@ -73,16 +73,52 @@ var _conquest_pending_factions: Dictionary = {}
 var _revolt_stagger_cd: float = 0.0
 var _guide_refresh_remaining := 0.0
 var _paused_before_conquest := false
+var _combat_music_timer: float = 0.0
 
 
 func _ready() -> void:
 	randomize()
+	raid_alert.connect(_on_raid_alert_audio)
+
+
+func _get_sound_manager() -> Node:
+	return get_node_or_null("/root/SoundManager")
+
+
+func _desired_campaign_music_state() -> String:
+	if _combat_music_timer > 0.0:
+		return "COMBAT"
+	return "PEACE_DAY" if is_daytime() else "NIGHT"
+
+
+func _sync_campaign_music(fade_seconds: float = 1.2) -> void:
+	if not game_active or campaign_finished:
+		return
+	var sm: Node = _get_sound_manager()
+	if sm == null:
+		return
+	var desired := _desired_campaign_music_state()
+	if sm.get_last_music_state() != desired:
+		sm.set_music_state(desired, fade_seconds)
+
+
+func notify_combat_audio(duration: float = 14.0) -> void:
+	if not game_active or campaign_finished:
+		return
+	_combat_music_timer = maxf(_combat_music_timer, duration)
+	_sync_campaign_music(0.8)
+
+
+func _on_raid_alert_audio(_attacker_fid: int, target_fid: int, _msg: String) -> void:
+	if target_fid == 0:
+		notify_combat_audio(14.0)
 
 
 func _process(delta: float) -> void:
 	if not game_active or is_paused or campaign_finished:
 		return
 
+	_combat_music_timer = maxf(0.0, _combat_music_timer - delta)
 	_revolt_stagger_cd = maxf(0.0, _revolt_stagger_cd - delta)
 	_guide_refresh_remaining -= delta
 	if _guide_refresh_remaining <= 0.0:
@@ -116,6 +152,7 @@ func _process(delta: float) -> void:
 			push_log("Dawn breaks on Day %d. Workers return to their duties." % day_count, "info")
 
 	time_changed.emit(time_of_day, day_count, current_phase)
+	_sync_campaign_music()
 
 
 func get_schedule_phase(hour: float) -> int:
@@ -153,6 +190,7 @@ func start_new_campaign(leader_name: String, tribe_name: String, lineage: int, l
 	AwakeningGuide.advance(self)
 	if is_instance_valid(hud_controller):
 		hud_controller.activate_campaign()
+	_sync_campaign_music(0.8)
 	push_log("Approach wanderers and press E to recruit them.", "info")
 	return true
 
@@ -163,6 +201,7 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 	is_paused = false
 	campaign_finished = false
 	warhorn_active = false
+	_combat_music_timer = 0.0
 	_paused_before_conquest = false
 	_guide_refresh_remaining = 0.0
 	_next_unit_id = 1
@@ -503,6 +542,10 @@ func award_xp(faction_id: int, amount: float, _reason: String = "") -> void:
 		xp = 0.0
 	fdata["level"] = lvl
 	fdata["xp"] = xp
+	if leveled_up and faction_id == 0:
+		var sm: Node = _get_sound_manager()
+		if sm != null:
+			sm.play_ui_sfx("level_up", 0.02)
 	if leveled_up and faction_id in [1, 2, 3, 4, 6]:
 		_auto_spend_rival_perks(faction_id)
 	progression_changed.emit(faction_id)
@@ -933,6 +976,7 @@ func load_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	if starting_campaign:
 		game_started.emit()
 	campaign_loaded.emit()
+	_sync_campaign_music(0.8)
 	if not _conquest_pending_factions.is_empty():
 		is_paused = true
 		conquest_triggered.emit(_conquest_pending_factions.keys()[0])
@@ -949,6 +993,7 @@ func _apply_campaign_snapshot(parsed: Dictionary) -> void:
 	valley_layout = Layout.new(parsed["valley_layout_id"])
 	game_active = true
 	is_paused = false
+	_combat_music_timer = 0.0
 	_paused_before_conquest = false
 	_guide_refresh_remaining = 0.0
 	campaign_finished = false
@@ -998,6 +1043,10 @@ func end_campaign() -> void:
 	is_paused = false
 	campaign_finished = false
 	warhorn_active = false
+	_combat_music_timer = 0.0
+	var sm: Node = _get_sound_manager()
+	if sm != null:
+		sm.set_music_state("TITLE", 0.4)
 	factions.clear()
 	diplomacy.clear()
 	faction_controllers.clear()

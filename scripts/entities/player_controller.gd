@@ -42,6 +42,7 @@ var _dash_dir: Vector3 = Vector3.ZERO
 var _attack_cd: float = 0.0
 var _javelin_cd: float = 0.0
 var _blessing_cd: float = 0.0
+var _footstep_sfx_timer: float = 0.0
 
 const HARVEST_YIELD_TABLE := {
 	"BERRY_BUSH": {"res": "food", "amount": 5.0, "label": "+5 Food", "verb": "Foraged", "col": Color(0.95, 0.55, 0.65)},
@@ -205,6 +206,18 @@ func _exit_tree() -> void:
 	_tutorial_beacon = null
 
 
+func _play_sfx_3d(cue: String, pos: Vector3, pitch_jitter: float = 0.08, volume_db: float = 0.0) -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_sfx_3d(cue, pos, pitch_jitter, volume_db)
+
+
+func _play_ui_sfx(cue: String, pitch_jitter: float = 0.05) -> void:
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null:
+		sm.play_ui_sfx(cue, pitch_jitter)
+
+
 func reset_cooldowns() -> void:
 	_dash_timer = 0.0
 	_dash_cd = 0.0
@@ -213,6 +226,7 @@ func reset_cooldowns() -> void:
 	_javelin_cd = 0.0
 	_blessing_cd = 0.0
 	_harvest_cd = 0.0
+	_footstep_sfx_timer = 0.0
 	cancel_camera_drag()
 
 
@@ -464,6 +478,16 @@ func _move_leader(delta: float) -> void:
 	leader_unit.global_position.x = clampf(leader_unit.global_position.x, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 	leader_unit.global_position.z = clampf(leader_unit.global_position.z, -GameState.valley_layout.unit_half_extent, GameState.valley_layout.unit_half_extent)
 
+	var horiz_spd := Vector2(leader_unit.velocity.x, leader_unit.velocity.z).length()
+	if not is_mounted() and leader_unit.is_on_floor() and (horiz_spd > 0.8 or _dash_timer > 0.0):
+		_footstep_sfx_timer -= delta
+		if _footstep_sfx_timer <= 0.0:
+			var step_interval := 0.16 if _dash_timer > 0.0 else (0.26 if Input.is_key_pressed(KEY_SHIFT) else 0.38)
+			_footstep_sfx_timer = step_interval
+			_play_sfx_3d("footstep_grass", leader_unit.global_position, 0.10, -10.0)
+	else:
+		_footstep_sfx_timer = minf(_footstep_sfx_timer, 0.05)
+
 
 func _update_camera(delta: float) -> void:
 	if is_first_person:
@@ -590,7 +614,9 @@ func _try_place_blueprint() -> void:
 		GameState.factions[0]["is_founded"] = true
 		GameState.factions[0]["camp_position"] = pos
 		GameState.push_log("Campfire lit! Your colony is founded. Assign jobs in [C] Colony!", "success")
+		_play_sfx_3d("building_complete", pos, 0.04, 0.0)
 	else:
+		_play_ui_sfx("ui_click", 0.04)
 		if blueprint_type == "CAMPFIRE" and not GameState.has_building(0, "CAMPFIRE", true):
 			GameState.factions[0]["camp_position"] = pos
 		GameState.push_log("Placed %s blueprint. Builders will construct it." % b_info["name"], "info")
@@ -676,6 +702,7 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 			bow_dmg *= 1.20
 		if GameState.projectiles_container != null:
 			Projectile3D.spawn(leader_unit, 0, origin, target_pos, bow_dmg, 34.0, "ARROW", tier, false)
+		_play_sfx_3d("bow_release", leader_unit.global_position, 0.08, 0.0)
 		return
 
 	if not is_first_person:
@@ -696,6 +723,8 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 	_notify_tutorial_progress()
 	var anim_name: String = str(wdef.get("attack_anim", "LEADER_CLEAVE"))
 	leader_unit.play_attack_animation(anim_name, 0.40)
+	var swing_cue: String = "club_smash" if (eff_wid == "WAR_CLUB" or eff_wid == "OBSIDIAN_CLEAVER" or anim_name == "HEAVY_SMASH") else "melee_swing"
+	_play_sfx_3d(swing_cue, leader_unit.global_position, 0.08, 0.0)
 	if is_first_person and _fp_viewmodel != null:
 		var vm_action := "HEAVY_SMASH" if anim_name == "HEAVY_SMASH" else ("DUAL_SLASH" if anim_name == "DUAL_SLASH" else "CLEAVE")
 		_fp_viewmodel.trigger_action(vm_action, 0.40)
@@ -718,7 +747,10 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 	for target in targets:
 		if target is StaticBody3D:
 			target.take_damage(dmg, 0)
+			GameState.notify_combat_audio(14.0)
 		else:
+			if target.get("is_child") != true and (target.get("faction_id") != null or target.get("is_aggro") == true or target.get("is_boss") == true):
+				GameState.notify_combat_audio(14.0)
 			target.take_damage(dmg, leader_unit, 0)
 
 
@@ -825,6 +857,7 @@ func _try_throw_javelin() -> void:
 	elif patron == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
 		jav_dmg *= 1.20
 	Projectile3D.spawn(leader_unit, 0, origin, target_pos, jav_dmg, 32.0, "JAVELIN", tier, false)
+	_play_sfx_3d("javelin_throw", leader_unit.global_position, 0.08, 0.0)
 
 
 func _try_inspect_aimed_unit() -> bool:
@@ -899,9 +932,11 @@ func _try_interact_or_harvest() -> void:
 								best_sd = sd
 								best_shack = s3d
 					u.send_to_shaman_shack(best_shack.global_position)
+					_play_ui_sfx("ui_click", 0.04)
 					GameState.push_log("Sent wounded %s to the Shaman Shack for healing!" % str(u.get("unit_name")), "success")
 				else:
 					if u.has_method("apply_field_aid") and u.apply_field_aid():
+						_play_ui_sfx("ui_click", 0.04)
 						GameState.push_log("Applied field aid to %s (+20s). Build a Shaman's Healing Shack ([B]) so they can recover!" % str(u.get("unit_name")), "warning")
 					else:
 						GameState.push_log("%s needs a constructed Shaman's Healing Shack ([B]) to recover!" % str(u.get("unit_name")), "warning")
@@ -915,6 +950,7 @@ func _try_interact_or_harvest() -> void:
 				u.convert_to_faction(0, false)
 				recruited += 1
 	if recruited > 0:
+		_play_ui_sfx("ui_click", 0.04)
 		GameState.award_xp(0, 20.0 * float(recruited), "Recruited wanderer")
 		GameState.push_log("Recruited %d wandering tribesfolk!" % recruited, "success")
 		_notify_tutorial_progress()
@@ -938,6 +974,7 @@ func _try_interact_or_harvest() -> void:
 				if is_first_person and _fp_viewmodel != null:
 					_fp_viewmodel.trigger_action("WORK", 0.30)
 				b.advance_construction(1.6 * PerkSystem.get_build_speed_mult(GameState.factions.get(0, {})))
+				_play_sfx_3d("build_hammer", (b as Node3D).global_position, 0.08, -2.0)
 				CombatVFX.spawn_damage_popup(b as Node3D, "+Build", Color(0.55, 0.90, 1.0), 0.95, 2.2)
 				_notify_tutorial_progress()
 				return
@@ -972,6 +1009,8 @@ func _try_interact_or_harvest() -> void:
 			if HARVEST_YIELD_TABLE.has(nt):
 				var hy: Dictionary = HARVEST_YIELD_TABLE[nt]
 				GameState.add_resource(0, str(hy["res"]), float(hy["amount"]))
+				var harvest_cue: String = "stone_mine" if (nt == "STONE" or nt == "FLINT") else "wood_chop"
+				_play_sfx_3d(harvest_cue, (best_node as Node3D).global_position, 0.08, -2.0)
 				CombatVFX.spawn_damage_popup(leader_unit, str(hy["label"]), hy["col"], 0.95)
 				GameState.push_log("%s %s." % [hy["verb"], hy["label"]], "info")
 			_notify_tutorial_progress()
@@ -990,8 +1029,9 @@ func _try_livestock_interaction() -> bool:
 		return false
 	if nearest.can_mount(0):
 		_mount_livestock(nearest)
-	else:
-		nearest.attempt_tame(leader_unit)
+	elif nearest.attempt_tame(leader_unit):
+		var tame_cue: String = "animal_roar" if nearest.animal_type in ["MAMMOTH", "BOAR", "SLATEBACK_BOAR"] else "blessing_cast"
+		_play_sfx_3d(tame_cue, nearest.global_position, 0.06, -1.0)
 	return true
 
 
@@ -1003,7 +1043,7 @@ func get_mount_name() -> String:
 	return _mounted_animal.animal_name if is_mounted() else ""
 
 
-func _mount_livestock(animal: Node3D) -> void:
+func _mount_livestock(animal: Node3D, silent: bool = false) -> void:
 	_mounted_animal = animal
 	_dash_timer = 0.0
 	leader_unit.add_collision_exception_with(animal)
@@ -1017,6 +1057,9 @@ func _mount_livestock(animal: Node3D) -> void:
 	if is_first_person:
 		_update_camera(0.0)
 	mount_changed.emit()
+	if not silent:
+		var mount_cue: String = "animal_roar" if animal.animal_type in ["MAMMOTH", "BOAR", "SLATEBACK_BOAR"] else "blessing_cast"
+		_play_sfx_3d(mount_cue, animal.global_position, 0.06, -1.0)
 	GameState.push_log("Mounted %s." % animal.animal_name, "info")
 
 
@@ -1058,7 +1101,7 @@ func restore_mount_from_save() -> void:
 		if animal.rider_unit_id == leader_unit.unit_id:
 			animal.set_rider(0)
 			if animal.can_mount(0):
-				_mount_livestock(animal)
+				_mount_livestock(animal, true)
 			return
 
 

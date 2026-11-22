@@ -12,6 +12,9 @@ static func trigger_leader_blessing(caster: Node, faction_id: int, hit_wildlife:
 	var god: int = int(faction_dict.get("patron_god", GameData.PatronGod.NONE))
 	var god_info: Dictionary = GameData.GOD_DATA.get(god, GameData.GOD_DATA[GameData.PatronGod.NONE])
 	var is_player: bool = (faction_id == 0)
+	var sm: Node = GameState.get_node_or_null("/root/SoundManager")
+	if sm != null and caster is Node3D:
+		sm.play_sfx_3d("blessing_cast", (caster as Node3D).global_position, 0.05, 0.0)
 
 	match god:
 		GameData.PatronGod.SOL_KAR:

@@ -35,6 +35,7 @@ func _ready() -> void:
 	_show_start()
 	if DisplayServer.get_name() != "headless" and ResourceLoader.exists(AMBIENCE):
 		_ambience = AudioStreamPlayer.new()
+		_ambience.bus = &"Music"
 		var loop := load(AMBIENCE).duplicate() as AudioStreamWAV
 		loop.loop_mode = AudioStreamWAV.LOOP_FORWARD
 		loop.loop_end = int(loop.get_length() * loop.mix_rate)
@@ -49,6 +50,8 @@ func _exit_tree() -> void:
 	if is_instance_valid(_ambience):
 		_ambience.stop()
 		_ambience.stream = null
+	if has_node("/root/SoundManager"):
+		SoundManager.shutdown()
 
 
 func _notification(what: int) -> void:
@@ -60,9 +63,13 @@ func _quit_game() -> void:
 	if _quitting:
 		return
 	_quitting = true
-	if is_instance_valid(_ambience):
+	var had_audio := is_instance_valid(_ambience)
+	if had_audio:
 		_ambience.stop()
 		_ambience.stream = null
+	if has_node("/root/SoundManager"):
+		SoundManager.shutdown()
+	if had_audio:
 		# Give the mixer time to drop the stopped playback before normal shutdown.
 		await get_tree().create_timer(maxf(0.05, AudioServer.get_output_latency())).timeout
 	get_tree().quit()
@@ -259,6 +266,8 @@ func _return_to_title() -> void:
 	_status.text = ""
 	_title.show()
 	_show_main_menu()
+	if has_node("/root/SoundManager"):
+		SoundManager.stop_music(0.0)
 	if _ambience != null:
 		_ambience.play()
 
