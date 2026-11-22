@@ -14,6 +14,7 @@ signal leader_succeeded(new_leader_name: String)
 signal game_started()
 signal campaign_loaded()
 signal title_requested()
+signal arena_state_changed()
 
 const BANDIT_GRACE_DURATION := 210.0
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
@@ -21,6 +22,7 @@ const CampaignStorage = preload("res://scripts/core/campaign_storage.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
 const DiplomacyConquestRules = preload("res://scripts/core/diplomacy_conquest_rules.gd")
 const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const ArenaRules = preload("res://scripts/core/arena_rules.gd")
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const SpatialIndex = preload("res://scripts/core/spatial_index.gd")
 const ValleyNavigation = preload("res://scripts/core/valley_navigation.gd")
@@ -74,6 +76,8 @@ var _revolt_stagger_cd: float = 0.0
 var _guide_refresh_remaining := 0.0
 var _paused_before_conquest := false
 var _combat_music_timer: float = 0.0
+var arena_bout: Dictionary = {}
+var arena_cooldown: float = 0.0
 
 
 func _ready() -> void:
@@ -86,6 +90,8 @@ func _get_sound_manager() -> Node:
 
 
 func _desired_campaign_music_state() -> String:
+	if is_arena_bout_active():
+		return "ARENA"
 	if _combat_music_timer > 0.0:
 		return "COMBAT"
 	return "PEACE_DAY" if is_daytime() else "NIGHT"
@@ -103,7 +109,7 @@ func _sync_campaign_music(fade_seconds: float = 1.2) -> void:
 
 
 func notify_combat_audio(duration: float = 14.0) -> void:
-	if not game_active or campaign_finished:
+	if not game_active or campaign_finished or is_arena_bout_active():
 		return
 	_combat_music_timer = maxf(_combat_music_timer, duration)
 	_sync_campaign_music(0.8)
@@ -120,6 +126,7 @@ func _process(delta: float) -> void:
 
 	_combat_music_timer = maxf(0.0, _combat_music_timer - delta)
 	_revolt_stagger_cd = maxf(0.0, _revolt_stagger_cd - delta)
+	ArenaRules.tick_bout(self, delta)
 	_guide_refresh_remaining -= delta
 	if _guide_refresh_remaining <= 0.0:
 		_guide_refresh_remaining = 0.35
@@ -202,6 +209,8 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 	campaign_finished = false
 	warhorn_active = false
 	_combat_music_timer = 0.0
+	arena_bout = {}
+	arena_cooldown = 0.0
 	_paused_before_conquest = false
 	_guide_refresh_remaining = 0.0
 	_next_unit_id = 1
@@ -428,6 +437,33 @@ func set_manual_pause(paused: bool) -> bool:
 		return false
 	is_paused = paused
 	return true
+
+
+func is_arena_bout_active() -> bool:
+	return bool(arena_bout.get("active", false))
+
+
+func get_arena_status() -> Dictionary:
+	var arena: Node3D = ArenaRules.get_arena_building(self)
+	return {
+		"has_arena": arena != null,
+		"arena_pos": arena.global_position if arena != null else Vector3.ZERO,
+		"active": is_arena_bout_active(),
+		"cooldown": arena_cooldown,
+		"mode": str(arena_bout.get("mode", "")),
+		"tier_id": int(arena_bout.get("tier_id", 0)),
+		"elapsed": float(arena_bout.get("elapsed", 0.0)),
+		"combatant_ids": arena_bout.get("combatant_ids", []).duplicate(),
+		"opponent_count": ArenaRules.count_living_opponents(arena_bout),
+	}
+
+
+func start_arena_bout(mode: String, tier_id: int, fighter_ids: Array) -> bool:
+	return ArenaRules.start_bout(self, mode, tier_id, fighter_ids)
+
+
+func forfeit_arena_bout() -> void:
+	ArenaRules.forfeit_bout(self)
 
 
 func can_assign_player_role(unit: Node) -> bool:
@@ -883,8 +919,10 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	var player_leader_id := 0
 	if units_container != null:
 		for u in units_container.get_children():
-			if is_instance_valid(u) and not u.is_queued_for_deletion() and not u.get("is_dead"):
-				units_data.append(u.serialize())
+			if is_instance_valid(u) and not u.is_queued_for_deletion() and not u.get("is_dead") and not ArenaRules.is_bout_opponent(arena_bout, u):
+				var u_data: Dictionary = u.serialize()
+				u_data["is_arena_combatant"] = false
+				units_data.append(u_data)
 				if u.faction_id == 0 and u.is_leader:
 					player_leader_id = u.unit_id
 
@@ -897,7 +935,7 @@ func save_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	var wildlife_data := []
 	if wildlife_container != null:
 		for animal in wildlife_container.get_children():
-			if is_instance_valid(animal) and not animal.is_queued_for_deletion() and not animal.get("is_dead"):
+			if is_instance_valid(animal) and not animal.is_queued_for_deletion() and not animal.get("is_dead") and not ArenaRules.is_bout_opponent(arena_bout, animal):
 				wildlife_data.append(animal.serialize())
 
 	var saved_factions := factions.duplicate(true)
@@ -985,6 +1023,7 @@ func load_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	diplomacy_changed.emit()
 	religion_changed.emit(0)
 	progression_changed.emit(0)
+	arena_state_changed.emit()
 	push_log("Campaign loaded (Day %d)." % day_count, "success")
 	return true
 
@@ -994,6 +1033,10 @@ func _apply_campaign_snapshot(parsed: Dictionary) -> void:
 	game_active = true
 	is_paused = false
 	_combat_music_timer = 0.0
+	arena_bout = {}
+	arena_cooldown = 0.0
+	if is_instance_valid(player_controller):
+		player_controller.set("is_spectating_arena", false)
 	_paused_before_conquest = false
 	_guide_refresh_remaining = 0.0
 	campaign_finished = false
@@ -1044,6 +1087,8 @@ func end_campaign() -> void:
 	campaign_finished = false
 	warhorn_active = false
 	_combat_music_timer = 0.0
+	arena_bout = {}
+	arena_cooldown = 0.0
 	var sm: Node = _get_sound_manager()
 	if sm != null:
 		sm.set_music_state("TITLE", 0.4)

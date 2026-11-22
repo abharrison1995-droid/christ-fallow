@@ -219,6 +219,10 @@ func update_live_values() -> void:
 
 	var status_txt := "Loyal (%s)" % GameData.ROLE_NAMES.get(int(u.get("role")), "Worker")
 	var status_col := Color(0.70, 0.92, 0.70)
+	var rec_v: Variant = u.get("arena_recovery_remaining")
+	var rec_rem: float = maxf(0.0, float(rec_v)) if rec_v != null else 0.0
+	var is_ooc: bool = (u.has_method("is_out_of_commission") and bool(u.is_out_of_commission())) or rec_rem > 0.0
+	var is_champ: bool = (u.get("is_arena_champion") == true)
 	if u.get("is_leader"):
 		status_txt = "Tribal Leader"
 		status_col = Color(1.0, 0.86, 0.35)
@@ -233,9 +237,16 @@ func update_live_values() -> void:
 	elif u.get("is_revolting"):
 		status_txt = "REVOLTING!"
 		status_col = Color(1.0, 0.30, 0.22)
+	elif is_ooc:
+		status_txt = "[Out of Commission · Recovering (%ds)]" % maxi(1, int(ceilf(rec_rem))) if rec_rem > 0.0 else "[Out of Commission · Recovering]"
+		status_col = Color(0.95, 0.72, 0.35)
 	elif int(u.get("role")) == GameData.Role.TRAINEE:
 		status_txt = "Training at Barracks"
 		status_col = Color(0.65, 0.88, 1.0)
+	if is_ooc and (u.get("is_leader") or u.get("is_wounded") or u.get("is_revolting")):
+		status_txt += "  [Out of Commission · Recovering (%ds)]" % maxi(1, int(ceilf(rec_rem))) if rec_rem > 0.0 else "  [Out of Commission · Recovering]"
+	if is_champ:
+		status_txt += "  [Arena Champion (+15 HP, +10% DMG)]"
 	_insp_status.text = "Status: %s" % status_txt
 	_insp_status.add_theme_color_override("font_color", status_col)
 
@@ -269,8 +280,13 @@ func update_live_values() -> void:
 	var xp: float = float(u.get("training_xp"))
 	var arm: float = float(u.get("armor"))
 	var spd: float = float(u.get("move_speed"))
-	_insp_stats_lbl.text = "Weapon: %s\nArmor Gear: %s\nClose-Quarters Dmg: %.1f (Base %.1f, Rank %d/5)\nRanged Dmg: %.1f (Base %.1f, Rank %d/5)\nTraining XP: %.0f / 20\nArmor: %.0f | Speed: %.1f | Gear Tier %d" % [
-		w_line, a_line, cq_dmg, b_cq, m_rk, rng_dmg, b_rng, r_rk, xp, arm, spd, w_tier
+	var arena_extra := ""
+	if is_champ:
+		arena_extra += "\n[Arena Champion (+15 HP, +10% DMG)]"
+	if is_ooc:
+		arena_extra += "\n[Out of Commission · Recovering (%ds)]" % maxi(1, int(ceilf(rec_rem))) if rec_rem > 0.0 else "\n[Out of Commission · Recovering]"
+	_insp_stats_lbl.text = "Weapon: %s\nArmor Gear: %s\nClose-Quarters Dmg: %.1f (Base %.1f, Rank %d/5)\nRanged Dmg: %.1f (Base %.1f, Rank %d/5)\nTraining XP: %.0f / 20\nArmor: %.0f | Speed: %.1f | Gear Tier %d%s" % [
+		w_line, a_line, cq_dmg, b_cq, m_rk, rng_dmg, b_rng, r_rk, xp, arm, spd, w_tier, arena_extra
 	]
 
 	var editable := GameState.can_assign_player_role(u)

@@ -84,6 +84,14 @@ const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 const UnitCombatAI = preload("res://scripts/entities/unit_combat_ai.gd")
 
 var is_dead: bool = false
+var is_arena_combatant: bool = false
+var is_arena_opponent: bool = false
+var arena_recovery_remaining: float = 0.0
+var is_arena_champion: bool = false
+
+
+func is_out_of_commission() -> bool:
+	return arena_recovery_remaining > 0.0
 
 var _visual_root: Node3D = null
 var _skinned_trial: SkinnedTribesmanTrial = null
@@ -192,6 +200,10 @@ func setup(p_params: Dictionary) -> void:
 	is_healing_in_shack = bool(p_params.get("is_healing_in_shack", false))
 	being_rescued = bool(p_params.get("being_rescued", is_healing_in_shack))
 	wounded_timer = float(p_params.get("wounded_timer", 0.0))
+	arena_recovery_remaining = maxf(0.0, float(p_params.get("arena_recovery_remaining", 0.0)))
+	is_arena_champion = bool(p_params.get("is_arena_champion", false))
+	is_arena_combatant = bool(p_params.get("is_arena_combatant", false))
+	is_arena_opponent = false
 	var raw_w_id: String = str(p_params.get("equipped_weapon_id", ""))
 	equipped_weapon_id = raw_w_id if GameData.WEAPON_DEFS.has(raw_w_id) else ""
 	var raw_a_id: String = str(p_params.get("equipped_armor_id", ""))
@@ -709,6 +721,7 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 		"has_armor": has_armor,
 		"equipped_weapon_id": equipped_weapon_id,
 		"equipped_armor_id": equipped_armor_id,
+		"is_arena_champion": is_arena_champion,
 	}, patron, faction_dict)
 	var previous_ratio := hp / maxf(max_hp, 1.0)
 	max_hp = stats["max_hp"]
@@ -741,7 +754,7 @@ func _update_hp_bar() -> void:
 	_hp_fill.position.y = _hp_bg.position.y
 	var ratio := clampf(hp / maxf(max_hp, 1.0), 0.02, 1.0)
 	_hp_fill.scale.x = ratio
-	var show := is_leader or hp < max_hp * 0.99 or faction_id == 5 or is_revolting or is_wounded
+	var show := is_leader or hp < max_hp * 0.99 or faction_id == 5 or is_revolting or is_wounded or arena_recovery_remaining > 0.0 or is_arena_combatant or is_arena_opponent
 	_hp_bg.visible = show
 	_hp_fill.visible = show
 	var fmat := _hp_fill.material_override as StandardMaterial3D
@@ -764,6 +777,11 @@ func _update_hp_bar() -> void:
 			_state_label.visible = true
 			_state_label.position = Vector3(0.0, 1.35, 0.0)
 			_state_label.modulate = Color(1.0, 0.72, 0.22)
+		elif arena_recovery_remaining > 0.0:
+			_state_label.visible = true
+			_state_label.position = Vector3(0.0, 2.55 * visual_height + _rider_lift, 0.0)
+			_state_label.text = "Recovering (%ds)" % ceili(arena_recovery_remaining)
+			_state_label.modulate = Color(0.95, 0.72, 0.28)
 		elif is_revolting or faction_id == -2:
 			_state_label.visible = true
 			_state_label.position.y = 2.70 * visual_height
@@ -866,8 +884,31 @@ func send_to_shaman_shack(shack_pos: Vector3) -> void:
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	if is_dead or is_wounded or GameState.has_truce(faction_id, attacker_faction):
 		return
+	if is_arena_combatant and attacker != null and not (attacker.get("is_arena_opponent") == true or attacker.get_meta("is_arena_opponent", false) == true):
+		return
+	if is_arena_opponent and attacker != null and not (attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true):
+		return
 	var total_armor := armor + _buff_armor_bonus
 	var mitigated := UnitStats.mitigated_damage(amount, total_armor)
+	if faction_id == 0 and is_arena_combatant and (hp - mitigated) <= 0.0:
+		hp = maxf(1.0, max_hp * 0.20)
+		is_arena_combatant = false
+		set_meta("is_arena_combatant", false)
+		arena_recovery_remaining = 25.0 if is_leader else 55.0
+		is_raiding = false
+		clear_combat_target()
+		_knockback_vel = Vector3.ZERO
+		velocity = Vector3.ZERO
+		var sm_ko: Node = GameState.get_node_or_null("/root/SoundManager")
+		if sm_ko != null:
+			sm_ko.play_ui_sfx("ui_click", 0.05)
+		CombatVFX.spawn_damage_popup(self, "Knocked Out!", Color(1.0, 0.72, 0.22), 1.15)
+		if GameState.arena_bout.has("arena_pos"):
+			global_position = (GameState.arena_bout["arena_pos"] as Vector3) + Vector3(0.0, 0.0, 6.2)
+		GameState.spatial_index.update_unit(self)
+		_update_hp_bar()
+		GameState.arena_state_changed.emit()
+		return
 	hp -= mitigated
 	_update_hp_bar()
 
@@ -951,11 +992,11 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 		GameState.add_resource(killer_faction, "faith", 8.0)
 		if killer != null and is_instance_valid(killer) and killer.has_method("heal"):
 			killer.heal(10.0)
-	if killer_faction in [0, 1, 2, 3, 4, 6] and killer_faction != faction_id:
+	if not is_arena_opponent and killer_faction in [0, 1, 2, 3, 4, 6] and killer_faction != faction_id:
 		GameState.award_xp(killer_faction, 75.0 if is_leader else 18.0, "Combat victory")
 
 	# Capturing defeated Nomadic Cavemen for Enlightenment
-	if is_caveman and killer_faction == 0 and GameState.factions.has(0):
+	if is_caveman and not is_arena_opponent and killer_faction == 0 and GameState.factions.has(0):
 		GameState.factions[0]["captured_cavemen"] += 1
 		GameState.add_resource(0, "food", 5.0)
 		GameState.add_resource(0, "bone", 2.0)
@@ -1301,8 +1342,19 @@ func _physics_process(delta: float) -> void:
 	_leader_blessing_cd = maxf(0.0, _leader_blessing_cd - delta)
 	_campfire_heal_cd = maxf(0.0, _campfire_heal_cd - delta)
 	_self_defense_timer = maxf(0.0, _self_defense_timer - delta)
-	if _self_defense_timer <= 0.0:
+	if _self_defense_timer <= 0.0 or (typeof(_self_defense_target) != TYPE_NIL and not is_instance_valid(_self_defense_target)):
 		_self_defense_target = null
+	if typeof(_target_node) != TYPE_NIL and not is_instance_valid(_target_node):
+		_target_node = null
+	if typeof(_scan_enemy) != TYPE_NIL and not is_instance_valid(_scan_enemy):
+		_scan_enemy = null
+		_scan_enemy_cd = 0.0
+	if typeof(_scan_wild) != TYPE_NIL and not is_instance_valid(_scan_wild):
+		_scan_wild = null
+		_scan_wild_cd = 0.0
+	if typeof(_scan_bld) != TYPE_NIL and not is_instance_valid(_scan_bld):
+		_scan_bld = null
+		_scan_bld_cd = 0.0
 	if _unarmed_punch_vis_timer > 0.0:
 		_unarmed_punch_vis_timer = maxf(0.0, _unarmed_punch_vis_timer - delta)
 		if _unarmed_punch_vis_timer <= 0.0:
@@ -1395,13 +1447,23 @@ func _physics_process(delta: float) -> void:
 			start_revolt()
 			return
 
+	var recovery_goal := global_position
+	if arena_recovery_remaining > 0.0:
+		recovery_goal = _process_arena_convalescence(delta)
+
 	if is_player_controlled:
 		# PlayerController drives velocity and attacks directly
 		_update_procedural_animation(delta)
 		return
 
 	_ai_think_cd -= delta
-	if faction_id == -1:
+	if arena_recovery_remaining > 0.0:
+		if global_position.distance_to(recovery_goal) > 3.2:
+			_steer_toward(recovery_goal, move_speed * 0.85)
+		else:
+			velocity.x = 0.0
+			velocity.z = 0.0
+	elif faction_id == -1:
 		_process_wild_wanderer(delta)
 	elif faction_id == -2 or is_revolting:
 		_process_rebel_ai(delta)
@@ -1466,19 +1528,72 @@ func _process_rebel_ai(delta: float) -> void:
 	UnitCombatAI.process_rebel_ai(self, delta)
 
 
+func _process_arena_convalescence(delta: float) -> Vector3:
+	var near_healer := false
+	var best_shack_pos := Vector3.ZERO
+	var has_shack := false
+	var best_shack_d := INF
+	var best_camp_pos := Vector3.ZERO
+	var has_camp := false
+	var best_camp_d := INF
+
+	for b in GameState.get_faction_buildings(faction_id, "SHAMAN_SHACK", true):
+		if not is_instance_valid(b) or b.get("is_destroyed") == true:
+			continue
+		var bp: Vector3 = (b as Node3D).global_position
+		var d_sq := global_position.distance_squared_to(bp)
+		if d_sq <= 6.5 * 6.5:
+			near_healer = true
+		if d_sq < best_shack_d:
+			best_shack_d = d_sq
+			best_shack_pos = bp
+			has_shack = true
+
+	for b in GameState.get_faction_buildings(faction_id, "CAMPFIRE", true):
+		if not is_instance_valid(b) or b.get("is_destroyed") == true:
+			continue
+		var bp: Vector3 = (b as Node3D).global_position
+		var d_sq := global_position.distance_squared_to(bp)
+		if d_sq <= 6.5 * 6.5:
+			near_healer = true
+		if d_sq < best_camp_d:
+			best_camp_d = d_sq
+			best_camp_pos = bp
+			has_camp = true
+
+	var heal_mult := 1.75 if near_healer else 1.0
+	arena_recovery_remaining = maxf(0.0, arena_recovery_remaining - delta * heal_mult)
+	hp = minf(max_hp, hp + (max_hp * 0.015) * delta * heal_mult)
+	_update_hp_bar()
+	if arena_recovery_remaining <= 0.0:
+		GameState.arena_state_changed.emit()
+
+	if has_shack:
+		return best_shack_pos
+	if has_camp:
+		return best_camp_pos
+	if GameState.factions.has(faction_id) and bool(GameState.factions[faction_id].get("is_founded", false)):
+		return _get_home_camp_pos()
+	return global_position
+
+
 func _process_tribal_ai(delta: float) -> void:
-	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or _is_warhorn_militia()
+	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or _is_warhorn_militia() or is_arena_combatant
 	var player_warrior := is_warrior_mode and faction_id == 0 and not is_leader
-	# These orders either search from camp or ignore enemies entirely.
-	if player_warrior and (squad_order == GameData.SquadOrder.GUARD_BASE or squad_order == GameData.SquadOrder.RETREAT):
+	# These orders either search from camp or ignore enemies entirely (unless fighting in the Arena).
+	if not is_arena_combatant and player_warrior and (squad_order == GameData.SquadOrder.GUARD_BASE or squad_order == GameData.SquadOrder.RETREAT):
 		_process_player_warrior(delta, null)
 		return
 
 	# Enemy detection
 	var scan_radius := Layout.SCAN_RANGE_COMBAT if is_warrior_mode else 9.0
 	var enemy := _find_nearest_enemy_unit(scan_radius)
+	if not is_instance_valid(enemy):
+		enemy = null
 	if enemy == null and is_warrior_mode:
 		enemy = _find_nearest_hostile_wildlife(scan_radius)
+		if not is_instance_valid(enemy):
+			enemy = null
 
 	if is_warrior_mode:
 		if player_warrior:
@@ -1681,13 +1796,30 @@ static func _cache_alive(n: Node) -> bool:
 	return n != null and is_instance_valid(n) and not n.is_queued_for_deletion() and n.get("is_dead") != true
 
 
+func clear_combat_target() -> void:
+	_target_node = null
+	_self_defense_target = null
+	_self_defense_timer = 0.0
+	_scan_enemy = null
+	_scan_wild = null
+	_scan_bld = null
+	_scan_enemy_cd = 0.0
+	_scan_wild_cd = 0.0
+	_scan_bld_cd = 0.0
+
+
 func _find_nearest_hostile_wildlife(radius: float) -> Node:
 	return _find_cached_wildlife_near_point(global_position, radius)
 
 
 func _find_cached_wildlife_near_point(point: Vector3, radius: float) -> Node:
-	if _scan_wild_cd > 0.0 and is_equal_approx(_scan_wild_radius, radius):
-		if _scan_wild == null or (_cache_alive(_scan_wild) and UnitAIRoutines.is_wildlife_hostile_to_faction(_scan_wild, faction_id, self)):
+	if typeof(_scan_wild) != TYPE_NIL and not is_instance_valid(_scan_wild):
+		_scan_wild = null
+		_scan_wild_cd = 0.0
+	if not is_arena_combatant and not is_arena_opponent and _scan_wild_cd > 0.0 and is_equal_approx(_scan_wild_radius, radius):
+		if typeof(_scan_wild) == TYPE_NIL:
+			return null
+		if _cache_alive(_scan_wild) and UnitAIRoutines.is_wildlife_hostile_to_faction(_scan_wild, faction_id, self):
 			return _scan_wild
 	_scan_wild_cd = _scan_jitter()
 	_scan_wild_radius = radius
@@ -1700,9 +1832,15 @@ func _find_nearest_enemy_unit(radius: float) -> Node:
 
 
 func _find_cached_enemy_near_point(point: Vector3, radius: float) -> Node:
-	if _scan_enemy_cd > 0.0 and is_equal_approx(_scan_enemy_radius, radius):
-		if _scan_enemy == null or (_cache_alive(_scan_enemy) and not _scan_enemy.is_wounded
-				and GameState.is_hostile(faction_id, _scan_enemy.faction_id)):
+	if typeof(_scan_enemy) != TYPE_NIL and not is_instance_valid(_scan_enemy):
+		_scan_enemy = null
+		_scan_enemy_cd = 0.0
+	if not is_arena_combatant and not is_arena_opponent and _scan_enemy_cd > 0.0 and is_equal_approx(_scan_enemy_radius, radius):
+		if typeof(_scan_enemy) == TYPE_NIL:
+			return null
+		if (_cache_alive(_scan_enemy) and not _scan_enemy.is_wounded
+				and GameState.is_hostile(faction_id, _scan_enemy.faction_id)
+				and not UnitAIRoutines.is_in_arena_bout(_scan_enemy)):
 			return _scan_enemy
 	_scan_enemy_cd = _scan_jitter()
 	_scan_enemy_radius = radius
@@ -1715,8 +1853,15 @@ func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
 
 
 func _find_nearest_enemy_building(radius: float) -> Node:
+	if is_arena_combatant or is_arena_opponent:
+		return null
+	if typeof(_scan_bld) != TYPE_NIL and not is_instance_valid(_scan_bld):
+		_scan_bld = null
+		_scan_bld_cd = 0.0
 	if _scan_bld_cd > 0.0 and is_equal_approx(_scan_bld_radius, radius):
-		if _scan_bld == null or (is_instance_valid(_scan_bld) and not _scan_bld.is_queued_for_deletion()
+		if typeof(_scan_bld) == TYPE_NIL:
+			return null
+		if (is_instance_valid(_scan_bld) and not _scan_bld.is_queued_for_deletion()
 				and not _scan_bld.is_destroyed and GameState.is_hostile(faction_id, _scan_bld.faction_id)):
 			return _scan_bld
 	_scan_bld_cd = _scan_jitter()
@@ -1774,6 +1919,9 @@ func serialize() -> Dictionary:
 		"is_healing_in_shack": is_healing_in_shack,
 		"being_rescued": being_rescued,
 		"wounded_timer": wounded_timer,
+		"arena_recovery_remaining": arena_recovery_remaining,
+		"is_arena_champion": is_arena_champion,
+		"is_arena_combatant": is_arena_combatant,
 		"field_aid_applied": _field_aid_applied,
 		"has_equipped_weapon": has_equipped_weapon,
 		"weapon_tier": weapon_tier,

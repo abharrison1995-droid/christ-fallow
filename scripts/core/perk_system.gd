@@ -113,7 +113,7 @@ const PERK_DEFINITIONS := {
 		"max_rank": 3,
 		"min_level": 2,
 		"requires": "CALL_OF_THE_HEARTH",
-		"desc": "Unlocks Tribal Barracks. Barracks training XP +50%/+100%/+150% faster; raises max training rank from V to VI/VII/VIII; idle Warriors spar at Barracks.",
+		"desc": "Unlocks Tribal Barracks. Barracks training XP +50%/+100%/+150% faster; raises max training rank from V to VI/VII/VIII; idle Warriors spar at Barracks. Unlocks Blood-Pit Arena.",
 	},
 	"BATTLE_VETERANS": {
 		"branch": "KINSHIP",
@@ -132,6 +132,7 @@ const BUILDING_UNLOCK_RULES := {
 	"SHAMAN_SHACK": {"min_level": 2, "perk": "STONE_FOUNDATIONS", "rank": 1},
 	"STANDING_STONE_GATE": {"min_level": 3, "perk": "STONE_FOUNDATIONS", "rank": 1},
 	"ANIMAL_PEN": {"min_level": 3, "perk": "GREAT_LODGES", "rank": 1},
+	"ARENA_PIT": {"min_level": 3, "perk": "BARRACKS_DRILLMASTERS", "rank": 1},
 	"WATCHTOWER": {"min_level": 4, "perk": "MASTERWORK_DEFENCES", "rank": 1},
 }
 

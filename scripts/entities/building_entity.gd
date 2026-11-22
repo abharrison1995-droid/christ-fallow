@@ -143,7 +143,7 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 		cyl.height = 2.5
 		col_shape.shape = cyl
 		col_shape.position.y = cyl.height * 0.5
-	col_shape.disabled = building_type in Farming.WALKABLE_BUILDINGS
+	col_shape.disabled = _is_walkable_interior()
 	add_child(col_shape)
 	_col_shape = col_shape
 
@@ -156,9 +156,13 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 	_sync_nav_obstacle()
 
 
+func _is_walkable_interior() -> bool:
+	return building_type == "ARENA_PIT" or building_type in Farming.WALKABLE_BUILDINGS
+
+
 ## Constructed, intact buildings block pathing; blueprints and rubble do not.
 func _sync_nav_obstacle() -> void:
-	var should_block: bool = is_constructed and not is_destroyed and is_inside_tree() and building_type not in Farming.WALKABLE_BUILDINGS
+	var should_block: bool = is_constructed and not is_destroyed and is_inside_tree() and not _is_walkable_interior()
 	if should_block and not _obstacle_registered:
 		_obstacle_registered = true
 		GameState.valley_nav.register_building_obstacle(self, building_type, _nav_footprint_radius())
@@ -232,6 +236,8 @@ func _get_bar_height() -> float:
 			return 4.8
 		"SACRED_TOTEM":
 			return 4.4
+		"ARENA_PIT":
+			return 3.6
 		"SLEEPING_HUT", "FORAGER_LODGE", "CRAFTING_PIT", "BARRACKS", "SHAMAN_SHACK":
 			return 3.5
 		_:
@@ -551,6 +557,9 @@ func _destroy(attacker_faction: int) -> void:
 		for f in _visual_root.find_children("FlameMesh*", "MeshInstance3D", true, false):
 			if f is MeshInstance3D:
 				(f as MeshInstance3D).visible = false
+		for bf in _visual_root.find_children("ArenaBrazierFlame*", "MeshInstance3D", true, false):
+			if bf is MeshInstance3D:
+				(bf as MeshInstance3D).visible = false
 
 	_sink_timer = 8.0
 
@@ -616,6 +625,26 @@ func _physics_process(delta: float) -> void:
 					if u.global_position.distance_to(global_position) <= 10.0 and float(u.get("_campfire_heal_cd")) <= 0.0:
 						u._campfire_heal_cd = 1.95
 						u.heal(heal_amt)
+
+	# Arena Pit corner brazier flicker & bright bout pulse
+	if building_type == "ARENA_PIT" and _visual_root != null and damage_stage < 3:
+		var bout_active: bool = GameState.is_arena_bout_active()
+		var t_sec := float(Time.get_ticks_msec()) * 0.001
+		var stage_node := _get_active_stage_node()
+		if stage_node != null:
+			for b_idx in range(4):
+				var b_flicker := 1.0 + sin(t_sec * (14.0 if bout_active else 8.0) + float(b_idx) * 1.7) * (0.20 if bout_active else 0.09)
+				var bf := stage_node.get_node_or_null("ArenaBrazierFlame%d" % b_idx) as MeshInstance3D
+				if bf != null:
+					var base_s := 1.25 if bout_active else (0.95 if damage_stage == 0 else (0.85 if damage_stage == 1 else 0.70))
+					bf.scale = Vector3(base_s, base_s * (1.28 if bout_active else 1.0) * b_flicker, base_s)
+					var bmat := bf.material_override as StandardMaterial3D
+					if bmat != null:
+						bmat.emission_energy_multiplier = (4.2 if bout_active else (2.4 if damage_stage == 0 else (1.7 if damage_stage == 1 else 0.7))) * b_flicker
+				var bl := stage_node.get_node_or_null("ArenaBrazierLight%d" % b_idx) as OmniLight3D
+				if bl != null:
+					var base_e := 3.2 if bout_active else (1.4 if damage_stage == 0 else 0.9)
+					bl.light_energy = base_e * b_flicker
 
 	# Sleeping Hut natural reproduction at night
 	if building_type == "SLEEPING_HUT" and damage_stage < 3 and GameState.current_phase == GameData.SchedulePhase.NIGHT_SLEEP:
@@ -796,6 +825,9 @@ func _find_nearest_hostile(max_range: float) -> Node3D:
 	for u in unit_candidates:
 		if not is_instance_valid(u) or u.get("is_dead") == true:
 			continue
+		if u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true \
+				or u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true:
+			continue
 		if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 			continue
 		var u3d := u as Node3D
@@ -812,6 +844,8 @@ func _find_nearest_hostile(max_range: float) -> Node3D:
 		wild_candidates = GameState.wildlife_container.get_children()
 	if true:
 		for w in wild_candidates:
+			if w.get("is_arena_opponent") == true or w.get_meta("is_arena_opponent", false) == true:
+				continue
 			if not UnitAIRoutines.is_wildlife_hostile_to_faction(w, faction_id):
 				continue
 			var w3d := w as Node3D

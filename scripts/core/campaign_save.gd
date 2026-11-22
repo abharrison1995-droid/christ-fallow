@@ -38,7 +38,8 @@ const UNIT_FIELDS := {
 	"is_raiding": TYPE_BOOL, "dusk_eaten_today": TYPE_INT, "night_morale_today": TYPE_INT,
 	"leader_blessing_cd": TYPE_FLOAT, "buff_timer": TYPE_FLOAT, "buff_speed_mult": TYPE_FLOAT,
 	"buff_armor_bonus": TYPE_FLOAT, "carry_type": TYPE_STRING, "carry_amount": TYPE_FLOAT,
-	"recruit_perks_mult": TYPE_FLOAT,
+	"recruit_perks_mult": TYPE_FLOAT, "arena_recovery_remaining": TYPE_FLOAT,
+	"is_arena_champion": TYPE_BOOL, "is_arena_combatant": TYPE_BOOL,
 }
 const BUILDING_FIELDS := {
 	"building_type": TYPE_STRING, "faction_id": TYPE_INT, "rot_y": TYPE_FLOAT,
@@ -270,6 +271,10 @@ static func _unpack_unit(unit: Dictionary) -> bool:
 	if equipped_armor_id != "" and not GameData.ARMOR_DEFS.has(equipped_armor_id):
 		return false
 	unit["equipped_armor_id"] = equipped_armor_id
+	if unit.has("arena_recovery_remaining"):
+		unit["arena_recovery_remaining"] = maxf(0.0, float(unit["arena_recovery_remaining"]))
+	if unit.has("is_arena_combatant"):
+		unit["is_arena_combatant"] = false
 	unit["pos"] = _position(unit.get("pos"))
 	unit["hold_position"] = _position(unit.get("hold_position", unit["pos"]))
 	unit["raid_target_pos"] = _position(unit.get("raid_target_pos", Vector3.ZERO))

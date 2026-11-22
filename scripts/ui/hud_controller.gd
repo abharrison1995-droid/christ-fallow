@@ -119,6 +119,7 @@ func _ready() -> void:
 	GameState.diplomacy_changed.connect(_on_diplomacy_changed)
 	GameState.religion_changed.connect(_on_religion_changed)
 	GameState.progression_changed.connect(_on_progression_changed)
+	GameState.arena_state_changed.connect(_on_arena_state_changed)
 	GameState.campaign_loaded.connect(_on_campaign_loaded)
 	GameState.game_started.connect(clear_campaign)
 	if is_instance_valid(GameState.player_controller):
@@ -277,6 +278,33 @@ func open_leader_negotiation(faction_id: int) -> void:
 		var drawer := _get_or_create_drawer("DIPLOMACY")
 		drawer.select_faction(faction_id)
 		toggle_drawer("DIPLOMACY")
+
+
+func open_arena_drawer() -> void:
+	if not GameState.game_active or _overlays.blocks_world_input():
+		return
+	if _world_map.visible:
+		_world_map.close()
+	_close_inspector()
+	_dismiss_open_popup()
+	if not _drawer_panel.visible or _active_tab != "COLONY":
+		if _drawer_panel.visible:
+			close_drawer()
+		_active_tab = "COLONY"
+		_align_upper_hud()
+		_drawer_panel.show()
+		for key in _drawer_links:
+			(_drawer_links[key] as Button).set_pressed_no_signal(key == _active_tab)
+	var drawer := _get_or_create_drawer("COLONY")
+	_drawer_title.text = drawer.title
+	drawer.show()
+	drawer.select_section("Arena")
+	_drawer_scroll.set_deferred("scroll_vertical", 0)
+	_drawer_close.grab_focus()
+	_play_ui_sfx("ui_click")
+	sync_pov_state()
+	if GameState.game_active:
+		_update_tutorial_and_banners()
 
 
 func _process(delta: float) -> void:
@@ -524,6 +552,14 @@ func _on_progression_changed(fid: int) -> void:
 			_drawer_views["PERKS"].update_live_values()
 	elif _active_tab == "DIPLOMACY":
 		_refresh_open_drawer()
+
+
+func _on_arena_state_changed() -> void:
+	if _active_tab == "COLONY" and _drawer_views.has("COLONY"):
+		var view: Control = _drawer_views["COLONY"]
+		if is_instance_valid(view) and view.has_method("update_live_values"):
+			view.update_live_values()
+	sync_pov_state()
 
 
 func _on_time_changed(_t: float, _d: int, _p: int) -> void:

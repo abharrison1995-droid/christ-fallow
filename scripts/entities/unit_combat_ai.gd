@@ -36,6 +36,19 @@ static func process_feral_caveman(u: Node, _delta: float) -> void:
 	var u_body := u as CharacterBody3D
 	var u_pos: Vector3 = u3d.global_position
 	var spd: float = float(u.move_speed)
+	var is_arena_opp: bool = (u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true)
+	if is_arena_opp:
+		var bout_target: Node = u._find_nearest_enemy_unit(24.0)
+		if is_instance_valid(bout_target):
+			engage_target(u, bout_target)
+		else:
+			var arena_center: Vector3 = GameState.arena_bout.get("arena_pos", u_pos)
+			if u_pos.distance_to(arena_center) > 2.0:
+				u._steer_toward(arena_center, spd)
+			else:
+				u_body.velocity.x = 0.0
+				u_body.velocity.z = 0.0
+		return
 	var target: Node = u._find_nearest_enemy_unit(32.0)
 	if target == null:
 		# March toward nearest founded non-caveman colony (or player leader if none founded)
@@ -108,9 +121,27 @@ static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 		u._ai_think_cd = 3.0
 		u.try_equip_from_stockpile()
 
+	if not is_instance_valid(enemy):
+		enemy = null
 	var u_pos: Vector3 = (u as Node3D).global_position
 	var u_body := u as CharacterBody3D
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
+	if u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true:
+		var bout_opp: Node = enemy
+		if not is_instance_valid(bout_opp) or not (bout_opp.get("is_arena_opponent") == true or bout_opp.get_meta("is_arena_opponent", false) == true):
+			bout_opp = u._find_nearest_enemy_unit(24.0)
+			if not is_instance_valid(bout_opp):
+				bout_opp = u._find_nearest_hostile_wildlife(24.0)
+		if is_instance_valid(bout_opp):
+			engage_target(u, bout_opp)
+		else:
+			var arena_center: Vector3 = GameState.arena_bout.get("arena_pos", u_pos)
+			if u_pos.distance_to(arena_center) > 2.0:
+				u._steer_toward(arena_center, eff_speed)
+			else:
+				u_body.velocity.x = 0.0
+				u_body.velocity.z = 0.0
+		return
 	var fire_will: bool = (u.fire_at_will == true)
 	var order: int = int(u.squad_order)
 
@@ -183,11 +214,27 @@ static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 
 
 static func process_ai_warrior(u: Node, delta: float, enemy: Node) -> void:
+	if not is_instance_valid(enemy):
+		enemy = null
 	var camp: Vector3 = u._get_home_camp_pos()
 	var u_pos: Vector3 = (u as Node3D).global_position
 	var fid: int = int(u.faction_id)
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
 	var leader: bool = (u.is_leader == true)
+	if u.get("is_arena_opponent") == true or u.get_meta("is_arena_opponent", false) == true:
+		var bout_target: Node = enemy
+		if not is_instance_valid(bout_target) or not (bout_target.get("is_arena_combatant") == true or bout_target.get_meta("is_arena_combatant", false) == true):
+			bout_target = u._find_nearest_enemy_unit(24.0)
+		if is_instance_valid(bout_target):
+			engage_target(u, bout_target)
+		else:
+			var arena_center: Vector3 = GameState.arena_bout.get("arena_pos", u_pos)
+			if u_pos.distance_to(arena_center) > 2.0:
+				u._steer_toward(arena_center, eff_speed)
+			else:
+				(u as CharacterBody3D).velocity.x = 0.0
+				(u as CharacterBody3D).velocity.z = 0.0
+		return
 
 	# Tactical Low-HP retreat toward Campfire healing aura
 	if not leader:
@@ -236,6 +283,8 @@ static func cast_rival_leader_blessing(u: Node) -> void:
 
 
 static func can_shoot_or_reach(u: Node, enemy: Node) -> bool:
+	if not is_instance_valid(u) or not is_instance_valid(enemy):
+		return false
 	var d: float = (u as Node3D).global_position.distance_to((enemy as Node3D).global_position)
 	var wdef: Dictionary = _unit_weapon_def(u)
 	if bool(wdef.get("is_ranged", false)):
@@ -244,6 +293,8 @@ static func can_shoot_or_reach(u: Node, enemy: Node) -> bool:
 
 
 static func engage_target(u: Node, target: Node) -> void:
+	if not is_instance_valid(u) or not is_instance_valid(target):
+		return
 	var u_body := u as CharacterBody3D
 	var u_pos: Vector3 = u_body.global_position
 	var t_pos: Vector3 = (target as Node3D).global_position
@@ -287,6 +338,8 @@ static func engage_target(u: Node, target: Node) -> void:
 
 
 static func engage_building(u: Node, b: Node) -> void:
+	if not is_instance_valid(u) or not is_instance_valid(b):
+		return
 	var u_body := u as CharacterBody3D
 	var b_pos: Vector3 = (b as Node3D).global_position
 	var d: float = u_body.global_position.distance_to(b_pos)
@@ -325,6 +378,8 @@ static func engage_building(u: Node, b: Node) -> void:
 
 
 static func execute_attack_on(u: Node, target: Node) -> void:
+	if not is_instance_valid(u) or not is_instance_valid(target):
+		return
 	u._attack_cd = float(u.attack_cooldown_max)
 	var eff_class: int = int(u._get_effective_warrior_class())
 	var wdef: Dictionary = _unit_weapon_def(u)

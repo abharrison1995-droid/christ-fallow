@@ -1053,6 +1053,15 @@ const BUILDINGS := {
 		"housing": 0,
 		"radius": 2.2,
 	},
+	"ARENA_PIT": {
+		"name": "Blood-Pit Arena",
+		"desc": "Sunken fighting pit where your Chieftain or chosen tribesfolk battle beasts and champions for XP, resources, and masterwork gear. Defeated tribesfolk are knocked out and must recover.",
+		"costs": {"wood": 24, "stone": 20, "bone": 8},
+		"build_time": 10.0,
+		"max_hp": 520.0,
+		"housing": 0,
+		"radius": 5.8,
+	},
 }
 
 const WILDLIFE_DATA := {

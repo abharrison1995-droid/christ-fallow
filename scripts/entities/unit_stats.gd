@@ -161,6 +161,13 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 	elif patron == GameData.PatronGod.KRAG_UL:
 		armor += 6.0
 
+	var is_arena_champion: bool = bool(input.get("is_arena_champion", false))
+	if is_arena_champion and not is_child and not is_caveman:
+		max_hp += 15.0
+		close_quarters_damage *= 1.10
+		ranged_attack_damage *= 1.10
+		attack_damage *= 1.10
+
 	return {
 		"max_hp": max_hp,
 		"move_speed": move_speed,

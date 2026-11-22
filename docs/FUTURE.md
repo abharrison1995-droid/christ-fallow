@@ -79,16 +79,16 @@ The Forward+ probe covers crop work and hauling, taming success and failure, tra
 
 ## Sequential Milestone Queue (Phases 7–9)
 
-> Executed in strict order on `main` with a mandatory inter-phase review & verification gate ([Roadmap](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews)).
+> **Status: Delivered (22 November 2026)** — Executed in strict order on `main` with inter-phase reviews and Forward+ verification gates ([Roadmap](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews)).
 
 ### Phase 7 (Plan 1): Custom weapons & armor for Leader and tribesfolk
-- Structured weapon (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and armor (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`) definitions in `GameData`, reflected in `UnitStats`, `CampaignSave`, 3D rigs/meshes (`CragBornTrial`, `HumanMeshBuilder`, `FirstPersonViewmodel`), `PlayerController` attacks, and `ColonyDrawer` + `UnitInspector` loadout assignment.
+- [x] **Catalog, crafting & loadouts.** Structured weapon (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and armor (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`) definitions in [GameData](../scripts/core/game_data.gd), reflected in [UnitStats](../scripts/entities/unit_stats.gd), [CampaignSave](../scripts/core/campaign_save.gd), 3D rigs/meshes ([CragBornTrial](../scripts/entities/crag_born_trial.gd), [HumanMeshBuilder](../scripts/core/human_mesh_builder.gd), [FirstPersonViewmodel](../scripts/entities/first_person_viewmodel.gd)), [PlayerController](../scripts/entities/player_controller.gd) attacks, and `ColonyDrawer` + `UnitInspector` loadout assignment ([Equipment verifier](../scripts/tools/verify_equipment_system.gd)).
 
 ### Phase 8 (Plan 2): Stone Age SFX & dynamic background music
-- Offline synthesized Stone Age foley and music loops under `assets/audio/`, pooled `SoundManager` autoload (`Master` / `Music` / `SFX` buses, 2D & 3D cooldown-throttled cues, peace/night/combat/arena crossfading), `SettingsScreen` volume sliders, and gameplay audio hooks.
+- [x] **Audio pipeline & adaptive music.** Offline synthesized Stone Age foley and music loops under `assets/audio/` ([generator](../tools/audio/generate_stone_age_audio.py)), pooled [SoundManager](../scripts/core/sound_manager.gd) autoload (`Master` / `Music` / `SFX` buses, 2D & 3D cooldown-throttled cues, `TITLE`/`PEACE_DAY`/`NIGHT`/`COMBAT`/`ARENA` crossfading), `SettingsScreen` Audio volume sliders, and gameplay audio hooks ([Audio verifier](../scripts/tools/verify_audio_system.gd)).
 
 ### Phase 9 (Plan 3): Blood-Pit Trial Arena
-- Unlockable `ARENA_PIT` building with `Chieftain's Trial` (1st/3rd-person playable bouts) and spectated `Warband Exhibition` bouts (1–4 trained warriors vs beast/caveman/champion waves) for resources, XP, and Plan 1 gear rewards, featuring isolated ring combat and non-lethal injury convalescence (`arena_recovery_remaining`) at `SHAMAN_SHACK` / `CAMPFIRE`.
+- [x] **Trial arena, isolation & convalescence.** Unlockable `ARENA_PIT` building (`Lv.3` + `BARRACKS_DRILLMASTERS` Rank 1) with `Chieftain's Trial` (1st/3rd-person playable bouts) and spectated `Warband Exhibition` bouts (1–4 trained warriors vs 5 beast/caveman/champion tiers) in [ArenaRules](../scripts/core/arena_rules.gd) for resources, XP, `is_arena_champion` (`+15` Max HP, `1.10x` DMG), and Plan 1 gear rewards, featuring isolated ring combat and non-lethal injury convalescence (`arena_recovery_remaining`) at `SHAMAN_SHACK` / `CAMPFIRE` ([Arena verifier](../scripts/tools/verify_arena_trials.gd)).
 
 ## Ranked gameplay and asset proposals
 

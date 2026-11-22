@@ -31,19 +31,23 @@
   - `6090d74` through `971df84` — Promoted the gate, Flintmask Scout, settlement buildings, and additional skinned wildlife. [Production batches](../tools/assets/OVERHAUL.md#production-batches)
   - `3b042dd` and `c7f3a72` — Added [six wildcard prototypes](../tools/assets/examples/WILDCARD.md) and [eighteen standalone dinosaur models](../tools/assets/examples/DINOSAURS.md) for asset review.
   - `3abde8c` — **Performance baseline:** Recorded rendered/fixed-step frame attribution in [PERFORMANCE.md](PERFORMANCE.md) and ordered optimization plan in [PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
-  - **Working tree (22 Nov 2026):** **Phase 6** (Tribal Level, Perks & Skills System + Opening Tutorial directional pointer & in-drawer highlights) and **Refactor Pass 2** (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`).
+  - **Working tree (22 Nov 2026):** **Phase 6** (Tribal Level, Perks & Skills System + Opening Tutorial directional pointer & in-drawer highlights), **Refactor Pass 2** (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`), **Phase 7** (Custom Weapons & Armor System), **Phase 8** (Stone Age SFX & Dynamic Music), and **Phase 9** (Blood-Pit Trial Arena).
 
 ---
 
 ## 2. Verified Baseline
 
-These are historical Forward+ results using isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA`. The benchmarks have their own completion markers. See the [performance review](PERFORMANCE.md) and [performance handover](PERFORMANCE_HANDOVER.md) for current reruns and stress measurements.
+These are Forward+ results using isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA`. On 22 November 2026 after Phases 7–9 and all Review Gate 3 fixes, the 7-suite sequential Forward+ gate passed with `EXIT_CODE:0` and zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines (`verify_arena_trials.gd`, `verify_equipment_system.gd`, `verify_audio_system.gd`, `verify_first_person_pov.gd`, `verify_perks_leveling.gd`, `verify_campaign_ui.gd -- --large-ui`, `verify_campaign_save.gd`). Historical baseline suites and benchmarks are also listed below. See the [performance review](PERFORMANCE.md) and [performance handover](PERFORMANCE_HANDOVER.md) for current reruns and stress measurements.
 
 | Suite | Scope Verified |
 | :--- | :--- |
-| [verify_perks_leveling.gd](../scripts/tools/verify_perks_leveling.gd) | Tribal Lv.1–12 XP curve, `K` `PerksDrawer`, Masonry/Might/Kinship perks, building unlock gating, Nomad Villager hiring, Rank VI+ Barracks training, combat XP & stockpile auto-equip, rival auto-perks, and save/load persistence. |
-| [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) | Steps 1–5, 3D beacon, `_leader_pointer` directional ground pointer, `[E]` & `[LMB] Place Here` prompts, HUD & `BuildDrawer`/`ColonyDrawer` highlights, Sleeping Hut construction, mid-tutorial save/load, once-only reward, Skip + Peace Buffer. |
-| [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | Legacy and v4 saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
+| [verify_arena_trials.gd](../scripts/tools/verify_arena_trials.gd) | `ARENA_PIT` Lv.3 + `BARRACKS_DRILLMASTERS` gating in `BuildDrawer`, 4 stages + walkable pit floor, `[E]` Arena tab, First-Person (`Z`) Chieftain's Trial + Watchtower/save isolation + `"ARENA"`/`"PEACE_DAY"` music, non-lethal KO & `1.75x` `SHAMAN_SHACK` convalescence, Warband Exhibition + `Spectate Ring` + `is_arena_champion` (`+15` HP, `1.10x` DMG) + Plan 1 gear drop, forfeit cleanup, and save/load (`91` checks, `EXIT_CODE:0`). |
+| [verify_equipment_system.gd](../scripts/tools/verify_equipment_system.gd) | Crafting Pit tier gating & recipes, stockpile equip/refund math, `WEAPON_DEFS`/`ARMOR_DEFS` stat changes, bow arrow projectiles, `CragBornTrial` & `FirstPersonViewmodel` visual gear swaps, `ColonyDrawer`/`UnitInspector` loadout UI, and in-session/cold reload persistence (`130` checks, `EXIT_CODE:0`). |
+| [verify_audio_system.gd](../scripts/tools/verify_audio_system.gd) | `SoundManager` `Master`/`Music`/`SFX` buses, `Preferences` & `SettingsScreen` Audio sliders, 16 SFX cues & 5 music states, throttling & pool recycling, day/night/combat/title transitions, and silent mount restore (`86` checks, `EXIT_CODE:0`). |
+| [verify_first_person_pov.gd](../scripts/tools/verify_first_person_pov.gd) | First-person controls, camera-aligned combat/inspection, HUD blocking, body shadows, succession, and mounted warm/cold loads (`EXIT_CODE:0`). |
+| [verify_perks_leveling.gd](../scripts/tools/verify_perks_leveling.gd) | Tribal Lv.1–12 XP curve, `K` `PerksDrawer`, Masonry/Might/Kinship perks, building unlock gating, Nomad Villager hiring, Rank VI+ Barracks training, combat XP & stockpile auto-equip, rival auto-perks, and save/load persistence (`EXIT_CODE:0`). |
+| [verify_campaign_ui.gd](../scripts/tools/verify_campaign_ui.gd) | `1600×900 --large-ui` verified 22 Nov 2026 (`EXIT_CODE:0`); historical `1280×720` and `1920×810 --large-ui` runs cover title/awakening, focus release vs `Space`, non-overlap geometry, `Esc` vs `OptionButton`, Diplomacy, Colony Crafting, UnitInspector, pause/conquest/quit. |
+| [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | Legacy and v4 saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites (`EXIT_CODE:0`). |
 | [verify_expanded_valley.gd](../scripts/tools/verify_expanded_valley.gd) | Camp spacing, ford routes, raids, hauling, distant construction, World Map projection and waypoint input, and v3/v4 terrain changes. |
 | [verify_diplomacy_leaders.gd](../scripts/tools/verify_diplomacy_leaders.gd) | Named leaders, approach negotiation, raid and attack truce guards, tribute, successor identity, and pending-conquest reload. |
 | [verify_farming_taming.gd](../scripts/tools/verify_farming_taming.gd) | Crop work and hauling, taming success and failure, pen travel, feeding, breeding, surplus harvest, and movement, dismounting, and save recovery for all three mounts. Runs with the default leader, `--skinned-tribesman-trial`, or `--procedural-roster`. |
@@ -60,7 +64,7 @@ These are historical Forward+ results using isolated `APPDATA` and `CHRIST_FALLO
 
 ## 3. Completed Execution Queue
 
-All slices through Phase 6 and Codebase Refactor Pass 2 are complete. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
+All slices through Phase 9 and Codebase Refactor Pass 2 are complete. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
 All fifteen asset batches are complete. Batches 1–14 delivered seven six-body lineups, fourteen kits, Flintmask Scout, fourteen buildings, and eight imported wildlife models. Batch 15 delivered six review GLBs with gameplay-scale and close Forward+ captures. The wildcard examples await selection before any campaign integration. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard review](../tools/assets/examples/WILDCARD.md)
 
@@ -95,6 +99,21 @@ Reference: [docs/REFACTOR.md](REFACTOR.md#second-extraction-pass-22-november-202
 
 Completed. Extracted combat and faction-AI routines from `human_unit.gd` into [unit_combat_ai.gd](../scripts/entities/unit_combat_ai.gd), diplomacy/tribute/rebel/succession/conquest/victory rules from `game_state.gd` into [diplomacy_conquest_rules.gd](../scripts/core/diplomacy_conquest_rules.gd), and HUD panel builders/live refreshers from `hud_controller.gd` into [hud_panels.gd](../scripts/ui/hud_panels.gd). All three are preloaded static-function helpers without `class_name`, with thin forwarding wrappers and preserved properties/signals on the owning classes so existing callers and test suites run unchanged.
 
+### Track G — Phase 7: Custom Weapons & Armor System
+Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Equipment verifier](../scripts/tools/verify_equipment_system.gd)
+
+Completed. Added `GameData.WEAPON_DEFS` (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and `ARMOR_DEFS` (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`), expanded `CRAFT_RECIPES`, wired `HumanUnit.equip_loadout()` / `GameState.equip_unit_weapon()` / `equip_unit_armor()` / `UnitStats` / `CampaignSave`, added live 3rd-person & 1st-person gear swaps (`CragBornTrial`, `HumanMeshBuilder`, `FirstPersonViewmodel`), `PlayerController` weapon-driven attacks, and `ColonyDrawer` + `UnitInspector` loadout UI.
+
+### Track H — Phase 8: Stone Age SFX & Dynamic Music
+Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Audio verifier](../scripts/tools/verify_audio_system.gd)
+
+Completed. Added [generate_stone_age_audio.py](../tools/audio/generate_stone_age_audio.py) generating Stone Age foley & music loops in `assets/audio/`, pooled `SoundManager` autoload ([sound_manager.gd](../scripts/core/sound_manager.gd)) with `Master`/`Music`/`SFX` buses, 16 throttled SFX cues, and adaptive `TITLE`/`PEACE_DAY`/`NIGHT`/`COMBAT`/`ARENA` music transitions, `Preferences` & `SettingsScreen` Audio sliders, and gameplay audio hooks.
+
+### Track I — Phase 9: Blood-Pit Trial Arena
+Reference: [docs/ROADMAP.md](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews) · [Arena verifier](../scripts/tools/verify_arena_trials.gd)
+
+Completed. Added `ARENA_PIT` (`Lv.3` + `BARRACKS_DRILLMASTERS` Rank 1 in `BuildDrawer`, 4 visual stages, walkable interior, pulsing braziers), [arena_rules.gd](../scripts/core/arena_rules.gd) 5-tier bout system (`CHIEFTAIN` in 1st/3rd-person POV & `EXHIBITION` with `Spectate Ring`), `[E]` Arena tab opening, strict bout isolation from Watchtowers/outside units/mid-bout saves, non-lethal KO & `1.75x` `SHAMAN_SHACK`/`CAMPFIRE` convalescence (`arena_recovery_remaining`), `is_arena_champion` (`+15` HP, `1.10x` DMG), Plan 1 gear drops, and `ColonyDrawer` + `UnitInspector` Arena controls/badges.
+
 ### Campaign performance review
 
 Imported human rigs skip hidden procedural poses, Guard Base reuses camp-centered target scans, and Peace invalidates cached hostiles. Lighting submits its palette on phase transitions and uses a smaller sky radiance map. The stress runs improved while remaining above the 16.7 ms rendered-frame budget. Draw and shadow passes, crowded movement, and worker job allocation are the next measured areas. [Results and reproduction](PERFORMANCE.md) · [Performance plan and handover](PERFORMANCE_HANDOVER.md) · [Ranked gameplay and asset proposals](FUTURE.md#ranked-gameplay-and-asset-proposals)
@@ -104,7 +123,7 @@ Imported human rigs skip hidden procedural poses, Guard Base reuses camp-centere
 ## 4. Non-Negotiable Engineering & Verification Rules
 
 1. **Godot 4.3 strictness ([AGENTS.md](../AGENTS.md)):**
-   - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `PerkSystem`, `DiplomacyConquestRules`, `UnitStats`, `UnitAIRoutines`, `UnitCombatAI`, `BlessingEffects`, `HUDPanels`, etc.).
+   - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `PerkSystem`, `ArenaRules`, `DiplomacyConquestRules`, `UnitStats`, `UnitAIRoutines`, `UnitCombatAI`, `BlessingEffects`, `HUDPanels`, etc.).
    - Never use `:=` on untyped `Dictionary`/`Array` indexing or `node.get("prop")` (`Variant`); always annotate explicit types.
    - Never call `bool(null)` — use `== true` or `!= null`.
    - Always call `container.remove_child(c)` before `c.queue_free()` when replacing container children.

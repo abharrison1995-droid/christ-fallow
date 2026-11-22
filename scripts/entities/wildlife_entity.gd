@@ -18,6 +18,7 @@ var is_aggro: bool = false
 var flees_when_hit: bool = true
 var is_boss: bool = false
 var is_dead: bool = false
+var is_arena_opponent: bool = false
 var home_pos: Vector3 = Vector3.ZERO
 var owner_faction := -1
 var pen_position: Variant = null
@@ -208,6 +209,8 @@ func serialize() -> Dictionary:
 
 
 func can_interact(faction_id: int) -> bool:
+	if is_arena_opponent:
+		return false
 	return not is_dead and (can_mount(faction_id) or (owner_faction < 0 and Farming.TAME_CHANCES.has(animal_type) \
 		and GameState.has_building(faction_id, "ANIMAL_PEN", true)))
 
@@ -382,7 +385,12 @@ func projectile_hit_center() -> Vector3:
 
 
 func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
-	if is_dead or is_protected_from(attacker_faction):
+	if is_dead:
+		return
+	if is_arena_opponent:
+		if attacker != null and not (attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true):
+			return
+	elif is_protected_from(attacker_faction):
 		return
 	var applied := UnitStats.mitigated_damage(amount, armor) if armor > 0.0 else amount
 	hp -= applied
@@ -408,13 +416,14 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 			_knockback_vel = kb.normalized() * kb_str
 	CombatVFX.spawn_damage_popup(self, "-%d" % roundi(applied), Color(1.0, 0.88, 0.28), 1.25 if is_boss else 1.0, 2.9 if is_boss else 1.85)
 
-	if flees_when_hit and attacker != null and is_instance_valid(attacker) and attacker is Node3D:
+	if not is_arena_opponent and flees_when_hit and attacker != null and is_instance_valid(attacker) and attacker is Node3D:
 		_flee_timer = 5.0
 		var away: Vector3 = global_position - (attacker as Node3D).global_position
 		away.y = 0.0
 		_flee_dir = away.normalized() if away.length() > 0.1 else Vector3(1, 0, 0)
 	elif owner_faction < 0 and attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("unit_id") != null:
-		_set_aggro_target(attacker)
+		if not is_arena_opponent or attacker.get("is_arena_combatant") == true or attacker.get_meta("is_arena_combatant", false) == true:
+			_set_aggro_target(attacker)
 
 	if hp <= 0.0:
 		_die(attacker, attacker_faction)
@@ -429,7 +438,7 @@ func _die(killer: Node, killer_faction: int) -> void:
 	var data: Dictionary = GameData.WILDLIFE_DATA.get(animal_type, {})
 	var yields: Dictionary = data.get("yield", {"food": 12, "hide": 4, "bone": 2})
 
-	if GameState.factions.has(killer_faction):
+	if not is_arena_opponent and GameState.factions.has(killer_faction):
 		var mult := 1.0
 		if GameState.has_building(killer_faction, "FORAGER_LODGE", true):
 			mult += 0.25
@@ -576,6 +585,10 @@ func _physics_process(delta: float) -> void:
 
 	var desired_vel := Vector3.ZERO
 
+	if is_arena_opponent:
+		is_aggro = true
+		flees_when_hit = false
+
 	if owner_faction >= 0:
 		desired_vel = _livestock_velocity(delta)
 	elif _bite_remaining > 0.0:
@@ -584,12 +597,15 @@ func _physics_process(delta: float) -> void:
 		_flee_timer -= delta
 		desired_vel = _flee_dir * move_speed * 1.25
 	else:
-		if _target_unit != null and (not is_instance_valid(_target_unit) or _target_unit.get("is_dead") or global_position.distance_to(_target_unit.global_position) > 28.0):
+		if _target_unit != null and (not is_instance_valid(_target_unit) or _target_unit.get("is_dead") or _target_unit.get("is_wounded") or global_position.distance_to(_target_unit.global_position) > 28.0 \
+				or (is_arena_opponent and not (_target_unit.get("is_arena_combatant") == true or _target_unit.get_meta("is_arena_combatant", false) == true)) \
+				or (not is_arena_opponent and (_target_unit.get("is_arena_combatant") == true or _target_unit.get_meta("is_arena_combatant", false) == true))):
 			_set_aggro_target(null)
 
 		if _target_unit == null and is_aggro and _prey_scan_cd <= 0.0:
 			_prey_scan_cd = randf_range(0.18, 0.28)
-			_set_aggro_target(_scan_for_prey(16.0 if is_boss else 14.0))
+			var scan_r := 18.0 if is_arena_opponent else (16.0 if is_boss else 14.0)
+			_set_aggro_target(_scan_for_prey(scan_r))
 
 		if _target_unit != null:
 			var diff: Vector3 = _target_unit.global_position - global_position
@@ -600,6 +616,11 @@ func _physics_process(delta: float) -> void:
 			elif _attack_cd <= 0.0:
 				_perform_attack(_target_unit)
 				_attack_cd = _attack_cooldown
+		elif is_arena_opponent:
+			var to_center := home_pos - global_position
+			to_center.y = 0.0
+			if to_center.length() > 1.5:
+				desired_vel = to_center.normalized() * (move_speed * 0.65)
 		else:
 			# Roam gently around home_pos
 			var to_roam := _roam_target - global_position
@@ -690,11 +711,18 @@ func _scan_for_prey(radius: float) -> Node:
 	for u in candidates:
 		if not is_instance_valid(u) or u.get("is_dead") or u.get("is_wounded"):
 			continue
-		var u_fid: int = int(u.get("faction_id"))
-		if u_fid == -3:
-			continue
-		if GameState.has_tenet(u_fid, "WILD_HARMONY") and u.get("role") != GameData.Role.WARRIOR and not u.get("is_leader"):
-			continue
+		var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
+		if is_arena_opponent:
+			if not u_comb:
+				continue
+		else:
+			if u_comb:
+				continue
+			var u_fid: int = int(u.get("faction_id"))
+			if u_fid == -3:
+				continue
+			if GameState.has_tenet(u_fid, "WILD_HARMONY") and u.get("role") != GameData.Role.WARRIOR and not u.get("is_leader"):
+				continue
 		var d := global_position.distance_to(u.global_position)
 		if d < best_d:
 			best_d = d
@@ -730,6 +758,11 @@ func _perform_attack(target: Node) -> void:
 		if true:
 			for u in stomp_targets:
 				if is_instance_valid(u) and not u.get("is_dead") and not u.get("is_wounded"):
+					var u_comb: bool = (u.get("is_arena_combatant") == true or u.get_meta("is_arena_combatant", false) == true)
+					if is_arena_opponent and not u_comb:
+						continue
+					if not is_arena_opponent and u_comb:
+						continue
 					if global_position.distance_to(u.global_position) <= 4.0:
 						u.take_damage(damage, self, -1)
 	else:

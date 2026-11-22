@@ -836,6 +836,133 @@ static func _build_stage_geometry(root: Node3D, mf: Node, building_type: String,
 					sl.position = Vector3(0.85, 1.1 if stage < 2 else 0.8, 1.35)
 					root.add_child(sl)
 
+		"ARENA_PIT":
+			var sand_mat: StandardMaterial3D = mf.make_mat(Color(0.56, 0.45, 0.30), 0.96, Color.BLACK, 0.0, 1.0, "ground")
+			var bone_mat: StandardMaterial3D = mf.make_mat(Color(0.84, 0.79, 0.68), 0.85, Color.BLACK, 0.0, 1.0, "bone")
+			var rope_mat: StandardMaterial3D = mf.make_mat(Color(0.62, 0.50, 0.30), 0.94, Color.BLACK, 0.0, 1.0, "hide")
+			var brazier_corners := [
+				Vector3(-4.3, 0.0, -4.3),
+				Vector3(4.3, 0.0, -4.3),
+				Vector3(-4.3, 0.0, 4.3),
+				Vector3(4.3, 0.0, 4.3),
+			]
+			if stage == 3:
+				var rubble_floor := CylinderMesh.new()
+				rubble_floor.top_radius = 5.1
+				rubble_floor.bottom_radius = 5.4
+				rubble_floor.height = 0.06
+				mf.add_mesh(root, rubble_floor, Vector3(0.0, 0.03, 0.0), ash_mat)
+				for i in range(6):
+					var ang := float(i) * TAU / 6.0 + 0.35
+					var fallen := CylinderMesh.new()
+					fallen.top_radius = 0.12
+					fallen.bottom_radius = 0.16
+					fallen.height = 1.3
+					mf.add_mesh(root, fallen, Vector3(cos(ang) * 5.0, 0.14, sin(ang) * 5.0), char_mat, Vector3(84.0, rad_to_deg(ang) + 25.0, 0.0))
+				for c_pos in brazier_corners:
+					var base := CylinderMesh.new()
+					base.top_radius = 0.36
+					base.bottom_radius = 0.48
+					base.height = 0.42
+					mf.add_mesh(root, base, c_pos + Vector3(0.0, 0.21, 0.0), stone_mat)
+			else:
+				var ring_floor := CylinderMesh.new()
+				ring_floor.top_radius = 5.25
+				ring_floor.bottom_radius = 5.45
+				ring_floor.height = 0.07
+				mf.add_mesh(root, ring_floor, Vector3(0.0, 0.035, 0.0), ash_mat if stage == 2 else sand_mat)
+
+				var center_stone := CylinderMesh.new()
+				center_stone.top_radius = 1.85
+				center_stone.bottom_radius = 2.05
+				center_stone.height = 0.08
+				mf.add_mesh(root, center_stone, Vector3(0.0, 0.04, 0.0), stone_mat)
+
+				var arcs_deg := [
+					[-70.0, -42.0, -14.0, 14.0, 42.0, 70.0],
+					[110.0, 138.0, 166.0, 194.0, 222.0, 250.0],
+				]
+				var post_radius := 5.4
+				for arc_idx in range(arcs_deg.size()):
+					var arc: Array = arcs_deg[arc_idx]
+					var arc_pts: Array[Vector3] = []
+					for i in range(arc.size()):
+						var ang_rad := deg_to_rad(float(arc[i]))
+						var px := cos(ang_rad) * post_radius
+						var pz := sin(ang_rad) * post_radius
+						arc_pts.append(Vector3(px, 0.0, pz))
+
+						var is_broken := (stage == 2 and i % 3 == 1)
+						var post_h := 0.72 if is_broken else (1.68 if stage == 0 else (1.50 if stage == 1 else 1.25))
+						var post_m := CylinderMesh.new()
+						post_m.top_radius = 0.13
+						post_m.bottom_radius = 0.18
+						post_m.height = post_h
+						var p_rot := Vector3.ZERO
+						if stage == 1 and i % 2 == 1:
+							p_rot = Vector3(5.0, 0.0, -4.0)
+						elif stage == 2:
+							p_rot = Vector3(12.0 if i % 2 == 0 else -10.0, 0.0, 8.0)
+						mf.add_mesh(root, post_m, Vector3(px, post_h * 0.5, pz), w_mat, p_rot)
+
+						if (i == 0 or i == arc.size() - 1) and not is_broken:
+							if stage < 2:
+								var cranium := SphereMesh.new()
+								cranium.radius = 0.18
+								cranium.height = 0.30
+								mf.add_mesh(root, cranium, Vector3(px, post_h + 0.14, pz), bone_mat)
+								var horn := BoxMesh.new()
+								horn.size = Vector3(0.42, 0.06, 0.08)
+								mf.add_mesh(root, horn, Vector3(px, post_h + 0.22, pz), bone_mat, Vector3(0.0, rad_to_deg(-ang_rad), 0.0))
+								var sash := BoxMesh.new()
+								sash.size = Vector3(0.10, 0.48, 0.26)
+								mf.add_mesh(root, sash, Vector3(px * 0.96, post_h * 0.62, pz * 0.96), banner_mat, Vector3(0.0, rad_to_deg(-ang_rad), 0.0))
+
+					for i in range(arc_pts.size() - 1):
+						if stage == 1 and i == 2:
+							continue
+						if stage == 2 and i % 2 == 1:
+							continue
+						var p0: Vector3 = arc_pts[i]
+						var p1: Vector3 = arc_pts[i + 1]
+						var diff := p1 - p0
+						var span := diff.length()
+						var yaw_deg := rad_to_deg(-atan2(diff.z, diff.x))
+						var mid := (p0 + p1) * 0.5
+						for rail_y in [0.58, 1.06]:
+							if stage == 2 and rail_y > 0.9:
+								continue
+							var rail_m := BoxMesh.new()
+							rail_m.size = Vector3(span, 0.075, 0.075)
+							var rail_rot := Vector3(0.0, yaw_deg, -5.0 if stage == 1 else (10.0 if stage == 2 else 0.0))
+							mf.add_mesh(root, rail_m, Vector3(mid.x, rail_y, mid.z), char_mat if stage == 2 else rope_mat, rail_rot)
+
+				var ember_energy := 2.6 if stage == 0 else (1.8 if stage == 1 else 0.7)
+				var ember_mat: StandardMaterial3D = mf.make_mat(Color(1.0, 0.42, 0.10), 0.35, Color(1.0, 0.36, 0.06), ember_energy)
+				for b_idx in range(brazier_corners.size()):
+					var c_pos: Vector3 = brazier_corners[b_idx]
+					var ped := CylinderMesh.new()
+					ped.top_radius = 0.35
+					ped.bottom_radius = 0.48
+					ped.height = 0.95 if stage < 2 else 0.72
+					mf.add_mesh(root, ped, c_pos + Vector3(0.0, ped.height * 0.5, 0.0), stone_mat)
+					var basin := CylinderMesh.new()
+					basin.top_radius = 0.48
+					basin.bottom_radius = 0.32
+					basin.height = 0.24
+					mf.add_mesh(root, basin, c_pos + Vector3(0.0, ped.height + 0.08, 0.0), stone_mat)
+					var flame := PrismMesh.new()
+					flame.size = Vector3(0.46, 0.62, 0.46) if stage == 0 else (Vector3(0.38, 0.48, 0.38) if stage == 1 else Vector3(0.26, 0.22, 0.26))
+					mf.add_mesh(root, flame, c_pos + Vector3(0.0, ped.height + 0.34, 0.0), ember_mat, Vector3.ZERO, "ArenaBrazierFlame%d" % b_idx)
+					if not is_blueprint and stage < 2:
+						var bl := OmniLight3D.new()
+						bl.name = "ArenaBrazierLight%d" % b_idx
+						bl.light_color = Color(1.0, 0.45, 0.14)
+						bl.light_energy = 1.4 if stage == 0 else 0.9
+						bl.omni_range = 10.0
+						bl.position = c_pos + Vector3(0.0, ped.height + 0.68, 0.0)
+						root.add_child(bl)
+
 
 
 
