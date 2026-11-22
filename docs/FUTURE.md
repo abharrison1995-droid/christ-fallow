@@ -77,6 +77,19 @@ The Forward+ probe covers crop work and hauling, taming success and failure, tra
 
 [Perk rules](../scripts/core/perk_system.gd) · [Perks drawer](../scripts/ui/drawers/perks_drawer.gd) · [Perks verifier](../scripts/tools/verify_perks_leveling.gd) · [Campaign state](../scripts/core/game_state.gd)
 
+## Sequential Milestone Queue (Phases 7–9)
+
+> Executed in strict order on `main` with a mandatory inter-phase review & verification gate ([Roadmap](ROADMAP.md#upcoming-sequential-phases-79--mandatory-inter-phase-reviews)).
+
+### Phase 7 (Plan 1): Custom weapons & armor for Leader and tribesfolk
+- Structured weapon (`GREAT_SPEAR`, `STONE_SPEAR`, `FLINT_DIRK`, `HUNTING_BOW`, `WAR_CLUB`, `BARBED_JAVELIN`, `OBSIDIAN_CLEAVER`) and armor (`HIDE_TUNIC`, `BONE_GUARD`, `PELT_MANTLE`, `OBSIDIAN_PLATE`) definitions in `GameData`, reflected in `UnitStats`, `CampaignSave`, 3D rigs/meshes (`CragBornTrial`, `HumanMeshBuilder`, `FirstPersonViewmodel`), `PlayerController` attacks, and `ColonyDrawer` + `UnitInspector` loadout assignment.
+
+### Phase 8 (Plan 2): Stone Age SFX & dynamic background music
+- Offline synthesized Stone Age foley and music loops under `assets/audio/`, pooled `SoundManager` autoload (`Master` / `Music` / `SFX` buses, 2D & 3D cooldown-throttled cues, peace/night/combat/arena crossfading), `SettingsScreen` volume sliders, and gameplay audio hooks.
+
+### Phase 9 (Plan 3): Blood-Pit Trial Arena
+- Unlockable `ARENA_PIT` building with `Chieftain's Trial` (1st/3rd-person playable bouts) and spectated `Warband Exhibition` bouts (1–4 trained warriors vs beast/caveman/champion waves) for resources, XP, and Plan 1 gear rewards, featuring isolated ring combat and non-lethal injury convalescence (`arena_recovery_remaining`) at `SHAMAN_SHACK` / `CAMPFIRE`.
+
 ## Ranked gameplay and asset proposals
 
 Performance optimization tracks alongside these gameplay proposals — see the [Campaign performance review](PERFORMANCE.md) for current Forward+ measurements and the [Performance plan and handover](PERFORMANCE_HANDOVER.md) for the ordered experiment queue (off-camera damage popups, crowded NPC movement, distant pose sampling, shadows, and worker allocation).

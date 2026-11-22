@@ -285,6 +285,22 @@ Run the POV suite with `--procedural-roster` and `--skinned-tribesman-trial` whe
 
 ---
 
+## Upcoming Sequential Phases (7–9) & Mandatory Inter-Phase Reviews
+
+> **Status: Formalized 22 Nov 2026 (`main`)** — Planned in strict succession with a dedicated Hydrogen High review and Forward+ verification gate between each phase.
+
+1. **Phase 7 (Plan 1) — Custom Weapons & Armor System (`[In Progress]`)**:
+   - **Scope**: Structured `GameData.WEAPON_DEFS` and `ARMOR_DEFS` catalogs; expanded Crafting Pit recipes; Leader and individual Tribesman weapon/offhand/armor equipping (`HumanUnit.equip_loadout()`, `UnitStats`, `CampaignSave`); dynamic 3D mesh/rig attachment updates across `CragBornTrial`, `HumanMeshBuilder`, and `FirstPersonViewmodel`; Leader attack dispatch by equipped weapon; and `UnitInspector` + `ColonyDrawer` loadout UI.
+   - **Review Gate 1**: Full Hydrogen High audit + new `scripts/tools/verify_equipment_system.gd` + `verify_first_person_pov.gd` + `verify_campaign_ui.gd -- --large-ui` + `verify_campaign_save.gd` before starting Phase 8.
+2. **Phase 8 (Plan 2) — Stone Age SFX & Dynamic Background Music (`[Queued after Review Gate 1]`)**:
+   - **Scope**: Offline audio generator (`tools/audio/generate_stone_age_audio.py`) creating Stone Age foley & ambient/music loops in `assets/audio/`; pooled `SoundManager` autoload (`Master`, `Music`, `SFX` buses, 2D/3D SFX cooldown throttling, clean shutdown, adaptive `TITLE`/`PEACE_DAY`/`NIGHT`/`COMBAT`/`ARENA` crossfades); `Preferences` + `SettingsScreen` volume sliders; and gameplay hooks across combat, harvesting, building, wildlife, leveling, and UI.
+   - **Review Gate 2**: Full Hydrogen High audit + new `scripts/tools/verify_audio_system.gd` + `verify_campaign_ui.gd -- --large-ui` before starting Phase 9.
+3. **Phase 9 (Plan 3) — Blood-Pit Trial Arena (`[Queued after Review Gate 2]`)**:
+   - **Scope**: Unlockable `ARENA_PIT` settlement building (`Lv.3`, `BARRACKS_DRILLMASTERS`); `scripts/core/arena_rules.gd` five-tier encounter tables and bout state machine (`Chieftain's Trial` in 1st/3rd-person POV + spectated `Warband Exhibition`); bout combatant isolation (no outside Watchtower/guard interference); non-lethal knockout & `"Out of Commission"` convalescence recovery routing to `SHAMAN_SHACK`/`CAMPFIRE` (`arena_recovery_remaining`); `is_arena_champion` veteran bonus; resource, XP, and Plan 1 gear rewards; Plan 2 horn/drum audio cues; and `ColonyDrawer` Arena controls + `Spectate Ring`.
+   - **Review Gate 3**: Full Hydrogen High audit + new `scripts/tools/verify_arena_trials.gd` + doc sync (`AGENTS.md`, `README.md`, `docs/HANDOFF.md`, `docs/ROADMAP.md`, `docs/FUTURE.md`) + full Forward+ regression suite.
+
+---
+
 ## Agentic Continuation Protocol
 
 ### Repo hygiene pre-flight
