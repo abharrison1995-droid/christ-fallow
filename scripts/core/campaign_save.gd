@@ -20,6 +20,10 @@ const STOCKPILE_FIELDS := {
 	"spears": TYPE_INT, "knives": TYPE_INT, "bows": TYPE_INT, "clubs": TYPE_INT,
 	"javelins": TYPE_INT, "armor": TYPE_INT,
 }
+const OPTIONAL_STOCKPILE_FIELDS := {
+	"great_spears": TYPE_INT, "obsidian_cleavers": TYPE_INT, "hide_tunic": TYPE_INT,
+	"pelt_mantle": TYPE_INT, "obsidian_plate": TYPE_INT,
+}
 const UNIT_FIELDS := {
 	"unit_id": TYPE_INT, "unit_name": TYPE_STRING, "original_faction_id": TYPE_INT,
 	"gender": TYPE_INT, "lineage": TYPE_INT, "role": TYPE_INT, "warrior_class": TYPE_INT,
@@ -29,7 +33,8 @@ const UNIT_FIELDS := {
 	"training_xp": TYPE_FLOAT, "morale": TYPE_FLOAT, "is_revolting": TYPE_BOOL,
 	"is_wounded": TYPE_BOOL, "is_healing_in_shack": TYPE_BOOL, "being_rescued": TYPE_BOOL,
 	"wounded_timer": TYPE_FLOAT, "field_aid_applied": TYPE_BOOL, "has_equipped_weapon": TYPE_BOOL,
-	"weapon_tier": TYPE_INT, "has_armor": TYPE_BOOL, "squad_order": TYPE_INT, "fire_at_will": TYPE_BOOL,
+	"weapon_tier": TYPE_INT, "has_armor": TYPE_BOOL, "equipped_weapon_id": TYPE_STRING,
+	"equipped_armor_id": TYPE_STRING, "squad_order": TYPE_INT, "fire_at_will": TYPE_BOOL,
 	"is_raiding": TYPE_BOOL, "dusk_eaten_today": TYPE_INT, "night_morale_today": TYPE_INT,
 	"leader_blessing_cd": TYPE_FLOAT, "buff_timer": TYPE_FLOAT, "buff_speed_mult": TYPE_FLOAT,
 	"buff_armor_bonus": TYPE_FLOAT, "carry_type": TYPE_STRING, "carry_amount": TYPE_FLOAT,
@@ -205,8 +210,13 @@ static func _normalize_faction(faction: Dictionary, id: int) -> bool:
 	faction["captured_cavemen"] = int(faction.get("captured_cavemen", 0))
 	if not _matches(faction["resources"], RESOURCE_FIELDS) or not _matches(faction["stockpile"], STOCKPILE_FIELDS):
 		return false
+	if not _matches(faction["stockpile"], OPTIONAL_STOCKPILE_FIELDS, false):
+		return false
 	for key in STOCKPILE_FIELDS:
 		faction["stockpile"][key] = int(faction["stockpile"][key])
+	for key in OPTIONAL_STOCKPILE_FIELDS:
+		if faction["stockpile"].has(key):
+			faction["stockpile"][key] = int(faction["stockpile"][key])
 	for recipe in faction["craft_queue"]:
 		if not GameData.CRAFT_RECIPES.has(recipe):
 			return false
@@ -252,6 +262,14 @@ static func _unpack_unit(unit: Dictionary) -> bool:
 	if typeof(archetype) != TYPE_STRING or (archetype != "" and (archetype != GameData.FLINTMASK_SCOUT
 			or int(unit["faction_id"]) != 5 or unit.get("is_caveman") != true or unit.get("is_child") == true)):
 		return false
+	var equipped_weapon_id: String = str(unit.get("equipped_weapon_id", ""))
+	if equipped_weapon_id != "" and not GameData.WEAPON_DEFS.has(equipped_weapon_id):
+		return false
+	unit["equipped_weapon_id"] = equipped_weapon_id
+	var equipped_armor_id: String = str(unit.get("equipped_armor_id", ""))
+	if equipped_armor_id != "" and not GameData.ARMOR_DEFS.has(equipped_armor_id):
+		return false
+	unit["equipped_armor_id"] = equipped_armor_id
 	unit["pos"] = _position(unit.get("pos"))
 	unit["hold_position"] = _position(unit.get("hold_position", unit["pos"]))
 	unit["raid_target_pos"] = _position(unit.get("raid_target_pos", Vector3.ZERO))

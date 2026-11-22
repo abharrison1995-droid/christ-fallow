@@ -56,6 +56,10 @@ var being_rescued: bool = false
 var has_equipped_weapon: bool = false
 var weapon_tier: int = 1
 var has_armor: bool = false
+var equipped_weapon_id: String = ""
+var equipped_armor_id: String = ""
+var is_ranged_weapon: bool = false
+var projectile_type: String = ""
 
 var hp: float = 100.0
 var max_hp: float = 100.0
@@ -187,9 +191,19 @@ func setup(p_params: Dictionary) -> void:
 	is_healing_in_shack = bool(p_params.get("is_healing_in_shack", false))
 	being_rescued = bool(p_params.get("being_rescued", is_healing_in_shack))
 	wounded_timer = float(p_params.get("wounded_timer", 0.0))
-	has_equipped_weapon = bool(p_params.get("has_equipped_weapon", is_leader or is_caveman))
+	var raw_w_id: String = str(p_params.get("equipped_weapon_id", ""))
+	equipped_weapon_id = raw_w_id if GameData.WEAPON_DEFS.has(raw_w_id) else ""
+	var raw_a_id: String = str(p_params.get("equipped_armor_id", ""))
+	equipped_armor_id = raw_a_id if GameData.ARMOR_DEFS.has(raw_a_id) else ""
+	has_equipped_weapon = bool(p_params.get("has_equipped_weapon", is_leader or is_caveman or equipped_weapon_id != ""))
+	if equipped_weapon_id != "":
+		has_equipped_weapon = true
 	weapon_tier = int(p_params.get("weapon_tier", 1))
-	has_armor = bool(p_params.get("has_armor", is_leader))
+	has_armor = bool(p_params.get("has_armor", is_leader or (equipped_armor_id != "" and equipped_armor_id != "NONE")))
+	if equipped_armor_id == "NONE":
+		has_armor = false
+	elif equipped_armor_id != "":
+		has_armor = true
 	squad_order = int(p_params.get("squad_order", GameData.SquadOrder.FOLLOW))
 	hold_position = p_params.get("hold_position", Vector3.ZERO)
 	if p_params.has("fire_at_will"):
@@ -336,7 +350,7 @@ func _rebuild_visual() -> void:
 				pilot.name = "SkinnedLineageLeader" if is_leader else ("CragBornTrial" if eff_lin == GameData.Lineage.CRAG_BORN else "SkinnedLineageRig")
 				add_child(pilot)
 				_skinned_trial = pilot
-				pilot.sync_equipment(weapon_tier, has_armor)
+				pilot.equip_gear(MeshFactory, get_equipped_weapon_id(), get_equipped_armor_id(), weapon_tier)
 				pilot.update_action("WOUNDED" if is_wounded else "IDLE", 0.0, 0.0, _is_psx_jitter_enabled(), _hit_flash_ratio())
 				_set_trial_visible(true)
 			else:
@@ -370,6 +384,19 @@ func set_first_person_view(active: bool) -> void:
 
 
 func _rebuild_fp_mesh_cache() -> void:
+	# Restore any surviving meshes to their true 3rd-person state before re-scanning.
+	for i in range(_cached_fp_meshes.size()):
+		var prev_mi := _cached_fp_meshes[i]
+		if is_instance_valid(prev_mi) and i < _cached_fp_shadow_modes.size():
+			prev_mi.cast_shadow = _cached_fp_shadow_modes[i]
+	for i in range(_cached_fp_small_meshes.size()):
+		var prev_small := _cached_fp_small_meshes[i]
+		if is_instance_valid(prev_small) and i < _cached_fp_small_layers.size():
+			prev_small.layers = _cached_fp_small_layers[i]
+	_cached_fp_meshes.clear()
+	_cached_fp_shadow_modes.clear()
+	_cached_fp_small_meshes.clear()
+	_cached_fp_small_layers.clear()
 	for root_node in [_visual_root, _skinned_trial]:
 		if root_node == null or not is_instance_valid(root_node):
 			continue
@@ -511,6 +538,30 @@ func _set_trial_visible(use_trial: bool) -> void:
 		_visual_root.visible = not use_trial
 
 
+func get_equipped_weapon_id() -> String:
+	if equipped_weapon_id != "" and GameData.WEAPON_DEFS.has(equipped_weapon_id):
+		return equipped_weapon_id
+	if has_equipped_weapon or is_leader or is_caveman:
+		return GameData.resolve_default_weapon_id(role, warrior_class, is_leader, is_caveman)
+	return ""
+
+
+func get_equipped_armor_id() -> String:
+	if equipped_armor_id != "" and GameData.ARMOR_DEFS.has(equipped_armor_id):
+		return equipped_armor_id
+	return GameData.resolve_default_armor_id(has_armor, weapon_tier, is_leader)
+
+
+func equip_loadout(weapon_id: String = "__KEEP__", armor_id: String = "__KEEP__") -> void:
+	if weapon_id != "__KEEP__":
+		equipped_weapon_id = weapon_id if (weapon_id == "" or GameData.WEAPON_DEFS.has(weapon_id)) else ""
+		has_equipped_weapon = equipped_weapon_id != ""
+	if armor_id != "__KEEP__":
+		equipped_armor_id = armor_id if (armor_id == "" or GameData.ARMOR_DEFS.has(armor_id)) else ""
+		has_armor = equipped_armor_id != "" and equipped_armor_id != "NONE"
+	recalculate_stats(false)
+
+
 func _refresh_gear_visual() -> void:
 	if _visual_root == null:
 		return
@@ -520,7 +571,7 @@ func _refresh_gear_visual() -> void:
 		return
 	var w_str := "SPEAR"
 	var use_tool := false
-	if not is_child and (role == GameData.Role.WARRIOR or is_leader or is_caveman or _is_warhorn_militia()):
+	if not is_child and (role == GameData.Role.WARRIOR or is_leader or is_caveman or _is_warhorn_militia() or equipped_weapon_id != ""):
 		match _get_effective_warrior_class():
 			GameData.WarriorClass.SPEARMAN:
 				w_str = "SPEAR"
@@ -535,15 +586,24 @@ func _refresh_gear_visual() -> void:
 	else:
 		use_tool = true
 
-	MeshFactory.update_human_gear(_visual_root, w_str, weapon_tier, has_armor, use_tool, desired_key)
+	var eff_weapon_id := "" if use_tool else get_equipped_weapon_id()
+	var eff_armor_id := get_equipped_armor_id()
+	HumanMeshBuilder.update_human_gear(MeshFactory, _visual_root, w_str, weapon_tier, has_armor, use_tool, desired_key, eff_weapon_id, eff_armor_id)
 	if _skinned_trial is CragBornTrial:
-		_skinned_trial.sync_equipment(weapon_tier, has_armor)
+		_skinned_trial.equip_gear(MeshFactory, eff_weapon_id, eff_armor_id, weapon_tier)
+	if _first_person_hidden:
+		_rebuild_fp_mesh_cache()
+		_apply_first_person_shadow_mode()
 
 
 func play_attack_animation(anim_name: String = "", duration: float = 0.40) -> void:
 	var eff_anim := anim_name
 	if eff_anim == "":
-		eff_anim = str(_get_class_def().get("attack_anim", "TOOL_SWING"))
+		var eff_wid := get_equipped_weapon_id()
+		if not _is_working_this_frame and eff_wid != "" and GameData.WEAPON_DEFS.has(eff_wid):
+			eff_anim = str(GameData.WEAPON_DEFS[eff_wid].get("attack_anim", _get_class_def().get("attack_anim", "TOOL_SWING")))
+		else:
+			eff_anim = str(_get_class_def().get("attack_anim", "TOOL_SWING"))
 	_active_attack_anim = eff_anim
 	_skinned_hit_priority = false
 	_swing_duration = duration
@@ -646,6 +706,8 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 		"weapon_tier": weapon_tier,
 		"has_equipped_weapon": has_equipped_weapon,
 		"has_armor": has_armor,
+		"equipped_weapon_id": equipped_weapon_id,
+		"equipped_armor_id": equipped_armor_id,
 	}, patron, faction_dict)
 	var previous_ratio := hp / maxf(max_hp, 1.0)
 	max_hp = stats["max_hp"]
@@ -657,6 +719,8 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 	attack_range = stats["attack_range"]
 	attack_cooldown_max = stats["attack_cooldown_max"]
 	armor = stats["armor"]
+	is_ranged_weapon = bool(stats.get("is_ranged", false))
+	projectile_type = str(stats.get("projectile_type", ""))
 	hp = max_hp if reset_hp else clampf(previous_ratio * max_hp, 1.0, max_hp)
 	_refresh_gear_visual()
 	_update_hp_bar()
@@ -1043,7 +1107,14 @@ func _update_procedural_animation(delta: float) -> void:
 	if _animator.is_taking_damage() and (_skinned_hit_priority or not _animator.is_attacking()):
 		anim_state = "DAMAGE_HEAVY"
 	elif _animator.is_attacking():
-		anim_state = _active_attack_anim if _active_attack_anim != "" else str(cdef.get("attack_anim", "TOOL_SWING"))
+		if _active_attack_anim != "":
+			anim_state = _active_attack_anim
+		else:
+			var eff_wid := get_equipped_weapon_id()
+			if eff_wid != "" and GameData.WEAPON_DEFS.has(eff_wid):
+				anim_state = str(GameData.WEAPON_DEFS[eff_wid].get("attack_anim", cdef.get("attack_anim", "TOOL_SWING")))
+			else:
+				anim_state = str(cdef.get("attack_anim", "TOOL_SWING"))
 	elif _is_working_this_frame:
 		anim_state = str(cdef.get("work_anim", "WORK_BUILD"))
 	elif horiz_speed > 0.25 and not _mounted:
@@ -1097,7 +1168,10 @@ func _promote_to_leader(player_controlled: bool) -> void:
 	_retreating_to_heal = false
 	role = GameData.Role.WARRIOR
 	has_equipped_weapon = true
+	equipped_weapon_id = ""
 	has_armor = true
+	if equipped_armor_id == "NONE":
+		equipped_armor_id = ""
 	if GameState.factions.has(faction_id):
 		GameState.factions[faction_id]["leader_name"] = unit_name
 		weapon_tier = maxi(weapon_tier, int(GameState.factions[faction_id].get("tech_tier", 1)))
@@ -1125,6 +1199,19 @@ func set_role_and_class(new_role: int, new_warrior_class: int = -1) -> void:
 	recalculate_stats(false)
 
 
+static func _armor_rank(armor_id: String) -> int:
+	match armor_id:
+		"OBSIDIAN_PLATE":
+			return 4
+		"PELT_MANTLE":
+			return 3
+		"BONE_GUARD":
+			return 2
+		"HIDE_TUNIC":
+			return 1
+	return 0
+
+
 func try_equip_from_stockpile() -> void:
 	if not GameState.factions.has(faction_id):
 		return
@@ -1133,24 +1220,51 @@ func try_equip_from_stockpile() -> void:
 	var tier: int = int(fdata.get("tech_tier", 1))
 	var equipped_any := false
 
-	if not has_equipped_weapon or weapon_tier < tier:
-		var key := "spears"
-		if warrior_class == GameData.WarriorClass.KNIFE_RAIDER:
-			key = "knives"
-		elif warrior_class == GameData.WarriorClass.ARCHER:
-			key = "bows"
-		elif warrior_class == GameData.WarriorClass.BRUTE:
-			key = "clubs"
-		elif warrior_class == GameData.WarriorClass.JAVELINEER:
-			key = "javelins"
+	var cur_wid: String = get_equipped_weapon_id()
+	if (is_leader or warrior_class == GameData.WarriorClass.BRUTE) and tier >= 3 and int(stock.get("obsidian_cleavers", 0)) > 0 and cur_wid != "OBSIDIAN_CLEAVER":
+		stock["obsidian_cleavers"] = int(stock["obsidian_cleavers"]) - 1
+		if equipped_weapon_id != "" and GameData.WEAPON_DEFS.has(equipped_weapon_id):
+			var old_wkey: String = str(GameData.WEAPON_DEFS[equipped_weapon_id].get("stock_key", ""))
+			if old_wkey != "":
+				stock[old_wkey] = int(stock.get(old_wkey, 0)) + 1
+		equipped_weapon_id = "OBSIDIAN_CLEAVER"
+		has_equipped_weapon = true
+		weapon_tier = tier
+		equipped_any = true
+	elif not has_equipped_weapon or weapon_tier < tier:
+		var target_wid: String = "GREAT_SPEAR" if is_leader else GameData.resolve_default_weapon_id(GameData.Role.WARRIOR, warrior_class, false, false)
+		var key: String = str(GameData.WEAPON_DEFS.get(target_wid, {}).get("stock_key", "spears"))
 		if int(stock.get(key, 0)) > 0:
 			stock[key] = int(stock[key]) - 1
+			equipped_weapon_id = target_wid
 			has_equipped_weapon = true
 			weapon_tier = tier
 			equipped_any = true
 
-	if not has_armor and int(stock.get("armor", 0)) > 0:
-		stock["armor"] = int(stock["armor"]) - 1
+	var cur_aid: String = get_equipped_armor_id() if has_armor else "NONE"
+	var cur_rank: int = _armor_rank(cur_aid)
+	var upgrade_aid := ""
+	var upgrade_key := ""
+	if tier >= 3 and cur_rank < 4 and int(stock.get("obsidian_plate", 0)) > 0:
+		upgrade_aid = "OBSIDIAN_PLATE"
+		upgrade_key = "obsidian_plate"
+	elif tier >= 2 and cur_rank < 3 and int(stock.get("pelt_mantle", 0)) > 0:
+		upgrade_aid = "PELT_MANTLE"
+		upgrade_key = "pelt_mantle"
+	elif cur_rank < 2 and int(stock.get("armor", 0)) > 0:
+		upgrade_aid = "BONE_GUARD"
+		upgrade_key = "armor"
+	elif cur_rank < 1 and int(stock.get("hide_tunic", 0)) > 0:
+		upgrade_aid = "HIDE_TUNIC"
+		upgrade_key = "hide_tunic"
+
+	if upgrade_aid != "":
+		stock[upgrade_key] = int(stock[upgrade_key]) - 1
+		if equipped_armor_id != "" and equipped_armor_id != "NONE" and GameData.ARMOR_DEFS.has(equipped_armor_id):
+			var old_akey: String = str(GameData.ARMOR_DEFS[equipped_armor_id].get("stock_key", ""))
+			if old_akey != "":
+				stock[old_akey] = int(stock.get(old_akey, 0)) + 1
+		equipped_armor_id = upgrade_aid
 		has_armor = true
 		equipped_any = true
 
@@ -1630,6 +1744,8 @@ func serialize() -> Dictionary:
 		"has_equipped_weapon": has_equipped_weapon,
 		"weapon_tier": weapon_tier,
 		"has_armor": has_armor,
+		"equipped_weapon_id": equipped_weapon_id,
+		"equipped_armor_id": equipped_armor_id,
 		"hp": hp,
 		"squad_order": squad_order,
 		"hold_position": CampaignSave.pack_position(hold_position),

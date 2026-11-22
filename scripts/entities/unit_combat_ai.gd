@@ -80,17 +80,25 @@ static func process_rebel_ai(u: Node, delta: float) -> void:
 	u._patrol_around(camp, 8.0, delta)
 
 
+static func _unit_weapon_def(u: Node) -> Dictionary:
+	var wid: String = u.get_equipped_weapon_id() if u.has_method("get_equipped_weapon_id") else str(u.get("equipped_weapon_id"))
+	var eff_role: int = GameData.Role.WARRIOR if (u.has_method("_is_warhorn_militia") and u._is_warhorn_militia()) else int(u.role)
+	return GameData.resolve_weapon_def(wid, eff_role, int(u._get_effective_warrior_class()), u.is_leader == true, u.is_caveman == true)
+
+
 static func process_player_warrior(u: Node, delta: float, enemy: Node) -> void:
 	var p_leader: Node = GameState.get_faction_leader(0)
 	var camp: Vector3 = u._get_home_camp_pos()
-	var eff_class: int = int(u._get_effective_warrior_class())
-	var is_ranged_unit: bool = (eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER)
+	var wdef: Dictionary = _unit_weapon_def(u)
+	var is_ranged_unit: bool = bool(wdef.get("is_ranged", false))
 
 	# If unequipped or below faction tech tier and Rack/stockpile exists, equip periodically
 	var fid: int = int(u.faction_id)
 	var fdata: Dictionary = GameState.factions.get(fid, {})
 	var cur_tier: int = int(fdata.get("tech_tier", 1))
-	if int(u.role) == GameData.Role.WARRIOR and (u.has_equipped_weapon != true or int(u.weapon_tier) < cur_tier or u.has_armor != true) and float(u._ai_think_cd) <= 0.0:
+	var fstock: Dictionary = fdata.get("stockpile", {})
+	var has_tier_upgrade: bool = (cur_tier >= 2 and int(fstock.get("pelt_mantle", 0)) > 0) or (cur_tier >= 3 and (int(fstock.get("obsidian_plate", 0)) > 0 or int(fstock.get("obsidian_cleavers", 0)) > 0))
+	if int(u.role) == GameData.Role.WARRIOR and (u.has_equipped_weapon != true or int(u.weapon_tier) < cur_tier or u.has_armor != true or has_tier_upgrade) and float(u._ai_think_cd) <= 0.0:
 		u._ai_think_cd = 3.0
 		u.try_equip_from_stockpile()
 
@@ -223,8 +231,8 @@ static func cast_rival_leader_blessing(u: Node) -> void:
 
 static func can_shoot_or_reach(u: Node, enemy: Node) -> bool:
 	var d: float = (u as Node3D).global_position.distance_to((enemy as Node3D).global_position)
-	var eff_class: int = int(u._get_effective_warrior_class())
-	if eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER:
+	var wdef: Dictionary = _unit_weapon_def(u)
+	if bool(wdef.get("is_ranged", false)):
 		return u.fire_at_will == true and d <= float(u.attack_range)
 	return d <= 5.5
 
@@ -235,8 +243,10 @@ static func engage_target(u: Node, target: Node) -> void:
 	var t_pos: Vector3 = (target as Node3D).global_position
 	var d: float = u_pos.distance_to(t_pos)
 	var eff_class: int = int(u._get_effective_warrior_class())
+	var wdef: Dictionary = _unit_weapon_def(u)
+	var proj_type: String = str(wdef.get("projectile_type", ""))
 	var eff_speed: float = float(u.move_speed) * float(u._buff_speed_mult)
-	var is_ranged_kiter: bool = (eff_class == GameData.WarriorClass.ARCHER and d < 6.0) or (eff_class == GameData.WarriorClass.JAVELINEER and d < 4.2)
+	var is_ranged_kiter: bool = bool(wdef.get("is_ranged", false)) and ((proj_type == "ARROW" and d < 6.0) or (proj_type == "JAVELIN" and d < 4.2))
 	if is_ranged_kiter and float(u._attack_cd) > 0.15:
 		# Ranged skirmisher/archer kites away from closing melee threats while keeping aim
 		var away: Vector3 = u_pos - t_pos
@@ -276,6 +286,10 @@ static func engage_building(u: Node, b: Node) -> void:
 	var d: float = u_body.global_position.distance_to(b_pos)
 	var reach: float = maxf(float(u.attack_range), 3.0)
 	var eff_class: int = int(u._get_effective_warrior_class())
+	var wdef: Dictionary = _unit_weapon_def(u)
+	var w_anim: String = str(wdef.get("attack_anim", ""))
+	var is_ranged_atk: bool = bool(wdef.get("is_ranged", false))
+	var proj_type: String = str(wdef.get("projectile_type", ""))
 	if d > reach:
 		u._steer_toward(b_pos, float(u.move_speed) * float(u._buff_speed_mult))
 	else:
@@ -284,17 +298,17 @@ static func engage_building(u: Node, b: Node) -> void:
 		u._face_point(b_pos)
 		if float(u._attack_cd) <= 0.0:
 			u._attack_cd = float(u.attack_cooldown_max)
-			var anim_dur: float = 0.44 if eff_class == GameData.WarriorClass.BRUTE else 0.38
+			var anim_dur: float = 0.44 if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE) else 0.38
 			u.play_attack_animation("", anim_dur)
 			var dmg: float = float(u.attack_damage)
 			var fid: int = int(u.faction_id)
-			if eff_class == GameData.WarriorClass.BRUTE:
+			if eff_class == GameData.WarriorClass.BRUTE or w_anim == "HEAVY_SMASH":
 				dmg *= 1.35
 			if GameState.has_tenet(fid, "SACRED_CONQUEST"):
 				dmg *= 1.18
-			if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+			if is_ranged_atk and proj_type == "ARROW" and GameState.projectiles_container != null:
 				fire_arrow_at(u, b_pos + Vector3(0.0, 1.2, 0.0), dmg)
-			elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null:
+			elif is_ranged_atk and proj_type == "JAVELIN" and GameState.projectiles_container != null:
 				fire_javelin_at(u, b_pos + Vector3(0.0, 1.2, 0.0), dmg)
 			else:
 				b.take_damage(dmg, fid)
@@ -303,7 +317,11 @@ static func engage_building(u: Node, b: Node) -> void:
 static func execute_attack_on(u: Node, target: Node) -> void:
 	u._attack_cd = float(u.attack_cooldown_max)
 	var eff_class: int = int(u._get_effective_warrior_class())
-	var anim_dur: float = 0.44 if eff_class == GameData.WarriorClass.BRUTE else (0.34 if eff_class == GameData.WarriorClass.KNIFE_RAIDER else 0.40)
+	var wdef: Dictionary = _unit_weapon_def(u)
+	var w_anim: String = str(wdef.get("attack_anim", ""))
+	var is_ranged_atk: bool = bool(wdef.get("is_ranged", false))
+	var proj_type: String = str(wdef.get("projectile_type", ""))
+	var anim_dur: float = 0.44 if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE) else (0.34 if (w_anim == "DUAL_SLASH" or eff_class == GameData.WarriorClass.KNIFE_RAIDER) else 0.40)
 	u.play_attack_animation("", anim_dur)
 	var dmg: float = float(u.attack_damage)
 	var fid: int = int(u.faction_id)
@@ -313,7 +331,7 @@ static func execute_attack_on(u: Node, target: Node) -> void:
 		var god: int = int(GameState.factions[fid].get("patron_god", GameData.PatronGod.NONE))
 		if god == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
 			dmg *= 1.20
-		if god == GameData.PatronGod.FEN_ROR and (eff_class == GameData.WarriorClass.KNIFE_RAIDER or eff_class == GameData.WarriorClass.ARCHER):
+		if god == GameData.PatronGod.FEN_ROR and (eff_class == GameData.WarriorClass.KNIFE_RAIDER or eff_class == GameData.WarriorClass.ARCHER or proj_type == "ARROW" or str(wdef.get("id", "")) == "FLINT_DIRK"):
 			if randf() < 0.22:
 				dmg *= 1.65
 		if GameState.has_tenet(fid, "SACRED_CONQUEST") and target.get("faction_id") != null:
@@ -321,12 +339,12 @@ static func execute_attack_on(u: Node, target: Node) -> void:
 
 	var u3d := u as Node3D
 	var t_pos: Vector3 = (target as Node3D).global_position
-	if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
+	if is_ranged_atk and proj_type == "ARROW" and GameState.projectiles_container != null:
 		fire_arrow_at(u, t_pos + Vector3(0.0, 1.0, 0.0), dmg)
-	elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null and u3d.global_position.distance_to(t_pos) > 3.2:
+	elif is_ranged_atk and proj_type == "JAVELIN" and GameState.projectiles_container != null and u3d.global_position.distance_to(t_pos) > 3.2:
 		fire_javelin_at(u, t_pos + Vector3(0.0, 1.0, 0.0), dmg)
 	else:
-		var arc_scale: float = 1.25 if (eff_class == GameData.WarriorClass.BRUTE or u.is_leader == true) else 0.95
+		var arc_scale: float = 1.25 if (w_anim == "HEAVY_SMASH" or eff_class == GameData.WarriorClass.BRUTE or u.is_leader == true) else 0.95
 		CombatVFX.spawn_slash_arc(
 			GameState.world_node if GameState.world_node != null else u,
 			u3d.global_position,

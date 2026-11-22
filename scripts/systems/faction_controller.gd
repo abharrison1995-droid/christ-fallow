@@ -119,6 +119,11 @@ func queue_craft(item_key: String) -> bool:
 	var recipe: Dictionary = GameData.CRAFT_RECIPES.get(item_key, {})
 	if recipe.is_empty():
 		return false
+	var min_tier: int = int(recipe.get("min_tier", 1))
+	if int(GameState.factions[faction_id].get("tech_tier", 1)) < min_tier:
+		if faction_id == 0:
+			GameState.push_log("Requires %s to craft %s." % [GameData.TECH_TIER_NAMES.get(min_tier, "Tier %d" % min_tier), str(recipe["name"])], "warning")
+		return false
 	if not GameState.spend_resources(faction_id, recipe["costs"]):
 		if faction_id == 0:
 			GameState.push_log("Insufficient materials to craft %s." % recipe["name"], "warning")
@@ -270,9 +275,12 @@ func _run_rival_leader_ai() -> void:
 		recruit.set_role_and_class(GameData.Role.WARRIOR, target_cls)
 		warriors.append(recruit)
 
-	# Re-equip all AI warriors from stockpile when new weapons/armor are forged
+	# Re-equip all AI warriors and rival leader from stockpile when new weapons/armor are forged
 	for w in warriors:
 		w.try_equip_from_stockpile()
+	var rival_leader := GameState.get_faction_leader(faction_id)
+	if rival_leader != null and rival_leader.has_method("try_equip_from_stockpile"):
+		rival_leader.try_equip_from_stockpile()
 
 	# Allocate civilians dynamically based on colony needs
 	var food_amt: float = float(fdata["resources"].get("food", 0.0))
@@ -333,18 +341,20 @@ func _run_rival_leader_ai() -> void:
 	# 3. Craft & tech upgrade (Weapons + Armor)
 	if int(fdata["tech_tier"]) < 3 and GameState.day_count >= (int(fdata["tech_tier"]) * 2):
 		upgrade_stone_age_tier()
+	var cur_tier: int = int(fdata["tech_tier"])
 	var spec_key := "spears"
 	if sig_class == GameData.WarriorClass.KNIFE_RAIDER:
 		spec_key = "knives"
 	elif sig_class == GameData.WarriorClass.ARCHER:
 		spec_key = "bows"
 	elif sig_class == GameData.WarriorClass.BRUTE:
-		spec_key = "clubs"
+		spec_key = "obsidian_cleavers" if cur_tier >= 3 else "clubs"
 	elif sig_class == GameData.WarriorClass.JAVELINEER:
 		spec_key = "javelins"
+	var armor_key := "obsidian_plate" if cur_tier >= 3 else ("pelt_mantle" if cur_tier >= 2 else "armor")
 	if fdata["craft_queue"].size() < 2:
-		if int(fdata["stockpile"].get("armor", 0)) < desired_warriors and GameState.can_afford(faction_id, GameData.CRAFT_RECIPES["armor"]["costs"]):
-			queue_craft("armor")
+		if int(fdata["stockpile"].get(armor_key, 0)) < desired_warriors and GameState.can_afford(faction_id, GameData.CRAFT_RECIPES[armor_key]["costs"]):
+			queue_craft(armor_key)
 		elif GameState.can_afford(faction_id, GameData.CRAFT_RECIPES[spec_key]["costs"]):
 			queue_craft(spec_key)
 

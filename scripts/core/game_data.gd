@@ -630,36 +630,296 @@ const TIER_UPGRADE_COSTS := {
 	3: {"wood": 50, "stone": 45, "flint": 40, "hide": 30, "bone": 25},
 }
 
+const WEAPON_DEFS := {
+	"GREAT_SPEAR": {
+		"id": "GREAT_SPEAR",
+		"name": "Chieftain Great-Spear",
+		"stock_key": "great_spears",
+		"warrior_class": WarriorClass.SPEARMAN,
+		"slot": "MELEE",
+		"min_tier": 1,
+		"dmg_mult": 1.08,
+		"range_override": 2.95,
+		"cooldown_mult": 1.05,
+		"move_mult": 0.98,
+		"armor_bonus": 0.0,
+		"glb_path": "res://assets/models/gear/leader/great_spear.glb",
+		"offhand_glb": "res://assets/models/gear/spearman/hide_buckler.glb",
+		"proc_weapon": "GREAT_SPEAR",
+		"proc_offhand": "BUCKLER_SHIELD",
+		"attack_anim": "LEADER_CLEAVE",
+		"is_ranged": false,
+		"projectile_type": "",
+		"desc": "Long-hafted chieftain spear balanced for sweeping cleaves and shield formations.",
+	},
+	"STONE_SPEAR": {
+		"id": "STONE_SPEAR",
+		"name": "Stone Spear",
+		"stock_key": "spears",
+		"warrior_class": WarriorClass.SPEARMAN,
+		"slot": "MELEE",
+		"min_tier": 1,
+		"dmg_mult": 1.0,
+		"range_override": 0.0,
+		"cooldown_mult": 1.0,
+		"move_mult": 1.0,
+		"armor_bonus": 2.0,
+		"glb_path": "res://assets/models/gear/spearman/spear.glb",
+		"offhand_glb": "res://assets/models/gear/spearman/hide_buckler.glb",
+		"proc_weapon": "SPEAR",
+		"proc_offhand": "BUCKLER_SHIELD",
+		"attack_anim": "SPEAR_THRUST",
+		"is_ranged": false,
+		"projectile_type": "",
+		"desc": "Dependable flint-tipped war spear paired with a hide buckler.",
+	},
+	"FLINT_DIRK": {
+		"id": "FLINT_DIRK",
+		"name": "Flint Dirk Pair",
+		"stock_key": "knives",
+		"warrior_class": WarriorClass.KNIFE_RAIDER,
+		"slot": "MELEE",
+		"min_tier": 1,
+		"dmg_mult": 0.85,
+		"range_override": 1.9,
+		"cooldown_mult": 0.65,
+		"move_mult": 1.12,
+		"armor_bonus": 0.0,
+		"glb_path": "res://assets/models/gear/knife_raider/dirk.glb",
+		"offhand_glb": "res://assets/models/gear/knife_raider/dirk.glb",
+		"proc_weapon": "KNIFE",
+		"proc_offhand": "OFFHAND_DIRK",
+		"attack_anim": "DUAL_SLASH",
+		"is_ranged": false,
+		"projectile_type": "",
+		"desc": "Twin knapped flint blades for rapid flanking strikes and agile movement.",
+	},
+	"HUNTING_BOW": {
+		"id": "HUNTING_BOW",
+		"name": "Hunting Bow",
+		"stock_key": "bows",
+		"warrior_class": WarriorClass.ARCHER,
+		"slot": "RANGED",
+		"min_tier": 1,
+		"dmg_mult": 1.0,
+		"range_override": 17.5,
+		"cooldown_mult": 1.22,
+		"move_mult": 1.0,
+		"armor_bonus": 0.0,
+		"glb_path": "res://assets/models/gear/archer/arrow.glb",
+		"offhand_glb": "res://assets/models/gear/archer/bow.glb",
+		"proc_weapon": "ARROW_HAND",
+		"proc_offhand": "BOW",
+		"attack_anim": "BOW_SHOT",
+		"is_ranged": true,
+		"projectile_type": "ARROW",
+		"desc": "Curved sinew-backed hunting bow firing flint-headed arrows from afar.",
+	},
+	"WAR_CLUB": {
+		"id": "WAR_CLUB",
+		"name": "Bone War-Club",
+		"stock_key": "clubs",
+		"warrior_class": WarriorClass.BRUTE,
+		"slot": "MELEE",
+		"min_tier": 1,
+		"dmg_mult": 1.24,
+		"range_override": 2.45,
+		"cooldown_mult": 1.28,
+		"move_mult": 0.94,
+		"armor_bonus": 0.0,
+		"glb_path": "res://assets/models/gear/brute/flint_maul.glb",
+		"offhand_glb": "",
+		"proc_weapon": "WAR_CLUB",
+		"proc_offhand": "NONE",
+		"attack_anim": "HEAVY_SMASH",
+		"is_ranged": false,
+		"projectile_type": "",
+		"desc": "Heavy jawbone and flint maul built for shattering shields and fortifications.",
+	},
+	"BARBED_JAVELIN": {
+		"id": "BARBED_JAVELIN",
+		"name": "Barbed Javelin",
+		"stock_key": "javelins",
+		"warrior_class": WarriorClass.JAVELINEER,
+		"slot": "RANGED",
+		"min_tier": 1,
+		"dmg_mult": 1.0,
+		"range_override": 11.5,
+		"cooldown_mult": 1.26,
+		"move_mult": 1.06,
+		"armor_bonus": 0.0,
+		"glb_path": "res://assets/models/gear/javelineer/barbed_javelin.glb",
+		"offhand_glb": "res://assets/models/gear/spearman/hide_buckler.glb",
+		"proc_weapon": "JAVELIN",
+		"proc_offhand": "TARGET_SHIELD",
+		"attack_anim": "JAVELIN_THROW",
+		"is_ranged": true,
+		"projectile_type": "JAVELIN",
+		"desc": "Balanced throwing spear and light target shield for mobile skirmishing.",
+	},
+	"OBSIDIAN_CLEAVER": {
+		"id": "OBSIDIAN_CLEAVER",
+		"name": "Obsidian Cleaver",
+		"stock_key": "obsidian_cleavers",
+		"warrior_class": WarriorClass.BRUTE,
+		"slot": "MELEE",
+		"min_tier": 3,
+		"dmg_mult": 1.26,
+		"range_override": 2.60,
+		"cooldown_mult": 1.06,
+		"move_mult": 0.97,
+		"armor_bonus": 1.0,
+		"glb_path": "res://assets/models/gear/brute/flint_maul.glb",
+		"offhand_glb": "",
+		"proc_weapon": "WAR_CLUB",
+		"proc_offhand": "NONE",
+		"attack_anim": "HEAVY_SMASH",
+		"is_ranged": false,
+		"projectile_type": "",
+		"desc": "Tier III volcanic-glass cleaver-maul that carves through armor and bone.",
+	},
+}
+
+const ARMOR_DEFS := {
+	"NONE": {
+		"id": "NONE",
+		"name": "Unarmored",
+		"stock_key": "",
+		"min_tier": 1,
+		"armor_bonus": 0.0,
+		"hp_bonus": 0.0,
+		"move_mult": 1.0,
+		"glb_path": "",
+		"tint": Color.WHITE,
+		"desc": "Simple tribal wraps offering full agility but no armor protection.",
+	},
+	"HIDE_TUNIC": {
+		"id": "HIDE_TUNIC",
+		"name": "Cured Hide Tunic",
+		"stock_key": "hide_tunic",
+		"min_tier": 1,
+		"armor_bonus": 5.0,
+		"hp_bonus": 10.0,
+		"move_mult": 1.0,
+		"glb_path": "res://assets/models/gear/forager/workwear.glb",
+		"tint": Color.WHITE,
+		"desc": "Lightweight cured leather tunic granting modest protection with zero weight penalty.",
+	},
+	"BONE_GUARD": {
+		"id": "BONE_GUARD",
+		"name": "Bone & Hide Guard",
+		"stock_key": "armor",
+		"min_tier": 1,
+		"armor_bonus": 8.0,
+		"hp_bonus": 0.0,
+		"move_mult": 1.0,
+		"glb_path": "res://assets/models/gear/spearman/bone_guard.glb",
+		"tint": Color.WHITE,
+		"desc": "Stitched hide harness plated with carved beast ribs and shoulder guards.",
+	},
+	"PELT_MANTLE": {
+		"id": "PELT_MANTLE",
+		"name": "Trophy Pelt Mantle",
+		"stock_key": "pelt_mantle",
+		"min_tier": 2,
+		"armor_bonus": 10.0,
+		"hp_bonus": 25.0,
+		"move_mult": 0.98,
+		"glb_path": "res://assets/models/gear/caveman/trophy_pelt.glb",
+		"tint": Color.WHITE,
+		"desc": "Thick predator-fur mantle reinforced with trophy bone plates for hardy frontliners.",
+	},
+	"OBSIDIAN_PLATE": {
+		"id": "OBSIDIAN_PLATE",
+		"name": "Obsidian Bone Plate",
+		"stock_key": "obsidian_plate",
+		"min_tier": 3,
+		"armor_bonus": 18.0,
+		"hp_bonus": 40.0,
+		"move_mult": 0.95,
+		"glb_path": "res://assets/models/gear/spearman/bone_guard.glb",
+		"tint": Color(0.20, 0.16, 0.26),
+		"desc": "Tier III interlocking obsidian and mammoth-bone harness forged for warlords.",
+	},
+}
+
 const CRAFT_RECIPES := {
 	"spears": {
 		"name": "Stone Spear",
 		"costs": {"wood": 4, "flint": 2},
 		"craft_time": 4.0,
+		"weapon_id": "STONE_SPEAR",
+		"min_tier": 1,
 	},
 	"knives": {
 		"name": "Flint Knife / Dirk",
 		"costs": {"wood": 2, "flint": 3},
 		"craft_time": 3.0,
+		"weapon_id": "FLINT_DIRK",
+		"min_tier": 1,
 	},
 	"bows": {
 		"name": "Hunting Bow",
 		"costs": {"wood": 5, "hide": 2, "flint": 1},
 		"craft_time": 4.5,
+		"weapon_id": "HUNTING_BOW",
+		"min_tier": 1,
 	},
 	"clubs": {
 		"name": "Bone War-Club",
 		"costs": {"wood": 4, "stone": 3, "bone": 2},
 		"craft_time": 4.2,
+		"weapon_id": "WAR_CLUB",
+		"min_tier": 1,
 	},
 	"javelins": {
 		"name": "Barbed Javelins",
 		"costs": {"wood": 4, "flint": 3},
 		"craft_time": 3.8,
+		"weapon_id": "BARBED_JAVELIN",
+		"min_tier": 1,
 	},
 	"armor": {
-		"name": "Hide & Bone Armor",
+		"name": "Bone & Hide Guard",
 		"costs": {"hide": 4, "bone": 2},
 		"craft_time": 5.0,
+		"armor_id": "BONE_GUARD",
+		"min_tier": 1,
+	},
+	"great_spears": {
+		"name": "Chieftain Great-Spear",
+		"costs": {"wood": 6, "flint": 4, "bone": 2},
+		"craft_time": 5.2,
+		"weapon_id": "GREAT_SPEAR",
+		"min_tier": 1,
+	},
+	"obsidian_cleavers": {
+		"name": "Obsidian Cleaver",
+		"costs": {"wood": 4, "flint": 6, "bone": 3},
+		"craft_time": 5.8,
+		"weapon_id": "OBSIDIAN_CLEAVER",
+		"min_tier": 3,
+	},
+	"hide_tunic": {
+		"name": "Cured Hide Tunic",
+		"costs": {"hide": 3, "wood": 1},
+		"craft_time": 3.5,
+		"armor_id": "HIDE_TUNIC",
+		"min_tier": 1,
+	},
+	"pelt_mantle": {
+		"name": "Trophy Pelt Mantle",
+		"costs": {"hide": 5, "bone": 3},
+		"craft_time": 5.2,
+		"armor_id": "PELT_MANTLE",
+		"min_tier": 2,
+	},
+	"obsidian_plate": {
+		"name": "Obsidian Bone Plate",
+		"costs": {"hide": 5, "bone": 4, "flint": 5},
+		"craft_time": 6.5,
+		"armor_id": "OBSIDIAN_PLATE",
+		"min_tier": 3,
 	},
 }
 
@@ -1025,3 +1285,65 @@ static func resolve_effective_lineage(lineage_id: int, is_caveman_flag: bool) ->
 	if LINEAGE_DATA.has(lineage_id):
 		return lineage_id
 	return Lineage.CRAG_BORN
+
+
+static func resolve_default_weapon_id(role: int, warrior_class: int, is_leader: bool, is_caveman: bool) -> String:
+	if is_leader:
+		return "GREAT_SPEAR"
+	if is_caveman:
+		return ""
+	if role == Role.WARRIOR:
+		match warrior_class:
+			WarriorClass.KNIFE_RAIDER:
+				return "FLINT_DIRK"
+			WarriorClass.ARCHER:
+				return "HUNTING_BOW"
+			WarriorClass.BRUTE:
+				return "WAR_CLUB"
+			WarriorClass.JAVELINEER:
+				return "BARBED_JAVELIN"
+			_:
+				return "STONE_SPEAR"
+	return ""
+
+
+static func resolve_default_armor_id(has_armor: bool, _weapon_tier: int, _is_leader: bool = false) -> String:
+	if not has_armor:
+		return "NONE"
+	return "BONE_GUARD"
+
+
+static func find_weapon_by_stock_key(stock_key: String) -> Dictionary:
+	if stock_key == "":
+		return {}
+	for wid in WEAPON_DEFS:
+		var wdef: Dictionary = WEAPON_DEFS[wid]
+		if str(wdef.get("stock_key", "")) == stock_key:
+			return wdef
+	return {}
+
+
+static func find_armor_by_stock_key(stock_key: String) -> Dictionary:
+	if stock_key == "":
+		return {}
+	for aid in ARMOR_DEFS:
+		var adef: Dictionary = ARMOR_DEFS[aid]
+		if str(adef.get("stock_key", "")) == stock_key:
+			return adef
+	return {}
+
+
+static func resolve_weapon_def(weapon_id: String, role: int, warrior_class: int, is_leader: bool, is_caveman: bool) -> Dictionary:
+	if weapon_id != "" and WEAPON_DEFS.has(weapon_id):
+		return WEAPON_DEFS[weapon_id]
+	var default_id: String = resolve_default_weapon_id(role, warrior_class, is_leader, is_caveman)
+	if default_id != "" and WEAPON_DEFS.has(default_id):
+		return WEAPON_DEFS[default_id]
+	return {}
+
+
+static func resolve_armor_def(armor_id: String, has_armor: bool, weapon_tier: int) -> Dictionary:
+	if armor_id != "" and ARMOR_DEFS.has(armor_id):
+		return ARMOR_DEFS[armor_id]
+	var default_id: String = resolve_default_armor_id(has_armor, weapon_tier)
+	return ARMOR_DEFS.get(default_id, ARMOR_DEFS["NONE"])

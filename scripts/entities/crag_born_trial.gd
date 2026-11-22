@@ -26,6 +26,34 @@ const SPECIALIST_CLIPS := {
 	"LEADER": [&"leader", &"LeaderCleave"],
 }
 const WORKFORCE_KITS := ["HUNTER", "LUMBERJACK", "STONEKNAPPER", "BUILDER_CRAFTER", "SHAMAN", "TRAINEE"]
+const WEAPON_MOUNT_TRANSFORMS := {
+	"GREAT_SPEAR": {
+		"offset": GRIP_R, "rot": Vector3(-0.37, 0.0, 0.23),
+		"offhand_offset": GRIP_L, "offhand_rot": Vector3(-0.70, 0.0, 0.0),
+	},
+	"STONE_SPEAR": {
+		"offset": GRIP_R, "dir": Vector3(-0.085, 0.84, -0.54),
+		"offhand_offset": GRIP_L, "offhand_rot": Vector3(-0.70, 0.0, 0.0),
+	},
+	"FLINT_DIRK": {
+		"offset": GRIP_R, "rot": Vector3(-0.47, 0.0, 0.22),
+		"offhand_offset": GRIP_L, "offhand_rot": Vector3(-0.48, 0.0, -0.22),
+	},
+	"HUNTING_BOW": {
+		"offset": GRIP_R, "rot": Vector3(-1.45, 0.0, 0.0),
+		"offhand_offset": GRIP_L, "offhand_rot": Vector3(-0.20, 0.14, -0.26),
+	},
+	"WAR_CLUB": {
+		"offset": GRIP_R, "rot": Vector3(-0.40, 0.0, 0.34),
+	},
+	"OBSIDIAN_CLEAVER": {
+		"offset": GRIP_R, "rot": Vector3(-0.40, 0.0, 0.34),
+	},
+	"BARBED_JAVELIN": {
+		"offset": GRIP_R, "rot": Vector3(-0.78, 0.0, 0.21),
+		"offhand_offset": GRIP_L, "offhand_rot": Vector3(-0.70, 0.0, 0.0),
+	},
+}
 const KIT_ITEMS := {
 	"KNIFE_RAIDER": [
 		["Hand.R", "Weapon", "knife_raider/dirk", GRIP_R, Vector3(-0.47, 0, 0.22)],
@@ -88,8 +116,14 @@ const KIT_ITEMS := {
 }
 
 static var _move_libraries := {}
+static var _scene_cache: Dictionary = {}
 var _armor: Node3D
 var _tier_surfaces: Array[ShaderMaterial] = []
+var _faction_color: Color = Color.WHITE
+var _class_key: String = ""
+var _equipped_weapon_id: String = ""
+var _equipped_armor_id: String = ""
+var _force_obsidian_weapon: bool = false
 
 
 static func enabled() -> bool:
@@ -118,6 +152,8 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		lineage: int = GameData.Lineage.CRAG_BORN) -> bool:
 	if not supports_lineage(lineage):
 		return false
+	_faction_color = faction_color
+	_class_key = class_key
 	var guard := class_key in ["SPEARMAN", "CAVEMAN", "TRAINEE"]
 	_idle_clip = &"GuardIdle" if guard else &"Idle"
 	_walk_clip = &"GuardWalk" if guard else &"Walk"
@@ -175,6 +211,9 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 		if not _mount(skeleton, "Chest", "Chestwear", "forager/workwear", Vector3(0, 0, -0.038)):
 			return false
 
+	_equipped_weapon_id = _default_weapon_for_kit(class_key)
+	_equipped_armor_id = "BONE_GUARD" if class_key == "SPEARMAN" else "NONE"
+
 	_body_materials = apply_materials(mesh_factory, model, faction_color)
 	if _body_materials.is_empty():
 		return false
@@ -191,11 +230,29 @@ func setup_kit(mesh_factory: Node, faction_color: Color, variant: String, class_
 	return true
 
 
+static func _default_weapon_for_kit(class_key: String) -> String:
+	match class_key:
+		"LEADER":
+			return "GREAT_SPEAR"
+		"SPEARMAN":
+			return "STONE_SPEAR"
+		"KNIFE_RAIDER":
+			return "FLINT_DIRK"
+		"ARCHER":
+			return "HUNTING_BOW"
+		"BRUTE":
+			return "WAR_CLUB"
+		"JAVELINEER":
+			return "BARBED_JAVELIN"
+	return ""
+
+
 func _set_role_clip(library_name: StringName, clip: StringName) -> bool:
 	var moves := _get_moves(library_name)
 	if moves == null or not moves.has_animation(clip):
 		return false
-	_animation.add_animation_library(library_name, moves)
+	if not _animation.has_animation_library(library_name):
+		_animation.add_animation_library(library_name, moves)
 	_attack_clip = StringName("%s/%s" % [library_name, clip])
 	return true
 
@@ -216,38 +273,177 @@ static func _get_moves(library_name: StringName) -> AnimationLibrary:
 
 
 func _collect_tier_surfaces(skeleton: Skeleton3D) -> void:
+	_tier_surfaces.clear()
 	for slot_name in ["Weapon", "Offhand"]:
 		var slot := skeleton.get_node_or_null(slot_name)
 		if slot == null:
 			continue
 		for node in slot.find_children("*", "MeshInstance3D", true, false):
 			var mesh_node := node as MeshInstance3D
+			if mesh_node == null or mesh_node.mesh == null:
+				continue
 			for surface in range(mesh_node.mesh.get_surface_count()):
 				var source := mesh_node.mesh.surface_get_material(surface)
-				if _resolve_texture_kind(source.resource_name) == "stone":
+				if source != null and _resolve_texture_kind(source.resource_name) == "stone":
 					var shader := mesh_node.get_surface_override_material(surface) as ShaderMaterial
 					if shader != null:
-						shader.set_meta("base_tint", shader.get_shader_parameter("base_color"))
+						if not shader.has_meta("base_tint"):
+							shader.set_meta("base_tint", shader.get_shader_parameter("base_color"))
 						_tier_surfaces.append(shader)
+
+
+func _rebuild_body_material_list() -> void:
+	_body_materials.clear()
+	for node in find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		if mi.material_override is ShaderMaterial:
+			_body_materials.append(mi.material_override as ShaderMaterial)
+			continue
+		for surface in range(mi.mesh.get_surface_count()):
+			var mat := mi.get_surface_override_material(surface) as ShaderMaterial
+			if mat != null:
+				_body_materials.append(mat)
+	_capture_base_emissions()
+	_last_hit_flash = -1.0
+
+
+func equip_gear(mesh_factory: Node, weapon_id: String, armor_id: String, weapon_tier: int) -> void:
+	if _skeleton == null or mesh_factory == null:
+		return
+	var materials_dirty := false
+
+	if weapon_id != "" and GameData.WEAPON_DEFS.has(weapon_id):
+		_force_obsidian_weapon = (weapon_id == "OBSIDIAN_CLEAVER")
+		if weapon_id != _equipped_weapon_id:
+			for slot_name in ["Weapon", "Offhand"]:
+				var old_slot := _skeleton.get_node_or_null(slot_name)
+				if old_slot != null:
+					_skeleton.remove_child(old_slot)
+					old_slot.queue_free()
+			var wdef: Dictionary = GameData.WEAPON_DEFS[weapon_id]
+			var tf: Dictionary = WEAPON_MOUNT_TRANSFORMS.get(weapon_id, {"offset": GRIP_R, "rot": Vector3(-0.37, 0.0, 0.23)})
+			var w_basis := Basis.IDENTITY
+			if tf.has("dir"):
+				var d: Vector3 = tf["dir"]
+				w_basis = Basis(Quaternion(Vector3.UP, d.normalized()))
+			elif tf.has("rot"):
+				w_basis = Basis.from_euler(tf["rot"])
+			var w_path: String = str(wdef.get("glb_path", ""))
+			if w_path != "" and _mount_glb(_skeleton, "Hand.R", "Weapon", w_path, tf.get("offset", GRIP_R), w_basis):
+				var w_slot := _skeleton.get_node_or_null("Weapon")
+				if w_slot != null:
+					apply_materials(mesh_factory, w_slot, _faction_color)
+			var o_path: String = str(wdef.get("offhand_glb", ""))
+			if o_path != "":
+				var o_basis := Basis.from_euler(tf.get("offhand_rot", Vector3(-0.70, 0.0, 0.0)))
+				if _mount_glb(_skeleton, "Hand.L", "Offhand", o_path, tf.get("offhand_offset", GRIP_L), o_basis):
+					var o_slot := _skeleton.get_node_or_null("Offhand")
+					if o_slot != null:
+						apply_materials(mesh_factory, o_slot, _faction_color)
+			_update_clips_for_weapon(weapon_id)
+			_collect_tier_surfaces(_skeleton)
+			_equipped_weapon_id = weapon_id
+			materials_dirty = true
+	else:
+		_force_obsidian_weapon = false
+
+	var eff_armor_id: String = armor_id if (armor_id != "" and GameData.ARMOR_DEFS.has(armor_id)) else "NONE"
+	if eff_armor_id == "NONE":
+		if _armor != null and is_instance_valid(_armor):
+			_armor.visible = false
+		if _class_key == "SPEARMAN":
+			var cw := _skeleton.get_node_or_null("Chestwear") as Node3D
+			if cw != null:
+				cw.visible = false
+		_equipped_armor_id = "NONE"
+	elif eff_armor_id == "BONE_GUARD" and _class_key == "SPEARMAN" and _armor == null:
+		var cw := _skeleton.get_node_or_null("Chestwear") as Node3D
+		if cw != null:
+			cw.visible = true
+		_equipped_armor_id = "BONE_GUARD"
+	else:
+		if _class_key == "SPEARMAN":
+			var cw := _skeleton.get_node_or_null("Chestwear") as Node3D
+			if cw != null:
+				cw.visible = false
+		if eff_armor_id != _equipped_armor_id or _armor == null or not is_instance_valid(_armor):
+			if _armor != null and is_instance_valid(_armor):
+				_skeleton.remove_child(_armor)
+				_armor.queue_free()
+				_armor = null
+			var adef: Dictionary = GameData.ARMOR_DEFS[eff_armor_id]
+			var a_path: String = str(adef.get("glb_path", ""))
+			var a_off := Vector3(0.0, 0.0, -0.038) if "workwear.glb" in a_path else Vector3.ZERO
+			if a_path != "" and _mount_glb(_skeleton, "Chest", "Armor", a_path, a_off):
+				_armor = _skeleton.get_node_or_null("Armor") as Node3D
+				if _armor != null:
+					var armor_mats := apply_materials(mesh_factory, _armor, _faction_color)
+					var a_tint: Color = adef.get("tint", Color.WHITE)
+					if a_tint != Color.WHITE:
+						for smat in armor_mats:
+							var cur_v: Variant = smat.get_shader_parameter("base_color")
+							var cur_col: Color = cur_v if cur_v is Color else Color.WHITE
+							smat.set_shader_parameter("base_color", cur_col.lerp(a_tint, 0.82))
+					materials_dirty = true
+			_equipped_armor_id = eff_armor_id
+		if _armor != null and is_instance_valid(_armor):
+			_armor.visible = true
+
+	if materials_dirty:
+		_rebuild_body_material_list()
+		for smat in _body_materials:
+			smat.set_shader_parameter("enable_jitter", _jitter_enabled)
+	sync_equipment(weapon_tier, eff_armor_id != "NONE")
+
+
+func _update_clips_for_weapon(weapon_id: String) -> void:
+	if _animation == null:
+		return
+	var use_guard := (weapon_id == "STONE_SPEAR")
+	_idle_clip = &"GuardIdle" if (use_guard and _animation.has_animation(&"GuardIdle")) else &"Idle"
+	_walk_clip = &"GuardWalk" if (use_guard and _animation.has_animation(&"GuardWalk")) else &"Walk"
+	match weapon_id:
+		"GREAT_SPEAR":
+			_set_role_clip(&"leader", &"LeaderCleave")
+		"STONE_SPEAR":
+			_attack_clip = &"Attack"
+		"FLINT_DIRK":
+			_set_role_clip(&"combat", &"KnifeSlash")
+		"HUNTING_BOW":
+			_set_role_clip(&"combat", &"BowRelease")
+		"WAR_CLUB", "OBSIDIAN_CLEAVER":
+			_set_role_clip(&"combat", &"ClubSmash")
+		"BARBED_JAVELIN":
+			_set_role_clip(&"combat", &"JavelinCast")
 
 
 func sync_equipment(tier: int, armored: bool) -> void:
 	if _armor != null:
 		_armor.visible = armored
+	var eff_tier := maxi(tier, 3) if _force_obsidian_weapon else tier
 	for shader in _tier_surfaces:
+		if not is_instance_valid(shader):
+			continue
 		var base: Color = shader.get_meta("base_tint")
-		var tint := base.lightened(0.24) if tier == 2 else base
-		if tier >= 3:
+		var tint := base.lightened(0.24) if eff_tier == 2 else base
+		if eff_tier >= 3:
 			tint = base.lerp(Color(0.11, 0.09, 0.14), 0.65)
 		shader.set_shader_parameter("base_color", tint)
 
 
 func _mount(skeleton: Skeleton3D, bone_name: String, slot_name: String, asset: String,
 		offset: Vector3, orientation := Basis.IDENTITY) -> bool:
+	return _mount_glb(skeleton, bone_name, slot_name, "%s/%s.glb" % [GEAR, asset], offset, orientation)
+
+
+func _mount_glb(skeleton: Skeleton3D, bone_name: String, slot_name: String, glb_path: String,
+		offset: Vector3, orientation := Basis.IDENTITY) -> bool:
 	var bone := skeleton.find_bone(bone_name)
 	if bone < 0:
 		return false
-	var item := _instantiate_model("%s/%s.glb" % [GEAR, asset])
+	var item := _instantiate_model(glb_path)
 	if item == null:
 		return false
 
@@ -263,9 +459,15 @@ func _mount(skeleton: Skeleton3D, bone_name: String, slot_name: String, asset: S
 
 
 static func _instantiate_model(path: String) -> Node3D:
-	if not ResourceLoader.exists(path, "PackedScene"):
-		return null
-	var scene := load(path) as PackedScene
+	var scene: PackedScene = null
+	if _scene_cache.has(path):
+		scene = _scene_cache[path] as PackedScene
+	else:
+		if not ResourceLoader.exists(path, "PackedScene"):
+			return null
+		scene = load(path) as PackedScene
+		if scene != null:
+			_scene_cache[path] = scene
 	if scene == null:
 		return null
 	return scene.instantiate() as Node3D

@@ -832,19 +832,41 @@ static func _activate_hand_item(mf: Node, mount: Node, item_name: String, tip_co
 			tip.material_override = mf.make_mat(tip_col, 0.38, tip_col * 0.22 if weapon_tier >= 3 else Color.BLACK, 0.45 if weapon_tier >= 3 else 0.0)
 
 
-static func update_human_gear(mf: Node, visual_root: Node3D, weapon_type: String, weapon_tier: int, has_armor: bool, is_worker_tool: bool, class_key: String = "") -> void:
+static func update_human_gear(mf: Node, visual_root: Node3D, weapon_type: String, weapon_tier: int, has_armor: bool, is_worker_tool: bool, class_key: String = "", weapon_id: String = "", armor_id: String = "") -> void:
 	var chest := find_chest(visual_root)
 	if chest == null:
 		return
 
+	var eff_armor_id := armor_id if (armor_id != "" and GameData.ARMOR_DEFS.has(armor_id)) else ("BONE_GUARD" if has_armor else "NONE")
+	var eff_has_armor := has_armor and eff_armor_id != "NONE"
 	var armor_mount := chest.get_node_or_null("ArmorMount")
 	if armor_mount != null:
-		armor_mount.visible = has_armor
-		if has_armor:
+		armor_mount.visible = eff_has_armor
+		if eff_has_armor:
 			var armor_col := Color(0.56, 0.38, 0.24) if weapon_tier == 1 else (Color(0.84, 0.80, 0.70) if weapon_tier == 2 else Color(0.20, 0.16, 0.26))
+			var armor_tex := "bone"
+			var use_glow := weapon_tier >= 3
+			match eff_armor_id:
+				"HIDE_TUNIC":
+					armor_col = Color(0.54, 0.36, 0.22)
+					armor_tex = "hide"
+					use_glow = false
+				"PELT_MANTLE":
+					armor_col = Color(0.68, 0.62, 0.52)
+					armor_tex = "hide"
+					use_glow = false
+				"OBSIDIAN_PLATE":
+					var adef: Dictionary = GameData.ARMOR_DEFS["OBSIDIAN_PLATE"]
+					armor_col = adef.get("tint", Color(0.20, 0.16, 0.26))
+					armor_tex = "bone"
+					use_glow = true
 			var cp := armor_mount.get_node_or_null("ChestPlate") as MeshInstance3D
 			if cp != null:
-				cp.material_override = mf.make_mat(armor_col, 0.65, armor_col * 0.18 if weapon_tier >= 3 else Color.BLACK, 0.35 if weapon_tier >= 3 else 0.0, 1.0, "bone")
+				cp.material_override = mf.make_mat(armor_col, 0.65, armor_col * 0.18 if use_glow else Color.BLACK, 0.35 if use_glow else 0.0, 1.0, armor_tex)
+			for p_name in ["PauldronL", "PauldronR"]:
+				var pd := armor_mount.get_node_or_null(p_name) as MeshInstance3D
+				if pd != null:
+					pd.material_override = mf.make_mat(armor_col.darkened(0.12), 0.75, armor_col * 0.14 if use_glow else Color.BLACK, 0.25 if use_glow else 0.0, 1.0, "hide")
 
 	var sh_r := chest.get_node_or_null("ShoulderR")
 	var sh_l := chest.get_node_or_null("ShoulderL")
@@ -862,7 +884,14 @@ static func update_human_gear(mf: Node, visual_root: Node3D, weapon_type: String
 
 	var eff_w := ""
 	var eff_o := "NONE"
-	if class_key != "" and GameData.CLASS_DEFINITIONS.has(class_key):
+	var eff_tier := weapon_tier
+	if weapon_id != "" and GameData.WEAPON_DEFS.has(weapon_id) and not is_worker_tool:
+		var wdef: Dictionary = GameData.WEAPON_DEFS[weapon_id]
+		eff_w = str(wdef.get("proc_weapon", "SPEAR"))
+		eff_o = str(wdef.get("proc_offhand", "NONE"))
+		if weapon_id == "OBSIDIAN_CLEAVER":
+			eff_tier = maxi(weapon_tier, 3)
+	elif class_key != "" and GameData.CLASS_DEFINITIONS.has(class_key):
 		var cdef: Dictionary = GameData.CLASS_DEFINITIONS[class_key]
 		eff_w = str(cdef.get("weapon", "SPEAR"))
 		eff_o = str(cdef.get("offhand", "NONE"))
@@ -880,6 +909,6 @@ static func update_human_gear(mf: Node, visual_root: Node3D, weapon_type: String
 			eff_w = legacy_map[weapon_type][0]
 			eff_o = legacy_map[weapon_type][1]
 
-	var tip_col := Color(0.55, 0.52, 0.48) if weapon_tier <= 1 else (Color(0.24, 0.28, 0.34) if weapon_tier == 2 else Color(0.14, 0.10, 0.24))
-	_activate_hand_item(mf, w_mount, eff_w, tip_col, weapon_tier, eff_w != "SHAMAN_STAFF")
-	_activate_hand_item(mf, o_mount, eff_o, tip_col, weapon_tier, true)
+	var tip_col := Color(0.55, 0.52, 0.48) if eff_tier <= 1 else (Color(0.24, 0.28, 0.34) if eff_tier == 2 else Color(0.14, 0.10, 0.24))
+	_activate_hand_item(mf, w_mount, eff_w, tip_col, eff_tier, eff_w != "SHAMAN_STAFF")
+	_activate_hand_item(mf, o_mount, eff_o, tip_col, eff_tier, true)

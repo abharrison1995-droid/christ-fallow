@@ -18,6 +18,8 @@ var _jav_base_pos: Vector3 = Vector3(0.01, 0.03, -0.16)
 var _built_faction_id: int = -999
 var _built_lineage: int = -999
 var _built_tier: int = -1
+var _built_weapon_id: String = ""
+var _built_armor_id: String = ""
 
 var _bob_time: float = 0.0
 var _idle_time: float = 0.0
@@ -46,43 +48,94 @@ func get_built_tier() -> int:
 	return _built_tier
 
 
+func has_stale_gear(leader: Node) -> bool:
+	if leader == null or _right_pivot == null:
+		return true
+	var fid: int = int(leader.get("faction_id"))
+	var eff_lin: int = GameData.resolve_effective_lineage(int(leader.get("lineage")), leader.get("is_caveman") == true)
+	var tier: int = maxi(1, int(leader.get("weapon_tier")))
+	var w_id: String = leader.get_equipped_weapon_id() if leader.has_method("get_equipped_weapon_id") else str(leader.get("equipped_weapon_id"))
+	var a_id: String = leader.get_equipped_armor_id() if leader.has_method("get_equipped_armor_id") else str(leader.get("equipped_armor_id"))
+	return fid != _built_faction_id or eff_lin != _built_lineage or tier != _built_tier or w_id != _built_weapon_id or a_id != _built_armor_id
+
+
 func setup_for_leader(leader: Node) -> void:
+	if not has_stale_gear(leader):
+		return
 	var fid: int = int(leader.get("faction_id")) if leader != null else 0
 	var eff_lin: int = GameData.Lineage.CRAG_BORN
+	var role_val: int = GameData.Role.WARRIOR
+	var wclass_val: int = GameData.WarriorClass.SPEARMAN
+	var w_id: String = "GREAT_SPEAR"
+	var a_id: String = "BONE_GUARD"
 	if leader != null:
 		eff_lin = GameData.resolve_effective_lineage(int(leader.get("lineage")), leader.get("is_caveman") == true)
+		role_val = int(leader.get("role"))
+		wclass_val = int(leader.get("warrior_class"))
+		w_id = leader.get_equipped_weapon_id() if leader.has_method("get_equipped_weapon_id") else str(leader.get("equipped_weapon_id"))
+		a_id = leader.get_equipped_armor_id() if leader.has_method("get_equipped_armor_id") else str(leader.get("equipped_armor_id"))
 	var tier: int = maxi(1, int(leader.get("weapon_tier"))) if leader != null else 1
-	if fid == _built_faction_id and eff_lin == _built_lineage and tier == _built_tier and _right_pivot != null:
-		return
 
 	_built_faction_id = fid
 	_built_lineage = eff_lin
 	_built_tier = tier
+	_built_weapon_id = w_id
+	_built_armor_id = a_id
 	_idle_settled = false
 	_clear_children()
 
 	var ldata: Dictionary = GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN])
 	var skin_col: Color = ldata.get("skin_color", Color(0.68, 0.50, 0.36))
 	var trim_col: Color = GameData.FACTION_COLORS.get(fid, Color(0.82, 0.64, 0.25))
+	var cuff_col: Color = trim_col
+	var armored := (a_id != "" and a_id != "NONE")
+	if armored:
+		match a_id:
+			"HIDE_TUNIC":
+				cuff_col = trim_col.lerp(Color(0.54, 0.36, 0.22), 0.58)
+			"BONE_GUARD":
+				cuff_col = trim_col.lerp(Color(0.78, 0.74, 0.64), 0.55)
+			"PELT_MANTLE":
+				cuff_col = trim_col.lerp(Color(0.68, 0.60, 0.48), 0.62)
+			"OBSIDIAN_PLATE":
+				cuff_col = Color(0.22, 0.16, 0.30)
 	var skin_mat: StandardMaterial3D = MeshFactory.make_mat(skin_col, 0.88, Color.BLACK, 0.0, 1.0, "skin")
-	var cuff_mat: StandardMaterial3D = MeshFactory.make_mat(trim_col, 0.90, Color.BLACK, 0.0, 1.0, "hide")
+	var cuff_mat: StandardMaterial3D = MeshFactory.make_mat(cuff_col, 0.85 if armored else 0.90, cuff_col * 0.15 if a_id == "OBSIDIAN_PLATE" else Color.BLACK, 0.3 if a_id == "OBSIDIAN_PLATE" else 0.0, 1.0, "bone" if a_id in ["BONE_GUARD", "OBSIDIAN_PLATE"] else "hide")
 	var strap_mat: StandardMaterial3D = MeshFactory.make_mat(Color(0.36, 0.23, 0.14), 0.94, Color.BLACK, 0.0, 1.0, "hide")
 
-	# Right arm + Great-Spear / Build Mallet
+	# Right arm + Equipped Weapon / Build Mallet
 	_right_pivot = Node3D.new()
 	_right_pivot.name = "RightArmPivot"
 	_right_pivot.position = _REST_RIGHT_POS
 	_right_pivot.rotation_degrees = _REST_RIGHT_ROT
 	add_child(_right_pivot)
-	_build_forearm(_right_pivot, skin_mat, cuff_mat, strap_mat, 1.0)
+	_build_forearm(_right_pivot, skin_mat, cuff_mat, strap_mat, 1.0, armored)
 
-	_spear_mount = _load_gear_or_fallback(
-		"res://assets/models/gear/leader/great_spear.glb",
-		trim_col, tier, true
-	)
-	_spear_mount.position = Vector3(-0.02, 0.03, -0.18)
-	_spear_mount.rotation_degrees = Vector3(-58.0, 6.0, 4.0)
-	_spear_mount.scale = Vector3.ONE * 0.54
+	var wdef: Dictionary = GameData.resolve_weapon_def(w_id, role_val, wclass_val, true, false)
+	var eff_w_id: String = str(wdef.get("id", "GREAT_SPEAR"))
+	var w_glb: String = str(wdef.get("glb_path", "res://assets/models/gear/leader/great_spear.glb"))
+	if eff_w_id == "HUNTING_BOW":
+		w_glb = str(wdef.get("offhand_glb", "res://assets/models/gear/archer/bow.glb"))
+	var w_tier: int = maxi(tier, 3) if eff_w_id == "OBSIDIAN_CLEAVER" else tier
+	var is_spear_like: bool = eff_w_id in ["GREAT_SPEAR", "STONE_SPEAR", "BARBED_JAVELIN", ""]
+	_spear_mount = _load_gear_or_fallback(w_glb, trim_col, w_tier, is_spear_like)
+	match eff_w_id:
+		"HUNTING_BOW":
+			_spear_mount.position = Vector3(-0.04, 0.04, -0.14)
+			_spear_mount.rotation_degrees = Vector3(-12.0, 14.0, -10.0)
+			_spear_mount.scale = Vector3.ONE * 0.65
+		"WAR_CLUB", "OBSIDIAN_CLEAVER":
+			_spear_mount.position = Vector3(-0.01, 0.04, -0.12)
+			_spear_mount.rotation_degrees = Vector3(-42.0, 8.0, 6.0)
+			_spear_mount.scale = Vector3.ONE * 0.64
+		"FLINT_DIRK":
+			_spear_mount.position = Vector3(0.0, 0.03, -0.09)
+			_spear_mount.rotation_degrees = Vector3(-36.0, 10.0, 4.0)
+			_spear_mount.scale = Vector3.ONE * 0.78
+		_:
+			_spear_mount.position = Vector3(-0.02, 0.03, -0.18)
+			_spear_mount.rotation_degrees = Vector3(-58.0, 6.0, 4.0)
+			_spear_mount.scale = Vector3.ONE * 0.54
 	_right_pivot.add_child(_spear_mount)
 
 	_tool_mount = _load_gear_or_fallback(
@@ -101,7 +154,7 @@ func setup_for_leader(leader: Node) -> void:
 	_left_pivot.position = _REST_LEFT_POS
 	_left_pivot.rotation_degrees = _REST_LEFT_ROT
 	add_child(_left_pivot)
-	_build_forearm(_left_pivot, skin_mat, cuff_mat, strap_mat, -1.0)
+	_build_forearm(_left_pivot, skin_mat, cuff_mat, strap_mat, -1.0, armored)
 
 	_javelin_mount = _load_gear_or_fallback(
 		"res://assets/models/gear/javelineer/barbed_javelin.glb",
@@ -216,7 +269,31 @@ func update_viewmodel(delta: float, speed_ratio: float, mounted: bool, javelin_c
 	if _action_timer > 0.0:
 		var t: float = clampf(1.0 - _action_timer / _action_duration, 0.0, 1.0)
 		match _action_name:
-			"CLEAVE":
+			"HEAVY_SMASH":
+				if t < 0.22:
+					var k := _ease_out(t / 0.22)
+					r_pos_add = Vector3(0.05, 0.18, 0.08) * k
+					r_rot_add = Vector3(32.0, -10.0, -14.0) * k
+				elif t < 0.54:
+					var k := _ease_in_out((t - 0.22) / 0.32)
+					r_pos_add = Vector3(0.05, 0.18, 0.08).lerp(Vector3(-0.14, -0.10, -0.28), k)
+					r_rot_add = Vector3(32.0, -10.0, -14.0).lerp(Vector3(-28.0, 20.0, 20.0), k)
+				else:
+					var k := _ease_out((t - 0.54) / 0.46)
+					r_pos_add = Vector3(-0.14, -0.10, -0.28).lerp(Vector3.ZERO, k)
+					r_rot_add = Vector3(-28.0, 20.0, 20.0).lerp(Vector3.ZERO, k)
+			"BOW_SHOT":
+				if t < 0.25:
+					var k := _ease_out(t / 0.25)
+					r_pos_add = Vector3(-0.08, 0.05, 0.06) * k
+					r_rot_add = Vector3(4.0, 12.0, 6.0) * k
+					l_pos_add = Vector3(0.10, 0.04, -0.08) * k
+				else:
+					var k := _ease_out((t - 0.25) / 0.75)
+					r_pos_add = Vector3(-0.08, 0.05, 0.06).lerp(Vector3.ZERO, k)
+					r_rot_add = Vector3(4.0, 12.0, 6.0).lerp(Vector3.ZERO, k)
+					l_pos_add = Vector3(0.10, 0.04, -0.08).lerp(Vector3.ZERO, k)
+			"CLEAVE", "DUAL_SLASH":
 				if t < 0.10:
 					var k := _ease_out(t / 0.10)
 					r_pos_add = Vector3(0.11, 0.06, 0.08) * k
@@ -293,7 +370,7 @@ static func _ease_in_out(t: float) -> float:
 	return c * c * (3.0 - 2.0 * c)
 
 
-func _build_forearm(arm_root: Node3D, skin_mat: Material, cuff_mat: Material, strap_mat: Material, side_sign: float) -> void:
+func _build_forearm(arm_root: Node3D, skin_mat: Material, cuff_mat: Material, strap_mat: Material, side_sign: float, armored: bool = false) -> void:
 	var forearm := CylinderMesh.new()
 	forearm.top_radius = 0.032
 	forearm.bottom_radius = 0.042
@@ -302,9 +379,9 @@ func _build_forearm(arm_root: Node3D, skin_mat: Material, cuff_mat: Material, st
 	arm_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var cuff := CylinderMesh.new()
-	cuff.top_radius = 0.038
-	cuff.bottom_radius = 0.044
-	cuff.height = 0.075
+	cuff.top_radius = 0.042 if armored else 0.038
+	cuff.bottom_radius = 0.048 if armored else 0.044
+	cuff.height = 0.095 if armored else 0.075
 	var cuff_mesh := MeshFactory.add_mesh(arm_root, cuff, Vector3(0.01 * side_sign, -0.015, 0.04), cuff_mat, Vector3(-76.0, 10.0 * side_sign, 0.0), "WristCuff")
 	cuff_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 

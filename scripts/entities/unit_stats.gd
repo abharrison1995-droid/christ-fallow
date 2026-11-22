@@ -19,6 +19,15 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 	var weapon_tier: int = input["weapon_tier"]
 	var has_equipped_weapon: bool = input["has_equipped_weapon"]
 	var has_armor: bool = input["has_armor"]
+	var equipped_weapon_id: String = str(input.get("equipped_weapon_id", ""))
+	var equipped_armor_id: String = str(input.get("equipped_armor_id", ""))
+	var has_weapon_def: bool = equipped_weapon_id != "" and GameData.WEAPON_DEFS.has(equipped_weapon_id)
+	var wdef: Dictionary = GameData.WEAPON_DEFS[equipped_weapon_id] if has_weapon_def else {}
+	var has_armor_def: bool = equipped_armor_id != "" and GameData.ARMOR_DEFS.has(equipped_armor_id)
+	var adef: Dictionary = GameData.ARMOR_DEFS[equipped_armor_id] if has_armor_def else {}
+	var default_weapon_id: String = GameData.resolve_default_weapon_id(role, warrior_class, is_leader, is_caveman)
+	var is_custom_weapon: bool = has_weapon_def and equipped_weapon_id != default_weapon_id
+	var effective_has_weapon: bool = has_equipped_weapon or has_weapon_def
 
 	var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
 	var l_data: Dictionary = GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN])
@@ -30,10 +39,12 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 	elif is_caveman:
 		role_hp_mult = 1.15
 
+	var armor_hp_bonus: float = float(adef.get("hp_bonus", 0.0)) if has_armor_def else 0.0
 	var max_hp := base_hp_stat * role_hp_mult * float(l_data["hp_mult"]) + float(melee_rank) * 10.0
 	if is_child:
 		max_hp *= 0.60
 	max_hp *= PerkSystem.get_unit_hp_mult(faction, is_leader)
+	max_hp += armor_hp_bonus
 
 	var move_speed := 5.8 * float(l_data["speed_mult"])
 	if role == GameData.Role.WARRIOR:
@@ -46,13 +57,15 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 	if is_leader:
 		move_speed *= 1.12
 	move_speed *= PerkSystem.get_move_speed_mult(faction)
+	if has_armor_def:
+		move_speed *= float(adef.get("move_mult", 1.0))
 
 	var tier_bonus := 1.0 + float(weapon_tier - 1) * 0.28
 	var role_dmg_mult := 1.0
 	if is_leader:
 		role_dmg_mult = 1.65
 	elif role == GameData.Role.WARRIOR or is_caveman:
-		role_dmg_mult = 1.25 if has_equipped_weapon else 1.0
+		role_dmg_mult = 1.25 if effective_has_weapon else 1.0
 
 	var perk_dmg_mult: float = PerkSystem.get_unit_damage_mult(faction, is_leader, role == GameData.Role.WARRIOR)
 	var close_quarters_damage := base_melee_stat * role_dmg_mult * tier_bonus * float(l_data["melee_mult"]) * (1.0 + float(melee_rank) * 0.10) * perk_dmg_mult
@@ -64,14 +77,20 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 	var attack_damage: float
 	var attack_range: float
 	var attack_cooldown_max: float
+	var is_ranged: bool = false
+	var projectile_type: String = ""
 	if warrior_class == GameData.WarriorClass.ARCHER and (role == GameData.Role.WARRIOR or is_leader):
 		attack_damage = ranged_attack_damage
 		attack_range = 17.5 * (1.28 if lineage == GameData.Lineage.STALKER else 1.0)
 		attack_cooldown_max = 1.25 / float(l_data["attack_speed_mult"])
+		is_ranged = true
+		projectile_type = "ARROW"
 	elif warrior_class == GameData.WarriorClass.JAVELINEER and (role == GameData.Role.WARRIOR or is_leader):
 		attack_damage = ranged_attack_damage * 0.72 + close_quarters_damage * 0.42
 		attack_range = 11.5 * (1.15 if lineage == GameData.Lineage.STALKER else 1.0)
 		attack_cooldown_max = 1.30 / float(l_data["attack_speed_mult"])
+		is_ranged = true
+		projectile_type = "JAVELIN"
 	elif warrior_class == GameData.WarriorClass.BRUTE and (role == GameData.Role.WARRIOR or is_caveman):
 		attack_damage = close_quarters_damage * 1.38
 		attack_range = 2.45
@@ -86,10 +105,45 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 		attack_range = 2.75
 		attack_cooldown_max = 1.02 / float(l_data["attack_speed_mult"])
 
-	var armor := float(l_data["armor_bonus"]) + (8.0 + float(weapon_tier - 1) * 4.0 if has_armor else 0.0)
+	var armor := float(l_data["armor_bonus"])
+	if has_armor_def:
+		if equipped_armor_id == "BONE_GUARD":
+			armor += float(adef.get("armor_bonus", 8.0)) + float(maxi(0, weapon_tier - 1)) * 4.0
+		else:
+			armor += float(adef.get("armor_bonus", 0.0))
+	elif has_armor:
+		armor += 8.0 + float(weapon_tier - 1) * 4.0
 	if warrior_class == GameData.WarriorClass.SPEARMAN and role == GameData.Role.WARRIOR:
 		armor += 3.0
 	armor += PerkSystem.get_unit_armor_bonus(faction, is_leader, role == GameData.Role.WARRIOR)
+
+	if is_custom_weapon:
+		var w_is_ranged: bool = bool(wdef.get("is_ranged", false))
+		var w_proj: String = str(wdef.get("projectile_type", ""))
+		var w_dmg_mult: float = float(wdef.get("dmg_mult", 1.0))
+		var class_was_ranged: bool = (warrior_class == GameData.WarriorClass.ARCHER or warrior_class == GameData.WarriorClass.JAVELINEER) and (role == GameData.Role.WARRIOR or is_leader)
+		if w_is_ranged and not class_was_ranged:
+			if w_proj == "JAVELIN":
+				attack_damage = (ranged_attack_damage * 0.72 + close_quarters_damage * 0.42) * w_dmg_mult
+			else:
+				attack_damage = ranged_attack_damage * w_dmg_mult
+		elif not w_is_ranged and class_was_ranged:
+			attack_damage = close_quarters_damage * 1.12 * w_dmg_mult
+		else:
+			attack_damage *= w_dmg_mult
+		var w_range: float = float(wdef.get("range_override", 0.0))
+		if w_range > 0.0:
+			attack_range = w_range
+			if w_proj == "ARROW" and lineage == GameData.Lineage.STALKER:
+				attack_range *= 1.28
+			elif w_proj == "JAVELIN" and lineage == GameData.Lineage.STALKER:
+				attack_range *= 1.15
+		attack_cooldown_max *= float(wdef.get("cooldown_mult", 1.0))
+		move_speed *= float(wdef.get("move_mult", 1.0))
+		armor += float(wdef.get("armor_bonus", 0.0))
+		is_ranged = w_is_ranged
+		projectile_type = w_proj
+
 	if input.get("archetype", "") == GameData.FLINTMASK_SCOUT:
 		max_hp = GameData.FLINTMASK_STATS["hp"]
 		move_speed = GameData.FLINTMASK_STATS["speed"]
@@ -97,6 +151,8 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 		attack_range = GameData.FLINTMASK_STATS["reach"]
 		attack_cooldown_max = GameData.FLINTMASK_STATS["cooldown"]
 		armor = GameData.FLINTMASK_STATS["armor"]
+		is_ranged = false
+		projectile_type = ""
 
 	if patron == GameData.PatronGod.FEN_ROR:
 		move_speed *= 1.20
@@ -115,6 +171,8 @@ static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> 
 		"attack_range": attack_range,
 		"attack_cooldown_max": attack_cooldown_max,
 		"armor": armor,
+		"is_ranged": is_ranged,
+		"projectile_type": projectile_type,
 	}
 
 

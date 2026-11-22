@@ -487,7 +487,8 @@ func _update_camera(delta: float) -> void:
 		var cp := cos(pitch_r)
 		var look_dir := Vector3(-sin(yaw_r) * cp, sin(pitch_r), -cos(yaw_r) * cp).normalized()
 		camera.look_at(eye_pos + look_dir, Vector3.UP)
-		_fp_viewmodel.setup_for_leader(leader_unit)
+		if _fp_viewmodel.has_stale_gear(leader_unit):
+			_fp_viewmodel.setup_for_leader(leader_unit)
 		_fp_viewmodel.show()
 		_fp_viewmodel.update_viewmodel(delta, speed_ratio, mounted, _javelin_cd, reduced_motion)
 		return
@@ -641,23 +642,63 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 	if _attack_cd > 0.0 and not inspect_if_clear:
 		return
 
+	var wid: String = leader_unit.get_equipped_weapon_id() if leader_unit.has_method("get_equipped_weapon_id") else str(leader_unit.get("equipped_weapon_id"))
+	var wdef: Dictionary = GameData.resolve_weapon_def(wid, int(leader_unit.role), int(leader_unit.warrior_class), true, false)
+	var eff_wid: String = str(wdef.get("id", "GREAT_SPEAR"))
+	var cd_mult: float = float(wdef.get("cooldown_mult", 1.0))
+
+	if eff_wid == "HUNTING_BOW":
+		if inspect_if_clear and _try_inspect_aimed_unit():
+			return
+		if _attack_cd > 0.0:
+			return
+		_attack_cd = 0.48 * cd_mult * PerkSystem.get_leader_attack_cd_mult(GameState.factions.get(0, {}))
+		GameState.tutorial_cleaved = true
+		_notify_tutorial_progress()
+		leader_unit.play_attack_animation("BOW_SHOT", 0.36)
+		if is_first_person and _fp_viewmodel != null:
+			_fp_viewmodel.trigger_action("BOW_SHOT", 0.36)
+		var origin := leader_unit.global_position + Vector3(0.0, 1.45, 0.0)
+		var target_pos: Vector3
+		if is_first_person and camera != null:
+			origin = camera.global_position - camera.global_basis.z * FIRST_PERSON_JAVELIN_RELEASE
+			target_pos = _get_first_person_aim_point()
+		else:
+			var aim := _get_ground_mouse_pos()
+			var dir := aim - leader_unit.global_position
+			dir.y = 0.0
+			if dir.length() > 0.2:
+				leader_unit.look_at(leader_unit.global_position + dir.normalized(), Vector3.UP)
+			target_pos = aim + Vector3(0.0, 0.8, 0.0)
+		var tier: int = int(GameState.factions[0].get("tech_tier", 1))
+		var bow_dmg: float = float(leader_unit.attack_damage) * 1.25
+		if GameState.factions[0].get("patron_god") == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
+			bow_dmg *= 1.20
+		if GameState.projectiles_container != null:
+			Projectile3D.spawn(leader_unit, 0, origin, target_pos, bow_dmg, 34.0, "ARROW", tier, false)
+		return
+
 	if not is_first_person:
 		var aim := _get_ground_mouse_pos()
 		var dir := aim - leader_unit.global_position
 		dir.y = 0.0
 		if dir.length() > 0.2:
 			leader_unit.look_at(leader_unit.global_position + dir.normalized(), Vector3.UP)
-	var targets := _get_cleave_targets()
+	var r_over: float = float(wdef.get("range_override", 2.95))
+	var reach_scale: float = clampf(r_over / 2.95, 0.72, 1.25) if r_over > 0.0 else 1.0
+	var targets := _get_cleave_targets(reach_scale)
 	if inspect_if_clear and targets.is_empty() and _try_inspect_aimed_unit():
 		return
 	if _attack_cd > 0.0:
 		return
-	_attack_cd = 0.48 * PerkSystem.get_leader_attack_cd_mult(GameState.factions.get(0, {}))
+	_attack_cd = 0.48 * cd_mult * PerkSystem.get_leader_attack_cd_mult(GameState.factions.get(0, {}))
 	GameState.tutorial_cleaved = true
 	_notify_tutorial_progress()
-	leader_unit.play_attack_animation("LEADER_CLEAVE", 0.40)
+	var anim_name: String = str(wdef.get("attack_anim", "LEADER_CLEAVE"))
+	leader_unit.play_attack_animation(anim_name, 0.40)
 	if is_first_person and _fp_viewmodel != null:
-		_fp_viewmodel.trigger_action("CLEAVE", 0.40)
+		var vm_action := "HEAVY_SMASH" if anim_name == "HEAVY_SMASH" else ("DUAL_SLASH" if anim_name == "DUAL_SLASH" else "CLEAVE")
+		_fp_viewmodel.trigger_action(vm_action, 0.40)
 
 	var vfx_host: Node = GameState.world_node if GameState.world_node != null else leader_unit.get_parent()
 	if is_first_person and camera != null:
@@ -668,7 +709,7 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 			leader_unit.global_position,
 			-leader_unit.global_transform.basis.z,
 			Color(1.0, 0.90, 0.45, 0.92),
-			1.25
+			1.25 * reach_scale
 		)
 
 	var dmg: float = float(leader_unit.attack_damage) * 1.25
@@ -681,32 +722,34 @@ func _try_melee_cleave(inspect_if_clear: bool = false) -> void:
 			target.take_damage(dmg, leader_unit, 0)
 
 
-func _get_cleave_targets() -> Array[Node3D]:
-	var center := leader_unit.global_position - leader_unit.global_basis.z * 1.6
+func _get_cleave_targets(reach_scale: float = 1.0) -> Array[Node3D]:
+	var center := leader_unit.global_position - leader_unit.global_basis.z * (1.6 * reach_scale)
 	if is_first_person:
-		center = camera.global_position - camera.global_basis.z * 1.85
+		center = camera.global_position - camera.global_basis.z * (1.85 * reach_scale)
+	var unit_reach := 3.2 * reach_scale
+	var wild_reach := 3.6 * reach_scale
 	var targets: Array[Node3D] = []
-	for u in GameState.spatial_index.query_units_in_radius(center, 3.2):
+	for u in GameState.spatial_index.query_units_in_radius(center, unit_reach):
 		if u == leader_unit or u.is_wounded or not GameState.is_hostile(0, u.faction_id):
 			continue
 		var point: Vector3 = u.global_position + (Vector3.UP if is_first_person else Vector3.ZERO)
-		if _cleave_reaches(center, point, 3.2):
+		if _cleave_reaches(center, point, unit_reach):
 			targets.append(u)
 
-	for w in GameState.spatial_index.query_wildlife_in_radius(center, 3.6):
+	for w in GameState.spatial_index.query_wildlife_in_radius(center, wild_reach):
 		if w.is_protected_from(0):
 			continue
 		var point: Vector3 = w.projectile_hit_center() if is_first_person else w.global_position
-		if _cleave_reaches(center, point, 3.6 if w.is_boss else 2.8):
+		if _cleave_reaches(center, point, (3.6 if w.is_boss else 2.8) * reach_scale):
 			targets.append(w)
 	if not targets.is_empty():
 		return targets
 
-	for b in GameState.spatial_index.query_buildings_in_radius(center, 3.6):
+	for b in GameState.spatial_index.query_buildings_in_radius(center, wild_reach):
 		if b.hp <= 0.0 or not GameState.is_hostile(0, b.faction_id):
 			continue
 		var point: Vector3 = b.global_position + (Vector3.UP * 1.2 if is_first_person else Vector3.ZERO)
-		if _cleave_reaches(center, point, 3.6):
+		if _cleave_reaches(center, point, wild_reach):
 			targets.append(b)
 	return targets
 
