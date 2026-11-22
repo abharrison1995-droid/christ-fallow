@@ -1,5 +1,7 @@
 extends "res://scripts/ui/drawers/feature_drawer.gd"
 
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
+
 var _selected_faction: int = 1
 var _raid_feedback_fid: int = -1
 var _raid_feedback_text: String = ""
@@ -8,6 +10,13 @@ var _raid_feedback_color: Color = Look.MUTED
 
 func _init() -> void:
 	title = "Valley Diplomacy"
+
+
+func reset_campaign_state() -> void:
+	_selected_faction = 1
+	_raid_feedback_fid = -1
+	_raid_feedback_text = ""
+	_raid_feedback_color = Look.MUTED
 
 
 func select_faction(faction_id: int) -> void:
@@ -78,7 +87,7 @@ func build_content() -> void:
 		var leadership := Look.label(_describe_leader(fid), &"QuietLabel")
 		leadership.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		vb.add_child(leadership)
-		vb.add_child(Look.label("%s   ·   %s" % [lin_name, god_name], &"QuietLabel"))
+		vb.add_child(Look.label("%s   ·   %s   ·   Lv. %d (%d Perks)" % [lin_name, god_name, PerkSystem.get_level(fdata), PerkSystem.get_total_perk_ranks(fdata)], &"QuietLabel"))
 
 		var spec_lbl := Label.new()
 		var preset: Dictionary = GameData.RIVAL_PRESETS.get(fid, {})

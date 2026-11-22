@@ -5,6 +5,7 @@ const Look = preload("res://scripts/ui/fallow_theme.gd")
 
 var _ring: MeshInstance3D = null
 var _marker_pivot: Node3D = null
+var _leader_pointer: Node3D = null
 var _prompt_label: Label3D = null
 var _anim_time: float = 0.0
 var _prompt_text: String = ""
@@ -90,8 +91,42 @@ func _build_visuals() -> void:
 	_prompt_label.visible = false
 	add_child(_prompt_label)
 
+	_leader_pointer = Node3D.new()
+	_leader_pointer.name = "LeaderPointerPivot"
+	_leader_pointer.visible = false
+	add_child(_leader_pointer)
+
+	var ptr_mat := StandardMaterial3D.new()
+	ptr_mat.albedo_color = Color(1.0, 0.88, 0.34, 0.90)
+	ptr_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	ptr_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ptr_mat.render_priority = 2
+
+	var shaft_mesh := BoxMesh.new()
+	shaft_mesh.size = Vector3(0.16, 0.04, 0.55)
+	var shaft := MeshInstance3D.new()
+	shaft.name = "PointerShaft"
+	shaft.mesh = shaft_mesh
+	shaft.material_override = ptr_mat
+	shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	shaft.position = Vector3(0.0, 0.0, -0.15)
+	_leader_pointer.add_child(shaft)
+
+	var head_mesh := PrismMesh.new()
+	head_mesh.size = Vector3(0.46, 0.42, 0.05)
+	var head := MeshInstance3D.new()
+	head.name = "PointerHead"
+	head.mesh = head_mesh
+	head.material_override = ptr_mat
+	head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	head.rotation_degrees.x = 90.0
+	head.position = Vector3(0.0, 0.0, 0.28)
+	_leader_pointer.add_child(head)
+
 
 func sync_with_state(leader: Node, delta: float = 0.0) -> void:
+	if not is_inside_tree():
+		return
 	if not GameState.game_active or GameState.is_paused or GameState.campaign_finished:
 		_hide_beacon()
 		return
@@ -106,7 +141,8 @@ func sync_with_state(leader: Node, delta: float = 0.0) -> void:
 	global_position = Vector3(target_pos.x, 0.0, target_pos.z)
 
 	_anim_time += delta
-	if bool(Preferences.get_value("reduced_motion")):
+	var reduced_motion: bool = bool(Preferences.get_value("reduced_motion"))
+	if reduced_motion:
 		_marker_pivot.position.y = 2.6
 		_marker_pivot.rotation.y = 0.0
 		_ring.scale = Vector3.ONE
@@ -119,14 +155,30 @@ func sync_with_state(leader: Node, delta: float = 0.0) -> void:
 	var next_prompt := ""
 	if is_instance_valid(leader) and leader.get("is_dead") != true:
 		var lpos: Vector3 = (leader as Node3D).global_position
-		var dist: float = Vector2(lpos.x - global_position.x, lpos.z - global_position.z).length()
+		var to_target := Vector3(global_position.x - lpos.x, 0.0, global_position.z - lpos.z)
+		var dist: float = to_target.length()
+		if _leader_pointer != null:
+			if dist > 3.2:
+				var dir: Vector3 = to_target / dist
+				var offset_d: float = 1.85 if reduced_motion else (1.85 + sin(_anim_time * 4.5) * 0.16)
+				_leader_pointer.visible = true
+				_leader_pointer.global_position = Vector3(lpos.x, 0.10, lpos.z) + dir * offset_d
+				_leader_pointer.rotation = Vector3(0.0, atan2(dir.x, dir.z), 0.0)
+			else:
+				_leader_pointer.visible = false
 		var step: int = int(target.get("step", 0))
+		var pc: Node = GameState.player_controller
+		var in_build_mode: bool = is_instance_valid(pc) and pc.get("is_build_mode") == true
 		if step == 1 and dist <= 6.5:
 			next_prompt = "[E] Recruit"
 		elif step == 3 and not bool(GameState.tutorial_harvested) and dist <= 5.2:
 			next_prompt = "[E] Harvest"
 		elif step == 4 and AwakeningGuide.find_pending_building(GameState, "SLEEPING_HUT", lpos) != null and dist <= 5.0:
 			next_prompt = "[E] Help Build"
+		elif (step == 2 or step == 4) and in_build_mode and dist <= 8.0:
+			next_prompt = "[LMB] Place Here"
+	elif _leader_pointer != null:
+		_leader_pointer.visible = false
 
 	_prompt_text = next_prompt
 	_prompt_label.text = next_prompt
@@ -136,6 +188,8 @@ func sync_with_state(leader: Node, delta: float = 0.0) -> void:
 func _hide_beacon() -> void:
 	visible = false
 	_prompt_text = ""
+	if _leader_pointer != null:
+		_leader_pointer.visible = false
 	if _prompt_label != null:
 		_prompt_label.visible = false
 		_prompt_label.text = ""
@@ -143,6 +197,14 @@ func _hide_beacon() -> void:
 
 func is_beacon_visible() -> bool:
 	return visible
+
+
+func is_pointer_visible() -> bool:
+	return visible and _leader_pointer != null and _leader_pointer.visible
+
+
+func get_pointer_world_position() -> Vector3:
+	return _leader_pointer.global_position if _leader_pointer != null else global_position
 
 
 func get_beacon_position() -> Vector3:

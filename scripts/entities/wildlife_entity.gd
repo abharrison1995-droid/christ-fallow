@@ -4,6 +4,7 @@ const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
 var animal_type: String = "DEER"
 var animal_name: String = "Deer"
@@ -23,6 +24,7 @@ var pen_position: Variant = null
 var maturity_remaining := 0.0
 var training_feeds := 0
 var rider_unit_id := 0
+var mount_profile: Dictionary
 
 const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 
@@ -56,6 +58,9 @@ var _prey_scan_cd: float = 0.0
 var _last_move_idle: bool = false
 var _collider: CollisionShape3D
 var _interaction_label: Label3D
+var _seat_skeleton: Skeleton3D
+var _seat_bone := -1
+var _seat_offset := Vector3.ZERO
 var _tame_cooldown := 0.0
 var _pen_route := PackedVector3Array()
 var _pen_route_idx := 0
@@ -118,8 +123,11 @@ func setup(p_type: String, p_pos: Vector3) -> void:
 	if _bite_player != null:
 		_bite_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_create_hp_bar()
+	mount_profile = Farming.MOUNTS.get(animal_type, {})
 	if Farming.TAME_CHANCES.has(animal_type):
 		_create_interaction_label()
+	if not mount_profile.is_empty():
+		_setup_rider_seat()
 
 
 func _create_hp_bar() -> void:
@@ -148,15 +156,17 @@ func _create_hp_bar() -> void:
 	fill.position = Vector3(0.0, h_offset, 0.0)
 	add_child(fill)
 	_hp_fill = fill
-	_update_hp_bar()
+	refresh_health_bar()
 
 
-func _update_hp_bar() -> void:
+func refresh_health_bar() -> void:
 	if _hp_bg == null or _hp_fill == null:
 		return
 	var ratio := clampf(hp / maxf(max_hp, 1.0), 0.02, 1.0)
 	_hp_fill.scale.x = ratio
-	var show := is_boss or hp < max_hp * 0.99
+	var pc := GameState.player_controller
+	var rider_in_first_person: bool = rider_unit_id > 0 and is_instance_valid(pc) and pc.is_first_person == true
+	var show := not is_dead and not rider_in_first_person and (is_boss or hp < max_hp * 0.99)
 	_hp_bg.visible = show
 	_hp_fill.visible = show
 
@@ -175,7 +185,6 @@ func restore_snapshot(snapshot: Dictionary) -> void:
 		flees_when_hit = false
 		_sync_livestock_size()
 	set_rider(int(snapshot.get("rider_unit_id", 0)))
-	_update_hp_bar()
 
 
 func serialize() -> Dictionary:
@@ -202,7 +211,7 @@ func can_interact(faction_id: int) -> bool:
 
 
 func can_mount(faction_id: int) -> bool:
-	return not is_dead and owner_faction == faction_id and animal_type == "BOAR" \
+	return not is_dead and owner_faction == faction_id and not mount_profile.is_empty() \
 		and training_feeds >= Farming.MOUNT_TRAINING and maturity_remaining <= 0.0 and rider_unit_id == 0
 
 
@@ -239,6 +248,7 @@ func attempt_tame(leader: Node3D) -> bool:
 		return false
 	domesticate(faction, pen.global_position)
 	_pen = pen
+	GameState.award_xp(faction, 40.0, "Tamed wildlife")
 	GameState.push_log("%s is tamed and heading to its pen." % animal_name, "success")
 	return true
 
@@ -260,7 +270,7 @@ func domesticate(faction: int, destination: Vector3, young_for: float = 0.0) -> 
 
 
 func feed_livestock() -> void:
-	if animal_type == "BOAR" and maturity_remaining <= 0.0:
+	if not mount_profile.is_empty() and maturity_remaining <= 0.0:
 		training_feeds = mini(Farming.MOUNT_TRAINING, training_feeds + 1)
 
 
@@ -272,8 +282,31 @@ func harvest_livestock() -> void:
 func set_rider(unit_id: int) -> void:
 	rider_unit_id = unit_id
 	_collider.set_deferred("disabled", unit_id > 0)
+	velocity = Vector3.ZERO
+	_pen_route_cd = 0.0
 	if unit_id > 0 and _interaction_label != null:
 		_interaction_label.hide()
+	refresh_health_bar()
+
+
+func get_mount_shape() -> CapsuleShape3D:
+	return _collider.shape as CapsuleShape3D
+
+
+func _setup_rider_seat() -> void:
+	var seat: Vector3 = mount_profile["seat"]
+	var skeletons := _visual_root.find_children("*", "Skeleton3D", true, false)
+	if not skeletons.is_empty():
+		_seat_skeleton = skeletons[0] as Skeleton3D
+		_seat_bone = _seat_skeleton.find_bone("Body")
+	if _seat_bone >= 0:
+		var bone_rest := _seat_skeleton.get_bone_global_rest(_seat_bone)
+		_seat_offset = bone_rest.affine_inverse() * _seat_skeleton.to_local(to_global(seat))
+	else:
+		# The procedural meshes have different back heights and move as one pivot.
+		var procedural_heights := {"MAMMOTH": 3.32, "BOAR": 1.12, "DEER": 1.22}
+		seat.y = procedural_heights[animal_type]
+		_seat_offset = _animal_pivot.to_local(to_global(seat))
 
 
 func sync_ridden_transform(leader: Node3D, move_velocity: Vector3, delta: float) -> void:
@@ -283,6 +316,10 @@ func sync_ridden_transform(leader: Node3D, move_velocity: Vector3, delta: float)
 	_knockback_vel = Vector3.ZERO
 	GameState.spatial_index.update_wildlife(self)
 	_update_wildlife_animation(delta)
+	var seat_position := _animal_pivot.to_global(_seat_offset)
+	if _seat_bone >= 0:
+		seat_position = _seat_skeleton.to_global(_seat_skeleton.get_bone_global_pose(_seat_bone) * _seat_offset)
+	leader.update_rider_seat(leader.to_local(seat_position))
 
 
 func _sync_livestock_size() -> void:
@@ -292,9 +329,10 @@ func _sync_livestock_size() -> void:
 func _nearest_available_pen(faction: int) -> Node:
 	var nearest: Node = null
 	var distance := INF
+	var pen_cap: int = Farming.PEN_CAPACITY + PerkSystem.get_pen_extra_capacity(GameState.factions.get(faction, {}))
 	for building in GameState.get_faction_buildings(faction, "ANIMAL_PEN", true):
 		var d := global_position.distance_squared_to((building as Node3D).global_position)
-		if d < distance and building.get_herd().size() < Farming.PEN_CAPACITY:
+		if d < distance and building.get_herd().size() < pen_cap:
 			nearest = building
 			distance = d
 	return nearest
@@ -308,7 +346,7 @@ func _create_interaction_label() -> void:
 	_interaction_label.pixel_size = 0.012
 	_interaction_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_interaction_label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	_interaction_label.position.y = 1.9
+	_interaction_label.position.y = 3.1 if is_boss else 1.9
 	_interaction_label.hide()
 	add_child(_interaction_label)
 
@@ -325,9 +363,14 @@ func _refresh_interaction_label() -> void:
 	if owner_faction < 0:
 		caption += "  ·  [E] Tame" if GameState.has_building(0, "ANIMAL_PEN", true) else "  ·  Build an Animal Pen"
 	elif can_mount(0):
-		caption += "  ·  [E] Mount"
+		caption += "  ·  [E] Mount (+%d%% speed)" % roundi((float(mount_profile["speed_mult"]) - 1.0) * 100.0)
 	elif owner_faction == 0:
-		caption += "  ·  Young" if maturity_remaining > 0.0 else "  ·  Tamed"
+		if maturity_remaining > 0.0:
+			caption += "  ·  Young"
+		elif not mount_profile.is_empty():
+			caption += "  ·  Training %d/%d" % [training_feeds, Farming.MOUNT_TRAINING]
+		else:
+			caption += "  ·  Tamed"
 	if _interaction_label.text != caption:
 		_interaction_label.text = caption
 
@@ -341,7 +384,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 		return
 	var applied := UnitStats.mitigated_damage(amount, armor) if armor > 0.0 else amount
 	hp -= applied
-	_update_hp_bar()
+	refresh_health_bar()
 	_hit_flash_timer = 0.14
 	CombatVFX.apply_overlay_recursive(_visual_root, CombatVFX.get_hit_flash_material())
 	if attacker != null and attacker is Node3D:
@@ -403,6 +446,8 @@ func _die(killer: Node, killer_faction: int) -> void:
 		if killer_faction == 0:
 			var msg := "Slain %s! Gained +%d Food, +%d Hide, +%d Bone." % [animal_name, int(yields.get("food", 0) * mult), int(yields.get("hide", 0) * mult), int(yields.get("bone", 0) * mult)]
 			GameState.push_log(msg, "success" if is_boss else "info")
+		if owner_faction < 0 and killer_faction != owner_faction:
+			GameState.award_xp(killer_faction, 75.0 if is_boss else 20.0, "Hunted wildlife")
 
 	_unregister_from_index()
 	collision_layer = 0

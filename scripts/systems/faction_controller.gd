@@ -88,6 +88,8 @@ func handle_player_leader_death(dead_leader: Node) -> void:
 		candidates.append(u)
 
 	if candidates.is_empty():
+		if GameState.player_controller != null:
+			GameState.player_controller.attach_leader(null)
 		GameState.check_victory_conditions()
 		return
 
@@ -150,6 +152,7 @@ func upgrade_stone_age_tier() -> bool:
 	if leader != null:
 		leader.weapon_tier = next_tier
 		leader.recalculate_stats(false)
+	GameState.award_xp(faction_id, 80.0, "Advanced Tech Tier")
 	if faction_id == 0:
 		GameState.resources_changed.emit(0)
 		GameState.push_log("Unlocked %s! Craft new gear to equip warriors." % GameData.TECH_TIER_NAMES[next_tier], "success")
@@ -309,12 +312,20 @@ func _run_rival_leader_ai() -> void:
 			wood_stone_toggle += 1
 
 	# 2. Construct new buildings around AI camp
+	if not GameState.is_raid_grace_active():
+		GameState.award_xp(faction_id, 22.0, "Rival development")
+	if int(fdata.get("skill_points", 0)) > 0:
+		GameState._auto_spend_rival_perks(faction_id)
 	var huts := GameState.get_faction_buildings(faction_id, "SLEEPING_HUT", false)
 	if huts.size() < 4 and GameState.can_afford(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"], true):
 		GameState.spend_resources(faction_id, GameData.BUILDINGS["SLEEPING_HUT"]["costs"], true)
 		var ang := randf_range(0.0, TAU)
 		spawn_building("SLEEPING_HUT", camp + Vector3(cos(ang) * 11.0, 0.0, sin(ang) * 11.0), ang, false)
-	elif GameState.get_faction_buildings(faction_id, "WATCHTOWER", false).size() < 2 and GameState.can_afford(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"], true):
+	elif GameState.is_building_unlocked(faction_id, "BARRACKS") and GameState.get_faction_buildings(faction_id, "BARRACKS", false).is_empty() and GameState.can_afford(faction_id, GameData.BUILDINGS["BARRACKS"]["costs"], true):
+		GameState.spend_resources(faction_id, GameData.BUILDINGS["BARRACKS"]["costs"], true)
+		var ang := randf_range(0.0, TAU)
+		spawn_building("BARRACKS", camp + Vector3(cos(ang) * 13.0, 0.0, sin(ang) * 13.0), ang, false)
+	elif GameState.is_building_unlocked(faction_id, "WATCHTOWER") and GameState.get_faction_buildings(faction_id, "WATCHTOWER", false).size() < 2 and GameState.can_afford(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"], true):
 		GameState.spend_resources(faction_id, GameData.BUILDINGS["WATCHTOWER"]["costs"], true)
 		var ang := randf_range(0.0, TAU)
 		spawn_building("WATCHTOWER", camp + Vector3(cos(ang) * 15.0, 0.0, sin(ang) * 15.0), ang, false)

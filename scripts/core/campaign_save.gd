@@ -2,6 +2,7 @@ extends RefCounted
 
 const Layout = preload("res://scripts/core/world_layout.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 const VERSION := 4
 
 const FACTION_FIELDS := {
@@ -32,6 +33,7 @@ const UNIT_FIELDS := {
 	"is_raiding": TYPE_BOOL, "dusk_eaten_today": TYPE_INT, "night_morale_today": TYPE_INT,
 	"leader_blessing_cd": TYPE_FLOAT, "buff_timer": TYPE_FLOAT, "buff_speed_mult": TYPE_FLOAT,
 	"buff_armor_bonus": TYPE_FLOAT, "carry_type": TYPE_STRING, "carry_amount": TYPE_FLOAT,
+	"recruit_perks_mult": TYPE_FLOAT,
 }
 const BUILDING_FIELDS := {
 	"building_type": TYPE_STRING, "faction_id": TYPE_INT, "rot_y": TYPE_FLOAT,
@@ -101,16 +103,16 @@ static func unpack(parsed: Variant) -> Dictionary:
 	var expected_leader := int(save.get("player_leader_id", 0))
 	if save.has("player_leader_id") and expected_leader <= 0:
 		return {}
-	var found_expected_leader := false
+	var saved_leader: Dictionary = {}
 	for unit in save["units"]:
 		if not _matches(unit, {"faction_id": TYPE_INT, "is_leader": TYPE_BOOL, "hp": TYPE_FLOAT}):
 			return {}
 		if not _unpack_unit(unit):
 			return {}
 		if int(unit["faction_id"]) == 0 and unit["is_leader"] and int(unit.get("unit_id", 0)) == expected_leader:
-			found_expected_leader = true
+			saved_leader = unit
 	# A snapshot can legitimately have no leader during succession or after defeat.
-	if expected_leader > 0 and not found_expected_leader:
+	if expected_leader > 0 and saved_leader.is_empty():
 		return {}
 	for building in save["buildings"]:
 		if not _matches(building, BUILDING_FIELDS) or not GameData.BUILDINGS.has(building["building_type"]):
@@ -132,8 +134,9 @@ static func unpack(parsed: Variant) -> Dictionary:
 			return {}
 		var rider := int(animal.get("rider_unit_id", 0))
 		if rider > 0:
-			if restored_rider or rider != expected_leader or not found_expected_leader \
-					or int(animal.get("owner_faction", -1)) != 0 or animal["animal_type"] != "BOAR" \
+			if restored_rider or rider != expected_leader \
+					or float(saved_leader.get("hp", 0.0)) <= 0.0 or float(animal["hp"]) <= 0.0 \
+					or int(animal.get("owner_faction", -1)) != 0 or not Farming.MOUNTS.has(animal["animal_type"]) \
 					or float(animal.get("maturity_remaining", 0.0)) > 0.0 \
 					or int(animal.get("training_feeds", 0)) < Farming.MOUNT_TRAINING:
 				return {}
@@ -183,6 +186,10 @@ static func _normalize_faction(faction: Dictionary, id: int) -> bool:
 		"raid_cooldown": TYPE_FLOAT,
 		"caveman_spawn_timer": TYPE_FLOAT,
 		"diplomacy_event_cd": TYPE_FLOAT,
+		"level": TYPE_INT,
+		"xp": TYPE_FLOAT,
+		"skill_points": TYPE_INT,
+		"perks": TYPE_DICTIONARY,
 	}, false):
 		return false
 	faction["camp_position"] = _position(faction.get("camp_position"))
@@ -206,6 +213,27 @@ static func _normalize_faction(faction: Dictionary, id: int) -> bool:
 	for tenet in faction["tenets"]:
 		if typeof(tenet) != TYPE_STRING:
 			return false
+	faction["level"] = clampi(int(faction.get("level", 1)), 1, PerkSystem.MAX_LEVEL)
+	faction["xp"] = maxf(0.0, float(faction.get("xp", 0.0)))
+	faction["skill_points"] = maxi(0, int(faction.get("skill_points", 0)))
+	var clean_perks := {}
+	if faction.has("perks"):
+		var raw_perks: Dictionary = faction["perks"]
+		for perk_id in raw_perks:
+			if typeof(perk_id) != TYPE_STRING or not PerkSystem.PERK_DEFINITIONS.has(perk_id):
+				return false
+			var raw_rank: Variant = raw_perks[perk_id]
+			if (typeof(raw_rank) != TYPE_INT and typeof(raw_rank) != TYPE_FLOAT) or not is_finite(float(raw_rank)):
+				return false
+			if float(raw_rank) != floorf(float(raw_rank)):
+				return false
+			var max_r: int = int(PerkSystem.PERK_DEFINITIONS[perk_id]["max_rank"])
+			var rank_i: int = int(raw_rank)
+			if rank_i < 0 or rank_i > max_r:
+				return false
+			if rank_i > 0:
+				clean_perks[perk_id] = rank_i
+	faction["perks"] = clean_perks
 	return true
 
 

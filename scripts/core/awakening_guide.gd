@@ -1,5 +1,6 @@
 extends RefCounted
 
+const Layout = preload("res://scripts/core/world_layout.gd")
 
 const STEP_LOGS := {
 	1: "Guide 1/5 complete! Press [B] Build to light your Tribal Campfire.",
@@ -71,6 +72,8 @@ static func get_objective_target(state) -> Dictionary:
 		"has_position": false,
 		"highlight_hud": "",
 		"highlight_building": "",
+		"highlight_place_action": false,
+		"highlight_colony_role": -1,
 		"hint": "",
 	}
 	if state == null or not state.game_active or state.tutorial_completed or state.tutorial_skipped:
@@ -83,6 +86,19 @@ static func get_objective_target(state) -> Dictionary:
 	var camp_pos: Vector3 = state.factions[0].get("camp_position", Vector3(0.0, 0.0, 52.0))
 	var ref_pos: Vector3 = (leader as Node3D).global_position if is_instance_valid(leader) else camp_pos
 
+	var pc: Node = state.player_controller
+	var hud: Node = state.hud_controller
+	var in_build_mode: bool = is_instance_valid(pc) and pc.get("is_build_mode") == true
+	var bp_val: Variant = pc.get("blueprint_type") if in_build_mode else null
+	var bp_type: String = str(bp_val) if bp_val != null else ""
+	var active_tab := ""
+	if is_instance_valid(hud):
+		var drawer_panel: Variant = hud.get("_drawer_panel")
+		if drawer_panel is Control and (drawer_panel as Control).visible:
+			var tab_val: Variant = hud.get("_active_tab")
+			if tab_val != null:
+				active_tab = str(tab_val)
+
 	var result := {
 		"active": true,
 		"step": step,
@@ -90,47 +106,84 @@ static func get_objective_target(state) -> Dictionary:
 		"has_position": false,
 		"highlight_hud": "",
 		"highlight_building": "",
+		"highlight_place_action": false,
+		"highlight_colony_role": -1,
 		"hint": "",
 	}
 
 	match step:
 		1:
 			var wanderer: Node3D = _find_nearest_wanderer(state, ref_pos)
+			var rec_done: int = mini(recruit_count(state), 3)
 			if wanderer != null:
 				result["position"] = wanderer.global_position
 				result["has_position"] = true
-			result["hint"] = "Approach wanderer and press [E] to Recruit (%d/3)" % mini(recruit_count(state), 3)
+				var d_wand: float = Vector2(ref_pos.x - wanderer.global_position.x, ref_pos.z - wanderer.global_position.z).length()
+				if d_wand <= Layout.SCAN_RANGE_RECRUIT:
+					result["hint"] = "Press [E] to recruit this wanderer into your tribe (%d/3)" % rec_done
+				else:
+					result["hint"] = "Move with [WASD] toward the golden beacon and press [E] to Recruit (%d/3)" % rec_done
+			else:
+				result["hint"] = "Approach wanderer and press [E] to Recruit (%d/3)" % rec_done
 		2:
 			result["position"] = _find_clear_build_spot(state, camp_pos)
 			result["has_position"] = true
-			result["highlight_hud"] = "BUILD"
 			result["highlight_building"] = "CAMPFIRE"
-			result["hint"] = "Open [B] Build -> Tribal Campfire -> [LMB] Place"
+			if in_build_mode and bp_type == "CAMPFIRE":
+				result["highlight_hud"] = ""
+				result["highlight_place_action"] = false
+				result["hint"] = "Left-click [LMB] on clear ground to light your Tribal Campfire ([T] Rotate)"
+			elif active_tab == "BUILD":
+				result["highlight_hud"] = "BUILD"
+				result["highlight_place_action"] = true
+				result["hint"] = "Select Tribal Campfire and click 'Place Campfire'"
+			else:
+				result["highlight_hud"] = "BUILD"
+				result["highlight_place_action"] = true
+				result["hint"] = "Open [B] Build -> Tribal Campfire -> [LMB] Place"
 		3:
 			if not bool(state.tutorial_harvested):
 				var res_node: Node3D = _find_nearest_resource(state, ref_pos)
 				if res_node != null:
 					result["position"] = res_node.global_position
 					result["has_position"] = true
-				result["hint"] = "Approach resource node and press [E] to Harvest"
+				result["hint"] = "Follow the golden pointer to a resource node and press [E] to Harvest"
+			elif active_tab == "COLONY":
+				result["hint"] = "Assign a villager as Builder / Crafter (Roster dropdown or Workforce [+])"
 			else:
-				result["hint"] = "Open [C] Colony and assign a villager role"
+				result["hint"] = "Open [C] Colony and assign a villager role (Builder / Crafter recommended)"
 			if not bool(state.tutorial_assigned_role):
 				result["highlight_hud"] = "COLONY"
+				result["highlight_colony_role"] = GameData.Role.BUILDER_CRAFTER
 		4:
 			var pending_hut: Node3D = find_pending_building(state, "SLEEPING_HUT", ref_pos)
 			if pending_hut != null:
 				result["position"] = pending_hut.global_position
 				result["has_position"] = true
-				result["hint"] = "Approach Sleeping Hut blueprint and press [E] to Help Build"
+				result["hint"] = "Approach your Sleeping Hut blueprint and press [E] to Help Build"
 			elif state.get_faction_buildings(0, "SLEEPING_HUT", true).is_empty():
 				result["position"] = _find_clear_build_spot(state, camp_pos)
 				result["has_position"] = true
-				result["highlight_hud"] = "BUILD"
 				result["highlight_building"] = "SLEEPING_HUT"
-				result["hint"] = "Open [B] Build -> Sleeping Hut -> [LMB] Place near camp"
+				if in_build_mode and bp_type == "SLEEPING_HUT":
+					result["highlight_hud"] = ""
+					result["highlight_place_action"] = false
+					result["hint"] = "Left-click [LMB] clear ground near camp to place the Sleeping Hut"
+				elif active_tab == "BUILD":
+					result["highlight_hud"] = "BUILD"
+					result["highlight_place_action"] = true
+					result["hint"] = "Select Sleeping Hut and click 'Place Blueprint'"
+				else:
+					result["highlight_hud"] = "BUILD"
+					result["highlight_place_action"] = true
+					result["hint"] = "Open [B] Build -> Sleeping Hut -> [LMB] Place near camp"
 		5:
-			result["hint"] = "Test [LMB] Heavy Cleave and [F] or [RMB] Throw Javelin"
+			if not bool(state.tutorial_cleaved):
+				result["hint"] = "Left-click [LMB] in the world to test Leader Heavy Cleave"
+			elif not bool(state.tutorial_thrown):
+				result["hint"] = "Press [F] or Right-click [RMB] to Throw Javelin"
+			else:
+				result["hint"] = "Test [LMB] Heavy Cleave and [F] or [RMB] Throw Javelin"
 		_:
 			result["active"] = false
 

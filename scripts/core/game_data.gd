@@ -739,7 +739,7 @@ const BUILDINGS := {
 	},
 	"ANIMAL_PEN": {
 		"name": "Animal Pen",
-		"desc": "Houses tamed deer and boars. Fed adults can breed, and fed boars train as mounts.",
+		"desc": "Houses tamed deer, boars, and mammoths. Two feedings train an adult to ride.",
 		"costs": {"wood": 20, "stone": 6},
 		"build_time": 8.0,
 		"max_hp": 260.0,

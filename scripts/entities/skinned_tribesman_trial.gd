@@ -31,7 +31,7 @@ func squash_corpse(height_ratio: float) -> void:
 	scale = _base_scale * Vector3(1.0, height_ratio, 1.0)
 
 
-func apply_riding_pose() -> void:
+func apply_riding_pose(leg_spread: float) -> void:
 	if _skeleton == null:
 		return
 	for side in ["L", "R"]:
@@ -39,17 +39,21 @@ func apply_riding_pose() -> void:
 			var index := _skeleton.find_bone("%s.%s" % [joint, side])
 			if index < 0:
 				continue
-			var axis := _skeleton.get_bone_global_rest(index).basis.inverse() * Vector3.RIGHT
+			var to_bone := _skeleton.get_bone_global_rest(index).basis.inverse()
 			var rest := _skeleton.get_bone_rest(index).basis.get_rotation_quaternion()
 			var angle := deg_to_rad(67.0 if joint == "UpperLeg" else -84.0)
-			_skeleton.set_bone_pose_rotation(index, rest * Quaternion(axis.normalized(), angle))
+			var pose := Quaternion((to_bone * Vector3.RIGHT).normalized(), angle)
+			if joint == "UpperLeg":
+				var spread := deg_to_rad(-leg_spread if side == "L" else leg_spread)
+				pose = Quaternion((to_bone * Vector3.UP).normalized(), spread) * pose
+			_skeleton.set_bone_pose_rotation(index, rest * pose)
 
 
-func riding_lift(saddle_height: float) -> float:
+func riding_hip_height() -> float:
 	var hips := _skeleton.find_bone("Hips") if _skeleton != null else -1
 	if hips < 0:
 		return 0.0
-	return saddle_height - _skeleton.get_bone_global_rest(hips).origin.y * _base_scale.y
+	return _skeleton.get_bone_global_rest(hips).origin.y * _base_scale.y
 
 
 func setup(mesh_factory: Node, faction_color: Color, spear_template: Node3D) -> bool:

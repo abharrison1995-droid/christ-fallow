@@ -41,6 +41,10 @@ func build_content() -> void:
 	pass
 
 
+func reset_campaign_state() -> void:
+	pass
+
+
 func tag(button: BaseButton, key: String) -> void:
 	button.set_meta("drawer_focus", key)
 

@@ -1,6 +1,6 @@
-# Christ Fallow — Engineering Handoff (21 November 2026)
+# Christ Fallow — Engineering Handoff (22 November 2026)
 
-> **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously (e.g., via Codex). Read this file first alongside [AGENTS.md](../AGENTS.md) and [docs/ROADMAP.md](ROADMAP.md).
+> **Purpose:** Fast, zero-ambiguity state transfer for continuing Christ Fallow autonomously (e.g., via Codex). Read this file first alongside [AGENTS.md](../AGENTS.md), [docs/ROADMAP.md](ROADMAP.md), and [docs/PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
 
 ---
 
@@ -11,7 +11,7 @@
   - Godot 4.3 console: `<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe`
   - Portable Blender 4.5 LTS: `<USERPROFILE>\AppData\Local\Blender\blender-4.5.16-windows-x64\blender.exe`
   - Run from `project.godot` directly; ignore `ChristFallow.exe` and `Christ Fallow.lnk` (`2026-11-18`, stale).
-- **Git (`main`, clean working tree):**
+- **Git history on `main`:**
   - `5a2b437` — Baseline: pre-Phase 0 snapshot (`.gitignore` excludes `.godot/`, temp outputs, `__pycache__/`).
   - `d2ff849` — **Phase 0A:** Fixed `RAZE` leader leak, third-party rival-wipe conquest softlock, wounded `being_rescued` limbo & defection defeat checks, paused/`campaign_finished` entity/rubble/cooldown leaks, `promote_to_player_leader()` ring/armor cleanup, replacement Campfire `camp_position`, shared `get_diplomatic_opinion_breakdown()`.
   - `912f212` — **Phase 0D:** Fixed HUD/Inspector `Space`/Arrow focus hijack, `DiplomacyDrawer` opinion breakdown (`PEACEFUL_OFFERING` + state bounds) & unfunded faction-6 recovery, `--large-ui` drawer overlap, `Esc` vs open `OptionButton` popup, `BuildDrawer` discounted costs/`KRAG_UL` HP/GLB preview, `ColonyDrawer` Crafting refresh, `_raid_panel` z-order, silent `F10` pause error, mirrored Valley Radar river, Settings controls list.
@@ -27,23 +27,29 @@
   - `f2d2ff2` — **Slice 3A.** Added the expanded valley, classic-compatible v4 saves, and paired layout benchmarks.
   - `b5ac719` — **Slice 3B.** Added the World Map, waypoint projection, and updated controls.
   - `6acd7fb` — **Phase 4.** Added named rival leaders, approach negotiation, truces, tribute, and succession.
-  - **Phase 5 baseline.** Added crop cycles, animal husbandry, mounting, and `v4` crop, herd, and rider persistence.
+  - `039ff9b` — **Phase 5.** Added crop cycles, animal husbandry, mounting, and `v4` crop, herd, and rider persistence.
+  - `6090d74` through `971df84` — Promoted the gate, Flintmask Scout, settlement buildings, and additional skinned wildlife. [Production batches](../tools/assets/OVERHAUL.md#production-batches)
+  - `3b042dd` and `c7f3a72` — Added [six wildcard prototypes](../tools/assets/examples/WILDCARD.md) and [eighteen standalone dinosaur models](../tools/assets/examples/DINOSAURS.md) for asset review.
+  - `3abde8c` — **Performance baseline:** Recorded rendered/fixed-step frame attribution in [PERFORMANCE.md](PERFORMANCE.md) and ordered optimization plan in [PERFORMANCE_HANDOVER.md](PERFORMANCE_HANDOVER.md).
+  - **Working tree (22 Nov 2026):** **Phase 6** (Tribal Level, Perks & Skills System + Opening Tutorial directional pointer & in-drawer highlights) and **Refactor Pass 2** (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`).
 
 ---
 
 ## 2. Verified Baseline
 
-Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, and `0` `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines using isolated temp `APPDATA` / `CHRIST_FALLOW_QA_APPDATA`:
+These are historical Forward+ results using isolated `APPDATA` and `CHRIST_FALLOW_QA_APPDATA`. The benchmarks have their own completion markers. See the [performance review](PERFORMANCE.md) and [performance handover](PERFORMANCE_HANDOVER.md) for current reruns and stress measurements.
 
 | Suite | Scope Verified |
 | :--- | :--- |
-| [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) | Steps 1–5, 3D beacon & `[E]` prompts, HUD/BuildDrawer highlights, Sleeping Hut construction, mid-tutorial save/load, once-only reward, Skip + Peace Buffer. |
+| [verify_perks_leveling.gd](../scripts/tools/verify_perks_leveling.gd) | Tribal Lv.1–12 XP curve, `K` `PerksDrawer`, Masonry/Might/Kinship perks, building unlock gating, Nomad Villager hiring, Rank VI+ Barracks training, combat XP & stockpile auto-equip, rival auto-perks, and save/load persistence. |
+| [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) | Steps 1–5, 3D beacon, `_leader_pointer` directional ground pointer, `[E]` & `[LMB] Place Here` prompts, HUD & `BuildDrawer`/`ColonyDrawer` highlights, Sleeping Hut construction, mid-tutorial save/load, once-only reward, Skip + Peace Buffer. |
 | [verify_campaign_save.gd](../scripts/tools/verify_campaign_save.gd) | Legacy and v4 saves, corrupt/mismatched-leader rejection, signal order, combat formulas, and all Phase 0A/0B/0C regression suites. |
 | [verify_expanded_valley.gd](../scripts/tools/verify_expanded_valley.gd) | Camp spacing, ford routes, raids, hauling, distant construction, World Map projection and waypoint input, and v3/v4 terrain changes. |
 | [verify_diplomacy_leaders.gd](../scripts/tools/verify_diplomacy_leaders.gd) | Named leaders, approach negotiation, raid and attack truce guards, tribute, successor identity, and pending-conquest reload. |
-| [verify_farming_taming.gd](../scripts/tools/verify_farming_taming.gd) | Crop work and hauling, taming success and failure, pen travel, feeding, breeding, surplus harvest, mount movement and camera, and crop/herd/rider round trips. Runs with the default leader and `--skinned-tribesman-trial`. |
+| [verify_farming_taming.gd](../scripts/tools/verify_farming_taming.gd) | Crop work and hauling, taming success and failure, pen travel, feeding, breeding, surplus harvest, and movement, dismounting, and save recovery for all three mounts. Runs with the default leader, `--skinned-tribesman-trial`, or `--procedural-roster`. |
 | [verify_campaign_ui.gd](../scripts/tools/verify_campaign_ui.gd) | `1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`: title/awakening, focus release vs `Space`, non-overlap geometry, `Esc` vs `OptionButton` popup, Diplomacy opinion breakdown & faction-6 recovery, Colony Crafting refresh, UnitInspector, pause/conquest/quit. |
 | [verify_phase1_nav.gd](../scripts/tools/verify_phase1_nav.gd) | SpatialIndex parity across spawn/move/convert/death/rubble/save-load; palisade detour & rubble reopening; river ford crossing (`38/38`). |
+| [benchmark_campaign_frames.gd](../scripts/tools/benchmark_campaign_frames.gd) | Rendered frame intervals and fixed-step simulation timings for seed `17394` across `opening`, `settlement`, `battle-on`, and `battle-off` (`CAMPAIGN FRAME BENCHMARK COMPLETE`). |
 | [benchmark_simulation.gd](../scripts/tools/benchmark_simulation.gd) | Seed `17394` physics median: Opening `23.943 ms`, Developed `45.300 ms`, Raid `41.956 ms` (down from `61.872 / 104.408 / 123.930 ms`). |
 | [verify_glb_assets.gd](../scripts/tools/verify_glb_assets.gd) (`--require-gameplay-rig`) | Building 4-stage + collider contracts; `tribesman_base.glb` 17-bone rig + `Idle`/`Walk`/`Work`/`Wounded`/`Attack`/`Hit`/`Death`. |
 | [verify_crag_born.gd](../scripts/tools/verify_crag_born.gd) | Default promoted Crag-Born roster + zero-swap action/hit/death playback, `--check-default-roster`, and `--procedural-roster` opt-out. |
@@ -54,7 +60,7 @@ Every Forward+ suite below passes with exit code `0`, explicit `PASSED` output, 
 
 ## 3. Completed Execution Queue
 
-All six slices through Phase 5 were completed sequentially in independently verified commits on `main`. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
+All slices through Phase 6 and Codebase Refactor Pass 2 are complete. The asset rollout promoted Standing-Stone Gate in Batch 8 after traversal verification. [Roadmap](ROADMAP.md) · [Engineering conventions](../AGENTS.md)
 
 All fifteen asset batches are complete. Batches 1–14 delivered seven six-body lineups, fourteen kits, Flintmask Scout, fourteen buildings, and eight imported wildlife models. Batch 15 delivered six review GLBs with gameplay-scale and close Forward+ captures. The wildcard examples await selection before any campaign integration. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard review](../tools/assets/examples/WILDCARD.md)
 
@@ -75,14 +81,30 @@ Completed. Each settled tribe has a live nameplate and title. `E` opens negotiat
 ### Track D — Phase 5: Taming, Crop Farming, Husbandry & Mounts
 Reference: [docs/FUTURE.md](FUTURE.md#taming-farming-and-mounts)
 
-Completed. Farmers use `CROP_FIELD` to plant, tend, harvest, and haul food. `ANIMAL_PEN` shelters tamed Deer and Tusked Boars, feeds them from the stockpile, and supports breeding and surplus harvest. `E` handles taming and mounting or dismounting a trained adult boar. Saves restore crops, ownership, herd and training state, and a mounted player leader. [Shared rules](../scripts/core/farming_rules.gd) · [Farming verifier](../scripts/tools/verify_farming_taming.gd)
+Completed. Farmers use `CROP_FIELD` to plant, tend, harvest, and haul food. `ANIMAL_PEN` shelters tamed Deer, Tusked Boars, and Woolly Mammoths, feeds them from the stockpile, and supports breeding and surplus harvest. `E` handles taming, mounting trained adults at species-specific speeds, and dismounting. Saves restore crops, ownership, herd and training state, and a mounted player leader. [Shared rules](../scripts/core/farming_rules.gd) · [Farming verifier](../scripts/tools/verify_farming_taming.gd)
+
+Forward+ verification measured 7.17 m/s for the Woolly Mammoth, 8.23 m/s for the Tusked Boar, and 9.85 m/s for the Deer with a Crag-Born leader. The default, trial, and procedural runs each exercised the `E` interaction, `W` movement, in-session load, and Continue from the title screen. [Regression commands](ROADMAP.md#verification-gate-commands-windows-powershell)
+
+### Track E — Phase 6: Tribal Level, Perks & Skills System & Tutorial Polish
+Reference: [docs/FUTURE.md](FUTURE.md#tribal-leveling-perks-and-skills) · [Perk rules](../scripts/core/perk_system.gd) · [Perks drawer](../scripts/ui/drawers/perks_drawer.gd)
+
+Completed. Tribes advance from Level 1 to 12 (`80 + (lvl - 1) * 55` XP per level) via economy, building, hunting, taming, combat, tech-tier, and alliance actions, earning Skill Points spent across three branches (*Masonry & Settlement*, *Chieftain & Lineage Might*, *Kinship & Warband Mastery* — 12 perks). Perks gate advanced buildings in `BuildDrawer` and rival AI (while direct `PlayerController.enter_build_mode()` remains bypassable by low-level tests), unlock `Hire Nomad Villager` in `ColonyDrawer`, raise Barracks training above Rank V up to Rank VIII, grant combat Training XP and stockpile auto-equip, and scale settled rival tribes via personality priority tables. At Lv.1 with 0 perks, all multipliers are `1.0` so legacy saves and tests remain invariant. Opening tutorial polish adds the 3D directional ground pointer (`_leader_pointer`), `[LMB] Place Here` build-mode proximity prompt, and `BuildDrawer` / `ColonyDrawer` in-drawer action highlights. [Perks verifier](../scripts/tools/verify_perks_leveling.gd) · [Tutorial verifier](../scripts/tools/verify_opening_tutorial.gd)
+
+### Track F — Codebase Refactor Pass 2 (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`)
+Reference: [docs/REFACTOR.md](REFACTOR.md#second-extraction-pass-22-november-2026)
+
+Completed. Extracted combat and faction-AI routines from `human_unit.gd` into [unit_combat_ai.gd](../scripts/entities/unit_combat_ai.gd), diplomacy/tribute/rebel/succession/conquest/victory rules from `game_state.gd` into [diplomacy_conquest_rules.gd](../scripts/core/diplomacy_conquest_rules.gd), and HUD panel builders/live refreshers from `hud_controller.gd` into [hud_panels.gd](../scripts/ui/hud_panels.gd). All three are preloaded static-function helpers without `class_name`, with thin forwarding wrappers and preserved properties/signals on the owning classes so existing callers and test suites run unchanged.
+
+### Campaign performance review
+
+Imported human rigs skip hidden procedural poses, Guard Base reuses camp-centered target scans, and Peace invalidates cached hostiles. Lighting submits its palette on phase transitions and uses a smaller sky radiance map. The stress runs improved while remaining above the 16.7 ms rendered-frame budget. Draw and shadow passes, crowded movement, and worker job allocation are the next measured areas. [Results and reproduction](PERFORMANCE.md) · [Performance plan and handover](PERFORMANCE_HANDOVER.md) · [Ranked gameplay and asset proposals](FUTURE.md#ranked-gameplay-and-asset-proposals)
 
 ---
 
 ## 4. Non-Negotiable Engineering & Verification Rules
 
 1. **Godot 4.3 strictness ([AGENTS.md](../AGENTS.md)):**
-   - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, etc.).
+   - Never add `class_name` to preloaded helper modules (`SpatialIndex`, `ValleyNavigation`, `TutorialBeacon`, `AwakeningGuide`, `PerkSystem`, `DiplomacyConquestRules`, `UnitStats`, `UnitAIRoutines`, `UnitCombatAI`, `BlessingEffects`, `HUDPanels`, etc.).
    - Never use `:=` on untyped `Dictionary`/`Array` indexing or `node.get("prop")` (`Variant`); always annotate explicit types.
    - Never call `bool(null)` — use `== true` or `!= null`.
    - Always call `container.remove_child(c)` before `c.queue_free()` when replacing container children.

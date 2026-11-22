@@ -1,17 +1,20 @@
 # Christ Fallow — Master Roadmap & Stabilization Plan
 
-> Unified engineering, UI/UX, gameplay, and 3D asset roadmap following the [20 November 2026 refactor](REFACTOR.md). For architecture and file routing, see the [agent guide](../AGENTS.md). For quick session-transfer context, see the [engineering handoff](HANDOFF.md).
+> Unified engineering, UI/UX, gameplay, and 3D asset roadmap following the [20 November 2026 refactor](REFACTOR.md) and [22 November 2026 second pass](REFACTOR.md#second-extraction-pass-22-november-2026). The [agent guide](../AGENTS.md) maps the code, the [engineering handoff](HANDOFF.md) records the baseline, and the [performance review](PERFORMANCE.md) & [performance handover](PERFORMANCE_HANDOVER.md) track rendered and fixed-step stress scenarios.
 
-## Current progress snapshot (21 November 2026)
+## Current progress snapshot (22 November 2026)
 
 ### Shipped & verified
-- **Core Stone Age campaign loop**. Title and Awakening, six playable lineages, a 210 s Peace Buffer, the five-step Awakening Guide, gathering, hunting, crafting, three gear tiers, religion, work schedules, training, Tribal Warhorn, diplomacy, conquest, and succession. The campaign writes `v4` JSON saves and accepts versions 1–4.
-- **Refactored runtime boundaries**: `CampaignSession` lifecycle ownership, `GameState` campaign rules, `CampaignSave`/`CampaignStorage`, `AwakeningGuide`, `UnitStats`, `UnitAIRoutines`, `BlessingEffects`, `WorldLayout`, `FeatureDrawer` views, `UnitInspector`, `CampaignOverlays`, and `Preferences`.
+- **Core Stone Age campaign loop**. Title and Awakening, six playable lineages, a 210 s Peace Buffer, the five-step Awakening Guide, Tribal Levels 1–12 and 12 perks (`K`), gathering, hunting, crafting, three gear tiers, religion, work schedules, training, Tribal Warhorn, diplomacy, conquest, and succession. The campaign writes `v4` JSON saves and accepts versions 1–4.
+- **Refactored runtime boundaries**: `CampaignSession` lifecycle ownership, `GameState` campaign rules, `DiplomacyConquestRules`, `CampaignSave`/`CampaignStorage`, `AwakeningGuide`, `PerkSystem`, `UnitStats`, `UnitAIRoutines`, `UnitCombatAI`, `BlessingEffects`, `WorldLayout`, `HUDPanels`, `FeatureDrawer` views, `UnitInspector`, `CampaignOverlays`, and `Preferences`.
 - **Phase 0 stabilization (`Slices 0A`–`0E`, Completed 20 Nov 2026)**: Fixed conquest/wounded/pause lifecycle leaks (`0A`), wildlife defense/economy/Warhorn/tech-tier/bounds/combat parity (`0B`), save/load state isolation, cooldown/buff/timer persistence, live `KRAG_UL` HP scaling, and synchronous leader succession (`0C`), HUD focus/layout/diplomacy/radar/control polish (`0D`), and `DUAL_SHEATH`/GLB blueprint hologram/PSX material/trial rig alignment (`0E`). 
 - **Phase 1 simulation performance & navigation (Completed 20 Nov 2026)**: `SpatialIndex` (XZ hash grid plus per-faction caches) replaced per-frame container scans, `ValleyNavigation` (`AStarGrid2D`) routes units around constructed buildings and across river fords, and `WorldLayout` now owns the river, ford, camera and scan constants. See [Phase 1](#phase-1-simulation-performance--navigation-foundation) for the benchmark table.
 - **Phase 2A playable opening tutorial (Completed 20 Nov 2026)**: Single-source `AwakeningGuide.get_objective_target()`, 3D `TutorialBeacon` with proximity prompts (`[E] Recruit`, `[E] Harvest`, `[E] Help Build`), HUD step checklists and `Build`/`Colony` highlights, `BuildDrawer` recommendations, Valley Radar pulsing rings, and Sleeping Hut construction completion for Step 4.
 - **Phase 2B skinned rig action clips & Crag-Born promotion (Completed 20 Nov 2026)**: Added `Attack`, `Work`, `Hit`, `Death`, and `Wounded` skeletal clips across `tribesman_base.glb` and `crag_born_{broad,braided,child}.glb`, replaced procedural fallback swaps with zero-swap shader hit-flash/death handling, and promoted Crag-Born Foragers and adult Spearmen to default-enabled (`--procedural-roster` opts out).
-- **Automated baselines passing (20 Nov 2026)**:
+- **Phase 5: Taming, Crop Farming, Husbandry & Mounts** — completed 21 Nov 2026. See [Phase 5](#phase-5-taming-crop-farming-husbandry--mounts).
+- **Phase 6 & Refactor Pass 2 (Completed 22 Nov 2026)**: Added [PerkSystem](../scripts/core/perk_system.gd), [PerksDrawer](../scripts/ui/drawers/perks_drawer.gd) (`K`), Lv.1–12 progression, building unlock gating, Nomad Villager hiring, Rank VI–VIII Barracks training, rival perk scaling, tutorial directional ground pointer & drawer action highlights, plus Pass 2 extractions (`UnitCombatAI`, `DiplomacyConquestRules`, `HUDPanels`).
+- **Automated baselines passing**:
+  - `scripts/tools/verify_perks_leveling.gd` (`1600×900`): `PERKS AND LEVELING VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_opening_tutorial.gd` (`1600×900`): `OPENING TUTORIAL VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_campaign_save.gd`: `CAMPAIGN SAVE VERIFICATION PASSED` (exit `0`, `0` script errors/warnings).
   - `scripts/tools/verify_campaign_ui.gd` (`1280×720`, `1600×900 --large-ui`, `1920×810 --large-ui`): `CAMPAIGN UI VERIFICATION PASSED` + `PASS action Quit` (exit `0`, `0` script errors/warnings).
@@ -21,7 +24,7 @@
 
 ### Partially delivered (3D assets)
 - **Buildings**. All fourteen buildable types use imported four-stage models. Blueprints and placement ghosts use a tinted intact stage. Standing-Stone Gate has separate pier collision and verified traversal. [Asset catalog](../tools/assets/CATALOG.md#live-assets-by-type)
-- **Characters & gear**. All seven lineages have six skinned bodies for Foragers and adult Spearmen. Nomads mount the Cave-Kin kit. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
+- **Characters & gear**. All seven lineages have six skinned bodies. Fourteen shared kits cover warriors, adult workforce, leaders, and nomads. Farmers reuse the Forager kit. `--procedural-roster` switches the roster to procedural models. `--skinned-tribesman-trial` enables the base skinned rig for the player leader. [Asset catalog](../tools/assets/CATALOG.md#skinned-lineage-bodies-and-gear)
 - **Environment & wildlife**. Four scenery props and all eight wildlife species use imported models. Mammoth and Cave Bear have skeletal attacks for their existing area damage. [Asset catalog](../tools/assets/CATALOG.md#valley-scenery-and-wildlife)
 - **Asset rollout complete**. All seven six-body lineages, fourteen shared kits, Flintmask Scout, fourteen building models, and eight wildlife models are verified in Forward+. Six wildcard prototypes have individual GLBs and two Forward+ review sheets. [Production batches](../tools/assets/OVERHAUL.md#production-batches) · [Wildcard review](../tools/assets/examples/WILDCARD.md)
 
@@ -198,7 +201,7 @@ Verification status: `verify_phase1_nav.gd`, `verify_campaign_save.gd`, `verify_
 > **Completed 21 Nov 2026**. [Asset rollout](../tools/assets/OVERHAUL.md#asset-rollout) · [Handoff](HANDOFF.md#track-a--slice-2c-pass-35-expansion-assets--damage-review)
 
 - **Slice 2C-1 (Lineage scale extremes), completed 21 Nov 2026.** Six Goliath and Swift-Kin GLBs share the 17-bone Crag-Born rig, nine clips, and role kits. The shared loader applies lineage and age scale, including gear and corpse height. Verified live spawn, work and combat playback, save/load, gear fit and scale, and the roster opt-out. [Forward+ lineage verifier](../scripts/tools/verify_skinned_lineages.gd)
-- **Slice 2C-2 (Buildings, wildlife & damage review), completed 21 Nov 2026.** Reed Granary and Ridge Signal Tower have four-stage models and matching colliders. Tower arrows use the active deck marker. New campaigns include a Slateback Boar with eight armor and a Reedjaw with a dodgeable bite. The campaign verifier locks down cleave, ranged, unarmed, Brute, and blessing damage. Standing-Stone Gate awaits traversal verification. [Damage cases](../scripts/tools/verify_campaign_save.gd) · [Forward+ asset checks](../scripts/tools/verify_valley_assets.gd)
+- **Slice 2C-2 (Buildings, wildlife & damage review), completed 21 Nov 2026.** Reed Granary and Ridge Signal Tower have four-stage models and matching colliders. Tower arrows use the active deck marker. New campaigns include a Slateback Boar with eight armor and a Reedjaw with a dodgeable bite. The campaign verifier locks down cleave, ranged, unarmed, Brute, and blessing damage. The later asset rollout promoted Standing-Stone Gate after traversal checks at all eight rotations. [Damage cases](../scripts/tools/verify_campaign_save.gd) · [Forward+ asset checks](../scripts/tools/verify_valley_assets.gd) · [Gate review](../tools/assets/README.md#standing-stone-gate)
 
 ---
 
@@ -235,8 +238,50 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 
 > **Completed 21 Nov 2026.** [Player flow](FUTURE.md#taming-farming-and-mounts) · [Handoff](HANDOFF.md#track-d--phase-5-taming-crop-farming-husbandry--mounts)
 
-- Crop Fields support planting, tending, ripening, harvesting, and delivery to storage by Farmers. Animal Pens accept tamed Deer and Tusked Boars, feed them from the faction stockpile, and breed juveniles when there is room. The Colony drawer shows field and herd progress and offers surplus harvest. [Economy rules](../scripts/core/farming_rules.gd) · [Colony drawer](../scripts/ui/drawers/colony_drawer.gd)
-- The leader uses `E` to tame, mount a trained adult boar, and dismount. The camera and both leader rigs adapt while mounted. `v4` saves retain crops, pen and wildlife state, and the rider link. The farming probe verifies the full cycle, a failed tame, and rejection of an invalid rider before the live world changes. [Campaign validator](../scripts/core/campaign_save.gd) · [Forward+ verifier](../scripts/tools/verify_farming_taming.gd)
+- Crop Fields support planting, tending, ripening, harvesting, and delivery to storage by Farmers. Animal Pens accept tamed Deer, Tusked Boars, and Woolly Mammoths, feed them from the faction stockpile, and breed juveniles when there is room. The Colony drawer shows field and herd progress and offers surplus harvest. [Economy rules](../scripts/core/farming_rules.gd) · [Colony drawer](../scripts/ui/drawers/colony_drawer.gd)
+- The leader uses `E` to tame, mount a trained adult, and dismount. Woolly Mammoths, Tusked Boars, and Deer have distinct movement speeds and riding poses. `v4` saves retain crops, pen and wildlife state, and the rider link. The farming probe exercises all three mounts and checks that an invalid rider leaves the live campaign intact. [Campaign validator](../scripts/core/campaign_save.gd) · [Forward+ verifier](../scripts/tools/verify_farming_taming.gd)
+
+---
+
+## Phase 6: Tribal Level, Perks & Skills System & Opening Tutorial Polish (Completed 22 Nov 2026)
+
+> **Completed 22 Nov 2026.** [Future work](FUTURE.md#tribal-leveling-perks-and-skills) · [Handoff](HANDOFF.md#track-e--phase-6-tribal-level-perks--skills-system--tutorial-polish) · [Refactor Pass 2](REFACTOR.md#second-extraction-pass-22-november-2026)
+
+- **Tribal Leveling & Perks (`K`)** ([perk_system.gd](../scripts/core/perk_system.gd), [perks_drawer.gd](../scripts/ui/drawers/perks_drawer.gd), [game_state.gd](../scripts/core/game_state.gd)): Tribes earn XP from recruiting, constructing buildings, drop-offs, crafting, hunting, taming, tech-tier upgrades, and alliances across `Lv.1..12` (`xp_for_next_level = 80 + (lvl - 1) * 55`). Level-ups grant `+1` Skill Point and heal the faction leader `+30 HP`. `PerksDrawer` exposes 12 perks across 3 branches (*Masonry & Settlement*, *Chieftain & Lineage Might*, *Kinship & Warband Mastery*). At Lv.1 with 0 perks, all multipliers are `1.0`, preserving legacy saves and baseline unit tests.
+- **Unlock Gating, Nomad Hiring, Training & Rival Scaling** ([build_drawer.gd](../scripts/ui/drawers/build_drawer.gd), [colony_drawer.gd](../scripts/ui/drawers/colony_drawer.gd), [faction_controller.gd](../scripts/systems/faction_controller.gd), [unit_ai_routines.gd](../scripts/entities/unit_ai_routines.gd)): `BuildDrawer` and rival AI enforce `BUILDING_UNLOCK_RULES` (`STORAGE_PIT`, `CROP_FIELD`, `BARRACKS`, `SHAMAN_SHACK`, `STANDING_STONE_GATE`, `ANIMAL_PEN`, `WATCHTOWER`) while `PlayerController.enter_build_mode()` stays directly callable by low-level tests. *Call of the Hearth* unlocks `Hire Nomad Villager` in `ColonyDrawer` and raises the max population cap (`32 -> 40/48/56`). *Barracks Drillmasters* raises max training rank past V to VI/VII/VIII and lets idle Warriors spar at Barracks; *Battle-Hardened Veterans* awards Training XP on live strikes and auto-equips stockpile gear. Settled rival tribes earn XP and auto-spend Skill Points via personality priority tables.
+- **Opening Tutorial Polish** ([tutorial_beacon.gd](../scripts/core/tutorial_beacon.gd), [awakening_guide.gd](../scripts/core/awakening_guide.gd), [build_drawer.gd](../scripts/ui/drawers/build_drawer.gd), [colony_drawer.gd](../scripts/ui/drawers/colony_drawer.gd)): Added the 3D directional ground pointer (`_leader_pointer`, visible beyond `3.2 m`), `[LMB] Place Here` build-mode proximity prompt (Steps 2 & 4 within `8.0 m`), gold `Place` button highlight in `BuildDrawer`, and Step 3 `Builder / Crafter` role dropdown & Workforce `+` button highlights in `ColonyDrawer`.
+- **Codebase Refactor Pass 2** ([unit_combat_ai.gd](../scripts/entities/unit_combat_ai.gd), [diplomacy_conquest_rules.gd](../scripts/core/diplomacy_conquest_rules.gd), [hud_panels.gd](../scripts/ui/hud_panels.gd)): Extracted combat/AI decision logic from `human_unit.gd`, diplomacy/tribute/rebel/succession/conquest/victory rules from `game_state.gd`, and HUD panel building/live updates from `hud_controller.gd` into preloaded static helper modules without `class_name`, keeping thin forwarding wrappers and 100% API/test compatibility.
+- **Verification**: [verify_perks_leveling.gd](../scripts/tools/verify_perks_leveling.gd) and [verify_opening_tutorial.gd](../scripts/tools/verify_opening_tutorial.gd) verify progression, unlocks, hiring, training, rival perks, save/load, pointer, and drawer highlights.
+
+---
+
+## First-person POV stabilization
+
+The first-person review and this follow-up use the working source on `feat/first-person-pov`. [Controls](../README.md#controls) · [POV verifier](../scripts/tools/verify_first_person_pov.gd)
+
+| Work | Acceptance criteria | Status |
+| --- | --- | --- |
+| Align combat and inspection to the reticle | At −65° and +70°, cleave and javelin reach targets along the look direction. A hostile in the swing takes precedence over inspection. | Implemented and verified |
+| Stabilize camera, meshes, and mount transitions | Succession and in-campaign loads retain POV. Continue and New Game begin in third person. Body shadows, accessories, and rider health bars restore correctly. | Implemented and verified |
+| Settle the idle pose and maintain floor contact | Stationary knockback, support removal, and Reduced Motion recover correctly. First-person mesh caches are built on demand. | Implemented and verified |
+| Block POV input under panels | Drawers, World Map, Pause, and Conquest block world actions and hide the reticle. Closing the panel restores the reticle immediately. | Implemented and verified |
+| Cancel a world right-click when a HUD panel takes input | Press RMB in the world, open and close Build, World Map, or Pause in the same frame, and release RMB. The interrupted press produces no throw. | Implemented and verified |
+| Update the mount prompt with rider state | `E` immediately swaps the blessing hint for the mount name and dismount control. Dismount or mount death immediately brings back the blessing hint. Reload shows the restored rider’s prompt. | Implemented and verified |
+
+The two follow-up checks reproduced the stale right-click gesture and the delayed mount prompt before the repair. The HUD now cancels the gesture as soon as a panel blocks input, and the mount signal refreshes the single action hint. [HUD controller](../scripts/ui/hud_controller.gd) · [Player controller](../scripts/entities/player_controller.gd)
+
+Run the four suites below serially in Godot 4.3 Forward+ on a display. Use `--rendering-method forward_plus --rendering-driver vulkan --resolution 1600x900 --fixed-fps 60` and a fresh temporary directory for both `APPDATA` and `CHRIST_FALLOW_QA_APPDATA` on every launch. Restore the environment and remove that directory in `finally`. For the POV and campaign UI suites, pass a separate writable `--out-dir` for captures.
+
+The follow-up run on Intel UHD 620 produced exit code `0`, the explicit pass marker, and zero errors and warnings for each suite.
+
+| Script in `res://scripts/tools/` | `--quit-after` | User argument | Gameplay path | Result |
+| --- | ---: | --- | --- | --- |
+| `verify_first_person_pov.gd` | 1400 | | Input blocking, aiming, shadows, succession, mounted load and dismount, title return | Pass |
+| `verify_campaign_ui.gd` | 900 | `--large-ui` | Drawers, map, pause, HUD layout, load, conquest | Pass |
+| `verify_farming_taming.gd` | 1200 | | `E` taming, mounting, dismount, mount death, rider recovery | Pass |
+| `verify_campaign_save.gd` | 900 | | Live and legacy save validation and load | Pass |
+
+Run the POV suite with `--procedural-roster` and `--skinned-tribesman-trial` when changing the body pose or gear. Verify each run by its explicit pass marker and diagnostics. The original POV repair passed both variants. Frame-time measurements use the separate [performance review protocol](PERFORMANCE.md#reproduce-the-measurements).
 
 ---
 
@@ -248,7 +293,7 @@ Both layouts completed 40/40 ford routes. Median query time was 0.123 ms in clas
 - **Keep paths portable**: Never commit personal paths (`<USERPROFILE>\...`) into scripts or test defaults; use `$env:GODOT_EXE`, `$env:BLENDER_EXE`, and `--out-dir`.
 
 ### Standard autonomous slice loop
-1. **Pick one slice.** The ordered queue through Phase 5 is complete. The handoff records the verified baseline and outstanding asset work. [Handoff](HANDOFF.md)
+1. **Pick one slice.** The queue through Phase 6 is complete. Review the stress results, ordered optimization experiments, and ranked playable proposals before choosing the next slice. [Performance review](PERFORMANCE.md) · [Performance handover](PERFORMANCE_HANDOVER.md) · [Gameplay proposals](FUTURE.md#ranked-gameplay-and-asset-proposals)
 2. **Run baseline verifiers** in an isolated temp `APPDATA` directory before editing.
 3. **Implement minimal, localized changes** following [AGENTS.md](../AGENTS.md#godot-43--repo-engineering-conventions) (no `class_name` in preloaded helpers, explicit typing on `Variant` indexing, `remove_child` before `queue_free`).
 4. **Expand and run verifiers** under Forward+ and confirm explicit `PASSED` markers + zero `SCRIPT ERROR` / `Parse Error` / `SHADER ERROR` lines.
@@ -261,12 +306,13 @@ Run each Godot command sequentially. Repeat the `$qa` setup before each invocati
 ```powershell
 $godot = '<USERPROFILE>\AppData\Local\Godot\Godot_v4.3-stable_win64_console.exe'
 $project = (Get-Location).Path
-$qa = Join-Path ([IO.Path]::GetTempPath()) ('cf-qa-' + [guid]::NewGuid())
+$qa = Join-Path $env:USERPROFILE ('cf-qa-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
 New-Item -ItemType Directory -Path $qa -Force | Out-Null
 $env:APPDATA = $qa
 $env:CHRIST_FALLOW_QA_APPDATA = $qa
 
-# 1. Opening tutorial, campaign save & simulation baseline
+# 1. Opening tutorial, perks, campaign save & simulation baseline
+& $godot --path $project --resolution 1600x900 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_perks_leveling.gd
 & $godot --path $project --resolution 1600x900 --fixed-fps 60 --quit-after 1200 -s res://scripts/tools/verify_opening_tutorial.gd
 & $godot --path $project --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_campaign_save.gd
 
@@ -285,6 +331,7 @@ $env:CHRIST_FALLOW_QA_APPDATA = $qa
 # 4. Farming, taming, husbandry and mounted saves
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_farming_taming.gd -- "--out-dir=$qa/captures"
 & $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_farming_taming.gd -- "--out-dir=$qa/captures" --skinned-tribesman-trial
+& $godot --path $project --resolution 1280x720 --fixed-fps 60 --quit-after 900 -s res://scripts/tools/verify_farming_taming.gd -- "--out-dir=$qa/captures" --procedural-roster
 
 # 5. Asset & skinned rig gates (Forward+ display required)
 & $godot --path $project --quit-after 600 -s res://scripts/tools/verify_glb_assets.gd -- "--out-dir=$qa/glb" --require-gameplay-rig

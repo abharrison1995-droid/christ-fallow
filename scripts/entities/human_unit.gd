@@ -3,7 +3,7 @@ extends CharacterBody3D
 const Look = preload("res://scripts/ui/fallow_theme.gd")
 const UnitStats = preload("res://scripts/entities/unit_stats.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
-const Farming = preload("res://scripts/core/farming_rules.gd")
+const FOOT_CAPSULE_CENTER := Vector3(0.0, 0.85, 0.0)
 
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 
@@ -77,8 +77,7 @@ const SkinnedTribesmanTrial = preload("res://scripts/entities/skinned_tribesman_
 const CragBornTrial = preload("res://scripts/entities/crag_born_trial.gd")
 const HumanMeshBuilder = preload("res://scripts/core/human_mesh_builder.gd")
 const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
-const BlessingEffects = preload("res://scripts/systems/blessing_effects.gd")
-const Projectile3D = preload("res://scripts/entities/projectile_3d.gd")
+const UnitCombatAI = preload("res://scripts/entities/unit_combat_ai.gd")
 
 var is_dead: bool = false
 
@@ -86,6 +85,11 @@ var _visual_root: Node3D = null
 var _skinned_trial: SkinnedTribesmanTrial = null
 var _leader_nameplate: Label3D
 var _mounted := false
+var _collider: CollisionShape3D
+var _foot_shape: CapsuleShape3D
+var _rider_seat := Vector3.ZERO
+var _rider_hip_height := 0.0
+var _riding_leg_spread := 0.0
 var _rider_lift := 0.0
 var _body_pivot: Node3D = null
 var _animator: TribesmanAnimator = TribesmanAnimator.new()
@@ -148,6 +152,13 @@ var _rescue_lease_timer: float = 0.0
 var _field_aid_applied: bool = false
 var _active_craft_item: String = ""
 var _campfire_heal_cd: float = 0.0
+var _recruit_perks_mult: float = 1.0
+var _first_person_hidden: bool = false
+var _cached_fp_meshes: Array[MeshInstance3D] = []
+var _cached_fp_shadow_modes: Array[int] = []
+var _cached_fp_small_meshes: Array[MeshInstance3D] = []
+var _cached_fp_small_layers: Array[int] = []
+var _fp_anim_idle_time: float = 0.0
 
 
 func setup(p_params: Dictionary) -> void:
@@ -189,6 +200,7 @@ func setup(p_params: Dictionary) -> void:
 		fire_at_will = true
 	is_raiding = bool(p_params.get("is_raiding", false))
 	raid_target_pos = p_params.get("raid_target_pos", Vector3.ZERO)
+	_recruit_perks_mult = maxf(1.0, float(p_params.get("recruit_perks_mult", 1.0)))
 
 	if p_params.has("unit_name") and str(p_params["unit_name"]) != "":
 		unit_name = str(p_params["unit_name"])
@@ -201,13 +213,13 @@ func setup(p_params: Dictionary) -> void:
 	_patrol_angle = randf_range(0.0, TAU)
 	_ai_think_cd = randf_range(0.0, 0.4)
 
-	var col := CollisionShape3D.new()
-	var cap := CapsuleShape3D.new()
-	cap.radius = 0.36
-	cap.height = 1.65
-	col.shape = cap
-	col.position = Vector3(0.0, 0.85, 0.0)
-	add_child(col)
+	_foot_shape = CapsuleShape3D.new()
+	_foot_shape.radius = 0.36
+	_foot_shape.height = 1.65
+	_collider = CollisionShape3D.new()
+	_collider.shape = _foot_shape
+	_collider.position = FOOT_CAPSULE_CENTER
+	add_child(_collider)
 
 	_rebuild_visual()
 	_create_hp_bar()
@@ -263,6 +275,11 @@ func _get_class_def() -> Dictionary:
 
 
 func _rebuild_visual() -> void:
+	_cached_fp_meshes.clear()
+	_cached_fp_shadow_modes.clear()
+	_cached_fp_small_meshes.clear()
+	_cached_fp_small_layers.clear()
+	_fp_anim_idle_time = 0.0
 	if _skinned_trial != null:
 		remove_child(_skinned_trial)
 		_skinned_trial.queue_free()
@@ -325,33 +342,123 @@ func _rebuild_visual() -> void:
 			else:
 				pilot.free()
 	_sync_rider_visual()
+	if _first_person_hidden:
+		_rebuild_fp_mesh_cache()
+		_apply_first_person_shadow_mode()
 
 
-func set_mounted(value: bool) -> void:
-	_mounted = value
-	_sync_rider_visual()
-	_set_hand_mounts_visible(not value)
+func is_first_person_hidden() -> bool:
+	return _first_person_hidden
+
+
+func get_eye_height() -> float:
+	var eff_lin: int = GameData.resolve_effective_lineage(lineage, is_caveman)
+	var h_scale: float = float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("height_scale", 1.0))
+	return 1.58 * h_scale + _rider_lift
+
+
+func set_first_person_view(active: bool) -> void:
+	if _first_person_hidden == active:
+		return
+	_first_person_hidden = active
+	_fp_anim_idle_time = 0.0
+	if active and _cached_fp_meshes.is_empty():
+		_rebuild_fp_mesh_cache()
+	_apply_first_person_shadow_mode()
+	_sync_leader_nameplate()
 	_update_hp_bar()
 
 
+func _rebuild_fp_mesh_cache() -> void:
+	for root_node in [_visual_root, _skinned_trial]:
+		if root_node == null or not is_instance_valid(root_node):
+			continue
+		for node in root_node.find_children("*", "MeshInstance3D", true, false):
+			var mi := node as MeshInstance3D
+			if mi == null:
+				continue
+			_cached_fp_meshes.append(mi)
+			_cached_fp_shadow_modes.append(mi.cast_shadow)
+			var is_small_acc := mi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			var cur: Node = mi
+			while not is_small_acc and cur != null and cur != root_node:
+				var cname := String(cur.name)
+				if cname in ["Crown", "Cape", "Back", "WeaponMount", "OffhandMount", "Weapon", "Offhand", "TrialWeaponHand"]:
+					is_small_acc = true
+				cur = cur.get_parent()
+			if not is_small_acc and mi.mesh != null and mi.get_aabb().size.length() < 0.34:
+				is_small_acc = true
+			if is_small_acc:
+				_cached_fp_small_meshes.append(mi)
+				_cached_fp_small_layers.append(mi.layers)
+
+
+func _apply_first_person_shadow_mode() -> void:
+	for i in range(_cached_fp_meshes.size()):
+		var mi := _cached_fp_meshes[i]
+		if is_instance_valid(mi):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY if _first_person_hidden else _cached_fp_shadow_modes[i]
+	for i in range(_cached_fp_small_meshes.size()):
+		var mi := _cached_fp_small_meshes[i]
+		if is_instance_valid(mi):
+			# Shadow casting OFF still draws the mesh. Clear its render layers as well.
+			mi.layers = 0 if _first_person_hidden else _cached_fp_small_layers[i]
+			if _first_person_hidden:
+				mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func set_mounted(mount_shape: CapsuleShape3D, leg_spread: float = 0.0) -> void:
+	_mounted = mount_shape != null
+	_riding_leg_spread = leg_spread
+	_rider_seat = Vector3.ZERO
+	_collider.set_deferred("shape", mount_shape if _mounted else _foot_shape)
+	_collider.set_deferred("position", Vector3.UP * mount_shape.height * 0.5 if _mounted else FOOT_CAPSULE_CENTER)
+	_sync_rider_visual()
+	_set_hand_mounts_visible(not _mounted)
+	_update_hp_bar()
+
+
+func can_stand_at(point: Vector3, mount: RID) -> bool:
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = _foot_shape
+	query.transform.origin = point + FOOT_CAPSULE_CENTER
+	query.collision_mask = collision_mask
+	query.exclude = [get_rid(), mount]
+	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
 func _sync_rider_visual() -> void:
-	_rider_lift = 0.0
+	_rider_hip_height = 0.0
 	if _mounted and _body_pivot != null:
 		var hips := _body_pivot.get_node_or_null("HipsPivot") as Node3D
 		if hips != null:
-			_rider_lift = Farming.SADDLE_HEIGHT - hips.position.y * _body_pivot.scale.y
+			_rider_hip_height = hips.position.y * _body_pivot.scale.y
 	if _mounted and _skinned_trial != null:
-		_rider_lift = _skinned_trial.riding_lift(Farming.SADDLE_HEIGHT)
-	if _visual_root != null:
-		_visual_root.position.y = _rider_lift
-	if _skinned_trial != null:
-		_skinned_trial.position.y = _rider_lift
+		_rider_hip_height = _skinned_trial.riding_hip_height()
+	update_rider_seat(_rider_seat)
 	_sync_leader_nameplate()
+
+
+func update_rider_seat(seat: Vector3) -> void:
+	_rider_seat = seat
+	var lift := seat.y - _rider_hip_height
+	var lift_change := lift - _rider_lift
+	_rider_lift = lift
+	var rider_position := Vector3(seat.x, lift, seat.z)
+	if _visual_root != null:
+		_visual_root.position = rider_position
+	if _skinned_trial != null:
+		_skinned_trial.position = rider_position
+	if _leader_nameplate != null:
+		_leader_nameplate.position.y += lift_change
+	if _hp_bg != null and _hp_fill != null:
+		_hp_bg.position.y += lift_change
+		_hp_fill.position.y += lift_change
 
 
 func _sync_leader_nameplate() -> void:
 	var identity: Array = GameData.LEADER_IDENTITIES.get(faction_id, [])
-	if not is_leader or is_dead or is_wounded or identity.is_empty():
+	if _first_person_hidden or not is_leader or is_dead or is_wounded or identity.is_empty():
 		if _leader_nameplate != null:
 			_leader_nameplate.hide()
 		return
@@ -521,7 +628,8 @@ func _ensure_selection_ring() -> void:
 
 func recalculate_stats(reset_hp: bool = false) -> void:
 	var effective_faction := original_faction_id if faction_id < 0 else faction_id
-	var patron: int = GameState.factions.get(effective_faction, {}).get("patron_god", GameData.PatronGod.NONE)
+	var faction_dict: Dictionary = GameState.factions.get(effective_faction, {})
+	var patron: int = faction_dict.get("patron_god", GameData.PatronGod.NONE)
 	var stats := UnitStats.derive({
 		"lineage": lineage,
 		"archetype": archetype,
@@ -538,7 +646,7 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 		"weapon_tier": weapon_tier,
 		"has_equipped_weapon": has_equipped_weapon,
 		"has_armor": has_armor,
-	}, patron)
+	}, patron, faction_dict)
 	var previous_ratio := hp / maxf(max_hp, 1.0)
 	max_hp = stats["max_hp"]
 	move_speed = stats["move_speed"]
@@ -556,6 +664,12 @@ func recalculate_stats(reset_hp: bool = false) -> void:
 
 func _update_hp_bar() -> void:
 	if _hp_bg == null or _hp_fill == null:
+		return
+	if _first_person_hidden:
+		_hp_bg.visible = false
+		_hp_fill.visible = false
+		if _state_label != null:
+			_state_label.visible = false
 		return
 	var visual_height := _skinned_trial.scale.y if _skinned_trial is CragBornTrial else 1.0
 	_hp_bg.position.y = 2.35 * visual_height + _rider_lift
@@ -733,7 +847,7 @@ func take_damage(amount: float, attacker: Node, attacker_faction: int) -> void:
 	if _skinned_trial != null:
 		_skinned_trial.restart_clip(&"Hit")
 
-	if attacker != null and is_instance_valid(attacker) and not attacker.get("is_dead") and attacker is Node3D:
+	if attacker != null and is_instance_valid(attacker) and attacker is CharacterBody3D and attacker.get("is_dead") != true and attacker.get("is_wounded") != true:
 		_self_defense_target = attacker
 		_self_defense_timer = 6.0
 
@@ -764,6 +878,8 @@ func _die(killer: Node, killer_faction: int, hit_dir_body: Vector3 = Vector3(0.0
 		GameState.add_resource(killer_faction, "faith", 8.0)
 		if killer != null and is_instance_valid(killer) and killer.has_method("heal"):
 			killer.heal(10.0)
+	if killer_faction in [0, 1, 2, 3, 4, 6] and killer_faction != faction_id:
+		GameState.award_xp(killer_faction, 75.0 if is_leader else 18.0, "Combat victory")
 
 	# Capturing defeated Nomadic Cavemen for Enlightenment
 	if is_caveman and killer_faction == 0 and GameState.factions.has(0):
@@ -843,9 +959,9 @@ func _update_hit_flash(delta: float) -> void:
 
 func _process_dead_corpse(delta: float) -> void:
 	_update_hit_flash(delta)
-	_animator.update(delta, {"is_dead": true})
-	if _skinned_trial != null:
-		_set_trial_visible(true)
+	if _skinned_trial == null:
+		_animator.update(delta, {"is_dead": true})
+	else:
 		_skinned_trial.update_action(_death_anim_state, 0.0, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
 	_death_timer -= delta
 	if _death_timer <= 1.0:
@@ -859,9 +975,9 @@ func _process_dead_corpse(delta: float) -> void:
 
 
 func _update_wounded_animation(delta: float) -> void:
-	_animator.update(delta, {"is_wounded": true})
-	if _skinned_trial != null:
-		_set_trial_visible(true)
+	if _skinned_trial == null:
+		_animator.update(delta, {"is_wounded": true})
+	else:
 		_skinned_trial.update_action("WOUNDED", 0.0, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
 	if _state_label != null:
 		_state_label.visible = true
@@ -901,28 +1017,40 @@ func _update_procedural_animation(delta: float) -> void:
 			play_attack_animation("", _swing_duration)
 		_swing_timer = maxf(0.0, _swing_timer - delta)
 
+	if _first_person_hidden:
+		if _animator.is_attacking() or _animator.is_taking_damage() or _is_working_this_frame or horiz_speed > 0.15 or _mounted:
+			_fp_anim_idle_time = 0.0
+		elif _fp_anim_idle_time >= 0.24:
+			return
+		else:
+			# Leave time for the standing pose to blend in before freezing its shadow.
+			_fp_anim_idle_time += delta
+
 	var cdef := _get_class_def()
-	_animator.update(delta, {
-		"horiz_speed": horiz_speed,
-		"mounted": _mounted,
-		"is_working": _is_working_this_frame,
-		"idle_stance": str(cdef.get("idle_stance", "RELAXED")),
-		"work_anim": str(cdef.get("work_anim", "WORK_BUILD")),
-	})
-	if _skinned_trial != null:
-		_set_trial_visible(true)
-		var anim_state := "IDLE"
-		if _animator.is_taking_damage() and (_skinned_hit_priority or not _animator.is_attacking()):
-			anim_state = "DAMAGE_HEAVY"
-		elif _animator.is_attacking():
-			anim_state = _active_attack_anim if _active_attack_anim != "" else str(cdef.get("attack_anim", "TOOL_SWING"))
-		elif _is_working_this_frame:
-			anim_state = str(cdef.get("work_anim", "WORK_BUILD"))
-		elif horiz_speed > 0.25 and not _mounted:
-			anim_state = "KITE" if _kiting_this_frame else "WALK"
-		_skinned_trial.update_action(anim_state, horiz_speed, delta, _is_psx_jitter_enabled(), _hit_flash_ratio())
-		if _mounted:
-			_skinned_trial.apply_riding_pose()
+	if _skinned_trial == null:
+		_animator.update(delta, {
+			"horiz_speed": horiz_speed,
+			"mounted": _mounted,
+			"riding_leg_spread": _riding_leg_spread,
+			"is_working": _is_working_this_frame,
+			"idle_stance": str(cdef.get("idle_stance", "RELAXED")),
+			"work_anim": str(cdef.get("work_anim", "WORK_BUILD")),
+		})
+		return
+
+	_animator.advance_action_timers(delta)
+	var anim_state := "IDLE"
+	if _animator.is_taking_damage() and (_skinned_hit_priority or not _animator.is_attacking()):
+		anim_state = "DAMAGE_HEAVY"
+	elif _animator.is_attacking():
+		anim_state = _active_attack_anim if _active_attack_anim != "" else str(cdef.get("attack_anim", "TOOL_SWING"))
+	elif _is_working_this_frame:
+		anim_state = str(cdef.get("work_anim", "WORK_BUILD"))
+	elif horiz_speed > 0.25 and not _mounted:
+		anim_state = "KITE" if _kiting_this_frame else "WALK"
+	_skinned_trial.update_action(anim_state, horiz_speed, delta, not _first_person_hidden and _is_psx_jitter_enabled(), _hit_flash_ratio())
+	if _mounted:
+		_skinned_trial.apply_riding_pose(_riding_leg_spread)
 
 
 func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> void:
@@ -949,7 +1077,7 @@ func convert_to_faction(new_faction_id: int, enlighten_bonus: bool = false) -> v
 	if enlighten_bonus and GameState.has_tenet(new_faction_id, "KINSHIP"):
 		weapon_tier = maxi(weapon_tier, 2)
 	_rebuild_visual()
-	recalculate_stats(true)
+	GameState.apply_recruit_perks(new_faction_id, self)
 
 
 func promote_to_player_leader() -> void:
@@ -1079,7 +1207,8 @@ func _physics_process(delta: float) -> void:
 		if growth_progress >= 1.0:
 			is_child = false
 			_rebuild_visual()
-			recalculate_stats(false)
+			GameState.apply_recruit_perks(faction_id, self)
+			GameState.award_xp(faction_id, 25.0, "Youth came of age")
 			if faction_id == 0:
 				GameState.push_log("%s has grown into adulthood!" % unit_name, "info")
 
@@ -1178,72 +1307,24 @@ func _clamp_to_world_bounds() -> void:
 
 
 func _process_wild_wanderer(_delta: float) -> void:
-	# Gently face player leader and recruit on proximity
-	var p_leader := GameState.get_faction_leader(0)
-	if p_leader != null:
-		var dist := global_position.distance_to(p_leader.global_position)
-		if dist < 4.5:
-			convert_to_faction(0, false)
-			GameState.push_log("Recruited %s (%s) into your tribe!" % [unit_name, GameData.LINEAGE_DATA[lineage]["short_name"]], "success")
-			return
-		elif dist < 14.0:
-			_face_point(p_leader.global_position)
-	velocity.x = 0.0
-	velocity.z = 0.0
+	UnitCombatAI.process_wild_wanderer(self, _delta)
 
 
 func _process_feral_caveman(_delta: float) -> void:
-	var target := _find_nearest_enemy_unit(32.0)
-	if target == null:
-		# March toward nearest founded non-caveman colony (or player leader if none founded)
-		var march_pos := Vector3.ZERO
-		var best_d := 999999999.0
-		var found_goal := false
-		for fid in GameState.factions.keys():
-			var fid_int: int = int(fid)
-			if fid_int == 5:
-				continue
-			var fdata: Dictionary = GameState.factions[fid_int]
-			if bool(fdata.get("is_defeated", false)) or not bool(fdata.get("is_founded", false)):
-				continue
-			var c_pos: Vector3 = fdata.get("camp_position", Vector3.ZERO)
-			var d := global_position.distance_squared_to(c_pos)
-			if d < best_d:
-				best_d = d
-				march_pos = c_pos
-				found_goal = true
-		if not found_goal:
-			var p_leader := GameState.get_faction_leader(0)
-			if p_leader != null:
-				march_pos = p_leader.global_position
-		_steer_toward(march_pos, move_speed * 0.85)
-		return
-
-	var dist := global_position.distance_to(target.global_position)
-	if dist > attack_range:
-		_steer_toward(target.global_position, move_speed)
-	else:
-		velocity.x = 0.0
-		velocity.z = 0.0
-		if _attack_cd <= 0.0:
-			_execute_attack_on(target)
+	UnitCombatAI.process_feral_caveman(self, _delta)
 
 
 func _process_rebel_ai(delta: float) -> void:
-	var target := _find_nearest_enemy_unit(32.0)
-	if target != null:
-		_engage_target(target)
-		return
-	var b_target := _find_nearest_enemy_building(Layout.SCAN_RANGE_CAMP)
-	if b_target != null:
-		_engage_building(b_target)
-		return
-	var camp := _get_home_camp_pos()
-	_patrol_around(camp, 8.0, delta)
+	UnitCombatAI.process_rebel_ai(self, delta)
 
 
 func _process_tribal_ai(delta: float) -> void:
 	var is_warrior_mode := (role == GameData.Role.WARRIOR) or is_leader or _is_warhorn_militia()
+	var player_warrior := is_warrior_mode and faction_id == 0 and not is_leader
+	# These orders either search from camp or ignore enemies entirely.
+	if player_warrior and (squad_order == GameData.SquadOrder.GUARD_BASE or squad_order == GameData.SquadOrder.RETREAT):
+		_process_player_warrior(delta, null)
+		return
 
 	# Enemy detection
 	var scan_radius := Layout.SCAN_RANGE_COMBAT if is_warrior_mode else 9.0
@@ -1252,7 +1333,7 @@ func _process_tribal_ai(delta: float) -> void:
 		enemy = _find_nearest_hostile_wildlife(scan_radius)
 
 	if is_warrior_mode:
-		if faction_id == 0 and not is_leader:
+		if player_warrior:
 			_process_player_warrior(delta, enemy)
 		else:
 			_process_ai_warrior(delta, enemy)
@@ -1272,111 +1353,19 @@ func _process_tribal_ai(delta: float) -> void:
 
 
 func _process_player_warrior(delta: float, enemy: Node) -> void:
-	var p_leader := GameState.get_faction_leader(0)
-	var camp := _get_home_camp_pos()
-	var eff_class := _get_effective_warrior_class()
-	var is_ranged_unit := (eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER)
-
-	# If unequipped or below faction tech tier and Rack/stockpile exists, equip periodically
-	var cur_tier: int = int(GameState.factions.get(faction_id, {}).get("tech_tier", 1))
-	if role == GameData.Role.WARRIOR and (not has_equipped_weapon or weapon_tier < cur_tier or not has_armor) and _ai_think_cd <= 0.0:
-		_ai_think_cd = 3.0
-		try_equip_from_stockpile()
-
-	match squad_order:
-		GameData.SquadOrder.RETREAT:
-			if global_position.distance_to(camp) > 4.0:
-				_steer_toward(camp, move_speed * _buff_speed_mult * 1.15)
-			else:
-				velocity.x = 0.0
-				velocity.z = 0.0
-		GameData.SquadOrder.HOLD:
-			if enemy != null and (_can_shoot_or_reach(enemy)):
-				_engage_target(enemy)
-			elif global_position.distance_to(hold_position) > 2.5:
-				_steer_toward(hold_position, move_speed * _buff_speed_mult)
-			else:
-				velocity.x = 0.0
-				velocity.z = 0.0
-		GameData.SquadOrder.GUARD_BASE:
-			var base_enemy := _find_enemy_near_point(camp, 28.0)
-			if base_enemy == null:
-				base_enemy = UnitAIRoutines.find_hostile_wildlife_near_point(self, camp, 28.0)
-			if base_enemy != null and (not is_ranged_unit or fire_at_will or global_position.distance_to((base_enemy as Node3D).global_position) < 8.0):
-				_engage_target(base_enemy)
-			elif GameState.current_phase == GameData.SchedulePhase.DAY_WORK and GameState.has_building(faction_id, "BARRACKS", true):
-				_train_at_barracks(delta)
-			else:
-				_patrol_around(camp, 9.0, delta)
-		GameData.SquadOrder.CHARGE:
-			var charge_target := enemy
-			if charge_target == null:
-				charge_target = _find_nearest_enemy_unit(Layout.SCAN_RANGE_CHARGE)
-			if charge_target != null and (not is_ranged_unit or fire_at_will or global_position.distance_to((charge_target as Node3D).global_position) < 8.0):
-				_engage_target(charge_target)
-			else:
-				var b_target := _find_nearest_enemy_building(Layout.SCAN_RANGE_CHARGE)
-				if b_target != null and (not is_ranged_unit or fire_at_will):
-					_engage_building(b_target)
-				elif p_leader != null:
-					_follow_point(p_leader.global_position, 4.5)
-		_: # FOLLOW
-			if enemy != null and (fire_at_will or global_position.distance_to(enemy.global_position) < 8.0):
-				_engage_target(enemy)
-			elif p_leader != null:
-				_follow_point(p_leader.global_position, 4.5)
-			else:
-				_patrol_around(camp, 7.0, delta)
+	UnitCombatAI.process_player_warrior(self, delta, enemy)
 
 
 func _process_ai_warrior(delta: float, enemy: Node) -> void:
-	var camp := _get_home_camp_pos()
-
-	# Tactical Low-HP retreat toward Campfire healing aura
-	if not is_leader:
-		if hp < max_hp * 0.22:
-			_retreating_to_heal = true
-		elif hp >= max_hp * 0.45:
-			_retreating_to_heal = false
-		if _retreating_to_heal and global_position.distance_to(camp) > 6.0:
-			is_raiding = false
-			_steer_toward(camp, move_speed * _buff_speed_mult * 1.15)
-			return
-
-	# Rival Leader Patron God Blessings in combat
-	if is_leader and faction_id >= 1 and faction_id <= 4 and enemy != null and _leader_blessing_cd <= 0.0:
-		if global_position.distance_to((enemy as Node3D).global_position) <= 10.0:
-			_cast_rival_leader_blessing()
-
-	if enemy != null:
-		_engage_target(enemy)
-		return
-
-	if is_raiding:
-		if global_position.distance_to(raid_target_pos) > 5.0:
-			_steer_toward(raid_target_pos, move_speed * _buff_speed_mult)
-		else:
-			var b_target := _find_nearest_enemy_building(25.0)
-			if b_target != null:
-				_engage_building(b_target)
-			else:
-				is_raiding = false
-		return
-
-	_patrol_around(camp, 9.5, delta)
+	UnitCombatAI.process_ai_warrior(self, delta, enemy)
 
 
 func _cast_rival_leader_blessing() -> void:
-	_leader_blessing_cd = 18.0
-	BlessingEffects.trigger_leader_blessing(self, faction_id, false)
+	UnitCombatAI.cast_rival_leader_blessing(self)
 
 
 func _can_shoot_or_reach(enemy: Node) -> bool:
-	var d := global_position.distance_to(enemy.global_position)
-	var eff_class := _get_effective_warrior_class()
-	if eff_class == GameData.WarriorClass.ARCHER or eff_class == GameData.WarriorClass.JAVELINEER:
-		return fire_at_will and d <= attack_range
-	return d <= 5.5
+	return UnitCombatAI.can_shoot_or_reach(self, enemy)
 
 
 func _face_point(p: Vector3) -> void:
@@ -1386,111 +1375,23 @@ func _face_point(p: Vector3) -> void:
 
 
 func _engage_target(target: Node) -> void:
-	var t_pos: Vector3 = (target as Node3D).global_position
-	var d := global_position.distance_to(t_pos)
-	var eff_class := _get_effective_warrior_class()
-	var is_ranged_kiter := (eff_class == GameData.WarriorClass.ARCHER and d < 6.0) or (eff_class == GameData.WarriorClass.JAVELINEER and d < 4.2)
-	if is_ranged_kiter and _attack_cd > 0.15:
-		# Ranged skirmisher/archer kites away from closing melee threats while keeping aim
-		var away := global_position - t_pos
-		away.y = 0.0
-		if away.length() > 0.1:
-			var k_dir := away.normalized()
-			velocity.x = k_dir.x * move_speed * _buff_speed_mult * 0.80
-			velocity.z = k_dir.z * move_speed * _buff_speed_mult * 0.80
-			_kiting_this_frame = true
-		_face_point(t_pos)
-		return
-
-	var effective_range := attack_range + (0.8 if target.get("is_boss") == true else 0.0)
-	if d > effective_range:
-		if eff_class == GameData.WarriorClass.KNIFE_RAIDER and d > effective_range * 1.4:
-			var diff := t_pos - global_position
-			diff.y = 0.0
-			if diff.length() > 0.2:
-				var fwd := diff.normalized()
-				var side := Vector3(-fwd.z, 0.0, fwd.x) * (0.45 if (unit_id % 2 == 0) else -0.45)
-				var flank_dir := (fwd + side).normalized()
-				var spd := move_speed * _buff_speed_mult
-				velocity.x = flank_dir.x * spd
-				velocity.z = flank_dir.z * spd
-		else:
-			_steer_toward(t_pos, move_speed * _buff_speed_mult)
-	else:
-		velocity.x = 0.0
-		velocity.z = 0.0
-		_face_point(t_pos)
-		if _attack_cd <= 0.0:
-			_execute_attack_on(target)
+	UnitCombatAI.engage_target(self, target)
 
 
 func _engage_building(b: Node) -> void:
-	var d := global_position.distance_to(b.global_position)
-	var reach := maxf(attack_range, 3.0)
-	var eff_class := _get_effective_warrior_class()
-	if d > reach:
-		_steer_toward(b.global_position, move_speed * _buff_speed_mult)
-	else:
-		velocity.x = 0.0
-		velocity.z = 0.0
-		_face_point(b.global_position)
-		if _attack_cd <= 0.0:
-			_attack_cd = attack_cooldown_max
-			var anim_dur := 0.44 if eff_class == GameData.WarriorClass.BRUTE else 0.38
-			play_attack_animation("", anim_dur)
-			var dmg := attack_damage
-			if eff_class == GameData.WarriorClass.BRUTE:
-				dmg *= 1.35
-			if GameState.has_tenet(faction_id, "SACRED_CONQUEST"):
-				dmg *= 1.18
-			if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
-				_fire_arrow_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
-			elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null:
-				_fire_javelin_at(b.global_position + Vector3(0.0, 1.2, 0.0), dmg)
-			else:
-				b.take_damage(dmg, faction_id)
+	UnitCombatAI.engage_building(self, b)
 
 
 func _execute_attack_on(target: Node) -> void:
-	_attack_cd = attack_cooldown_max
-	var eff_class := _get_effective_warrior_class()
-	var anim_dur := 0.44 if eff_class == GameData.WarriorClass.BRUTE else (0.34 if eff_class == GameData.WarriorClass.KNIFE_RAIDER else 0.40)
-	play_attack_animation("", anim_dur)
-	var dmg := attack_damage
-
-	# Patron God & Tenet modifiers
-	if GameState.factions.has(faction_id):
-		var god: int = int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE))
-		if god == GameData.PatronGod.SOL_KAR and GameState.is_daytime():
-			dmg *= 1.20
-		if god == GameData.PatronGod.FEN_ROR and (eff_class == GameData.WarriorClass.KNIFE_RAIDER or eff_class == GameData.WarriorClass.ARCHER):
-			if randf() < 0.22:
-				dmg *= 1.65
-		if GameState.has_tenet(faction_id, "SACRED_CONQUEST") and target.get("faction_id") != null:
-			dmg *= 1.18
-
-	if eff_class == GameData.WarriorClass.ARCHER and GameState.projectiles_container != null:
-		_fire_arrow_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
-	elif eff_class == GameData.WarriorClass.JAVELINEER and GameState.projectiles_container != null and global_position.distance_to(target.global_position) > 3.2:
-		_fire_javelin_at(target.global_position + Vector3(0.0, 1.0, 0.0), dmg)
-	else:
-		var arc_scale := 1.25 if (eff_class == GameData.WarriorClass.BRUTE or is_leader) else 0.95
-		CombatVFX.spawn_slash_arc(
-			GameState.world_node if GameState.world_node != null else self,
-			global_position,
-			-global_transform.basis.z,
-			Color(1.0, 0.52, 0.25, 0.85) if faction_id != 0 else Color(0.95, 0.90, 0.55, 0.85),
-			arc_scale
-		)
-		target.take_damage(dmg, self, faction_id)
+	UnitCombatAI.execute_attack_on(self, target)
 
 
 func _fire_arrow_at(aim_pos: Vector3, dmg: float) -> void:
-	Projectile3D.spawn(self, faction_id, global_position + Vector3(0.0, 1.35, 0.0), aim_pos, dmg, 26.0, "ARROW", weapon_tier, false)
+	UnitCombatAI.fire_arrow_at(self, aim_pos, dmg)
 
 
 func _fire_javelin_at(aim_pos: Vector3, dmg: float) -> void:
-	Projectile3D.spawn(self, faction_id, global_position + Vector3(0.0, 1.45, 0.0), aim_pos, dmg, 29.0, "JAVELIN", weapon_tier, false)
+	UnitCombatAI.fire_javelin_at(self, aim_pos, dmg)
 
 
 func _dusk_routine(delta: float) -> void:
@@ -1620,23 +1521,7 @@ func _set_hand_mounts_visible(vis: bool) -> void:
 
 
 func _engage_unarmed_self_defense(target: Node) -> void:
-	var t_pos := (target as Node3D).global_position
-	var d := global_position.distance_to(t_pos)
-	var reach := 1.65
-	if d > reach:
-		_steer_toward(t_pos, move_speed * 0.95)
-	else:
-		velocity.x = 0.0
-		velocity.z = 0.0
-		_face_point(t_pos)
-		if _attack_cd <= 0.0:
-			var eff_lin := GameData.resolve_effective_lineage(lineage, is_caveman)
-			var atk_spd := float(GameData.LINEAGE_DATA.get(eff_lin, GameData.LINEAGE_DATA[GameData.Lineage.CRAG_BORN]).get("attack_speed_mult", 1.0))
-			_attack_cd = 1.15 / atk_spd
-			_unarmed_punch_vis_timer = 0.36
-			_set_hand_mounts_visible(false)
-			play_attack_animation("UNARMED_PUNCH", 0.36)
-			target.take_damage(unarmed_attack_damage, self, faction_id)
+	UnitCombatAI.engage_unarmed_self_defense(self, target)
 
 
 ## Re-acquisition of scan targets is staggered (0.18-0.28 s jitter per unit); cached targets are revalidated every call.
@@ -1649,27 +1534,32 @@ static func _cache_alive(n: Node) -> bool:
 
 
 func _find_nearest_hostile_wildlife(radius: float) -> Node:
+	return _find_cached_wildlife_near_point(global_position, radius)
+
+
+func _find_cached_wildlife_near_point(point: Vector3, radius: float) -> Node:
 	if _scan_wild_cd > 0.0 and is_equal_approx(_scan_wild_radius, radius):
-		if _scan_wild == null or _cache_alive(_scan_wild):
+		if _scan_wild == null or (_cache_alive(_scan_wild) and UnitAIRoutines.is_wildlife_hostile_to_faction(_scan_wild, faction_id, self)):
 			return _scan_wild
 	_scan_wild_cd = _scan_jitter()
 	_scan_wild_radius = radius
-	_scan_wild = UnitAIRoutines.find_nearest_hostile_wildlife(self, radius)
+	_scan_wild = UnitAIRoutines.find_hostile_wildlife_near_point(self, point, radius)
 	return _scan_wild
 
 
 func _find_nearest_enemy_unit(radius: float) -> Node:
+	return _find_cached_enemy_near_point(global_position, radius)
+
+
+func _find_cached_enemy_near_point(point: Vector3, radius: float) -> Node:
 	if _scan_enemy_cd > 0.0 and is_equal_approx(_scan_enemy_radius, radius):
-		if _scan_enemy == null or (_cache_alive(_scan_enemy) and n_wounded_ok(_scan_enemy)):
+		if _scan_enemy == null or (_cache_alive(_scan_enemy) and not _scan_enemy.is_wounded
+				and GameState.is_hostile(faction_id, _scan_enemy.faction_id)):
 			return _scan_enemy
 	_scan_enemy_cd = _scan_jitter()
 	_scan_enemy_radius = radius
-	_scan_enemy = _find_enemy_near_point(global_position, radius)
+	_scan_enemy = _find_enemy_near_point(point, radius)
 	return _scan_enemy
-
-
-static func n_wounded_ok(n: Node) -> bool:
-	return n.get("is_wounded") != true
 
 
 func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
@@ -1678,7 +1568,8 @@ func _find_enemy_near_point(point: Vector3, radius: float) -> Node:
 
 func _find_nearest_enemy_building(radius: float) -> Node:
 	if _scan_bld_cd > 0.0 and is_equal_approx(_scan_bld_radius, radius):
-		if _scan_bld == null or (is_instance_valid(_scan_bld) and not _scan_bld.is_queued_for_deletion() and _scan_bld.get("is_destroyed") != true):
+		if _scan_bld == null or (is_instance_valid(_scan_bld) and not _scan_bld.is_queued_for_deletion()
+				and not _scan_bld.is_destroyed and GameState.is_hostile(faction_id, _scan_bld.faction_id)):
 			return _scan_bld
 	_scan_bld_cd = _scan_jitter()
 	_scan_bld_radius = radius
@@ -1753,5 +1644,6 @@ func serialize() -> Dictionary:
 		"buff_armor_bonus": _buff_armor_bonus,
 		"carry_type": _carry_type,
 		"carry_amount": _carry_amount,
+		"recruit_perks_mult": _recruit_perks_mult,
 		"pos": CampaignSave.pack_position(global_position),
 	}

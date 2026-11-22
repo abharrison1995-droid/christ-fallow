@@ -3,6 +3,7 @@ extends RefCounted
 ## Target queries read GameState.spatial_index and fall back to container scans while it is empty.
 
 const Layout = preload("res://scripts/core/world_layout.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
 
 static func _units_near(point: Vector3, radius: float) -> Array:
@@ -76,6 +77,7 @@ static func run_day_work_routine(u, delta: float) -> void:
 			u._steer_toward(drop_pos, u.move_speed)
 		else:
 			GameState.add_resource(u.faction_id, u._carry_type, u._carry_amount)
+			GameState.award_xp(u.faction_id, 4.0, "Resource drop-off")
 			u._carry_amount = 0.0
 			u._carry_type = ""
 			if u.role == GameData.Role.STONEKNAPPER:
@@ -83,6 +85,9 @@ static func run_day_work_routine(u, delta: float) -> void:
 		return
 
 	if u.role == GameData.Role.BUILDER_CRAFTER and _try_builder_crafter_work(u, delta):
+		return
+	if u.role == GameData.Role.WARRIOR and GameState.factions.has(u.faction_id) and PerkSystem.can_idle_warriors_train(GameState.factions[u.faction_id]) and not GameState.get_faction_buildings(u.faction_id, "BARRACKS", true).is_empty():
+		run_train_at_barracks(u, delta)
 		return
 	if u.role == GameData.Role.TRAINEE:
 		run_train_at_barracks(u, delta)
@@ -139,6 +144,7 @@ static func _try_crop_work(u, delta: float) -> bool:
 
 
 static func _try_builder_crafter_work(u, delta: float) -> bool:
+	var faction_dict: Dictionary = GameState.factions.get(u.faction_id, {})
 	var bp: Node = find_nearest_blueprint(u)
 	if bp != null:
 		u._active_craft_item = ""
@@ -150,7 +156,7 @@ static func _try_builder_crafter_work(u, delta: float) -> bool:
 			u.velocity.z = 0.0
 			u._face_point(bp_pos)
 			u._is_working_this_frame = true
-			var build_spd := float(GameData.LINEAGE_DATA[u.lineage]["gather_mult"])
+			var build_spd := float(GameData.LINEAGE_DATA[u.lineage]["gather_mult"]) * PerkSystem.get_build_speed_mult(faction_dict)
 			bp.advance_construction(delta * build_spd)
 		return true
 
@@ -174,12 +180,13 @@ static func _try_builder_crafter_work(u, delta: float) -> bool:
 				u._work_timer = 0.0
 			var recipe: Dictionary = GameData.CRAFT_RECIPES.get(current_item, {})
 			var craft_time: float = float(recipe.get("craft_time", 3.2))
-			u._work_timer += delta
+			u._work_timer += delta * PerkSystem.get_work_speed_mult(faction_dict)
 			if u._work_timer >= craft_time:
 				u._work_timer = 0.0
 				u._active_craft_item = ""
 				var item_key: String = str(queue.pop_front())
 				GameState.factions[u.faction_id]["stockpile"][item_key] = int(GameState.factions[u.faction_id]["stockpile"].get(item_key, 0)) + 1
+				GameState.award_xp(u.faction_id, 15.0, "Crafted equipment")
 				if u.faction_id == 0:
 					GameState.resources_changed.emit(0)
 					GameState.push_log("Crafted 1x %s into Weapon Rack stockpile!" % item_key.capitalize(), "success")
@@ -286,7 +293,8 @@ static func _run_gatherer_work(u, camp: Vector3, delta: float) -> void:
 	u.velocity.z = 0.0
 	u._face_point(n_pos)
 	u._is_working_this_frame = true
-	var gather_spd := float(GameData.LINEAGE_DATA[u.lineage]["gather_mult"])
+	var faction_dict: Dictionary = GameState.factions.get(u.faction_id, {})
+	var gather_spd := float(GameData.LINEAGE_DATA[u.lineage]["gather_mult"]) * PerkSystem.get_work_speed_mult(faction_dict)
 	u._work_timer += delta * gather_spd
 	if u._work_timer >= 3.2:
 		u._work_timer = 0.0
@@ -297,7 +305,7 @@ static func _run_gatherer_work(u, camp: Vector3, delta: float) -> void:
 			res_out = "stone"
 		var base_yield := 5.0
 		if res_out == "food" and GameState.has_building(u.faction_id, "FORAGER_LODGE", true):
-			base_yield *= 1.25
+			base_yield *= 1.25 * PerkSystem.get_lodge_crop_yield_mult(faction_dict)
 		if res_out == "food" and GameState.factions[u.faction_id].get("patron_god") == GameData.PatronGod.GAIA_MAR:
 			base_yield *= 1.25
 		if (res_out == "stone" or res_out == "flint") and GameState.factions[u.faction_id].get("patron_god") == GameData.PatronGod.KRAG_UL:
@@ -327,19 +335,24 @@ static func run_train_at_barracks(u, delta: float) -> void:
 
 
 static func gain_training_xp(u, xp_gain: float) -> void:
-	if u.melee_rank >= 5 and u.ranged_rank >= 5:
+	var faction_dict: Dictionary = GameState.factions.get(u.faction_id, {})
+	var max_rank: int = PerkSystem.get_training_max_rank(faction_dict)
+	if u.melee_rank >= max_rank and u.ranged_rank >= max_rank:
 		return
-	u.training_xp += xp_gain
-	if u.training_xp >= 20.0:
+	u.training_xp += xp_gain * PerkSystem.get_training_xp_mult(faction_dict)
+	while u.training_xp >= 20.0:
+		if u.melee_rank >= max_rank and u.ranged_rank >= max_rank:
+			u.training_xp = 0.0
+			break
 		u.training_xp -= 20.0
 		var ranked_up := false
-		if u.warrior_class == GameData.WarriorClass.ARCHER and u.ranged_rank < 5:
+		if u.warrior_class == GameData.WarriorClass.ARCHER and u.ranged_rank < max_rank:
 			u.ranged_rank += 1
 			ranked_up = true
-		elif u.melee_rank < 5:
+		elif u.melee_rank < max_rank:
 			u.melee_rank += 1
 			ranked_up = true
-		elif u.ranged_rank < 5:
+		elif u.ranged_rank < max_rank:
 			u.ranged_rank += 1
 			ranked_up = true
 		if ranked_up:
@@ -458,31 +471,30 @@ static func find_nearest_hostile_wildlife(u, radius: float) -> Node:
 static func find_enemy_near_point(u, point: Vector3, radius: float) -> Node:
 	var best: Node = null
 	var best_score := 999999.0
+	var faction: int = u.faction_id
+	var warrior_class: int = u.warrior_class if u.role == GameData.Role.WARRIOR else -1
+	var spear_camp: Vector3 = u._get_home_camp_pos() if warrior_class == GameData.WarriorClass.SPEARMAN else Vector3.ZERO
+	var hostility := {}
 	for other in _units_near(point, radius):
 		if not is_instance_valid(other) or other.get("is_dead") or other.get("is_wounded"):
 			continue
-		var u_fid: int = int(other.get("faction_id"))
-		if u_fid == -1 or u_fid == -3:
-			continue
-		if not GameState.is_hostile(u.faction_id, u_fid):
+		var other_faction: int = other.faction_id
+		if not hostility.has(other_faction):
+			hostility[other_faction] = GameState.is_hostile(faction, other_faction)
+		if not hostility[other_faction]:
 			continue
 		var o_pos: Vector3 = (other as Node3D).global_position
 		var d: float = point.distance_to(o_pos)
 		if d > radius:
 			continue
 		var score := d
-		if u.role == GameData.Role.WARRIOR:
-			if u.warrior_class == GameData.WarriorClass.KNIFE_RAIDER:
-				if other.get("role") == GameData.Role.WARRIOR and int(other.get("warrior_class")) == GameData.WarriorClass.ARCHER:
-					score -= 7.0
-				var u_hp := float(other.get("hp"))
-				var u_max := maxf(float(other.get("max_hp")), 1.0)
-				if (u_hp / u_max) < 0.45:
-					score -= 4.0
-			elif u.warrior_class == GameData.WarriorClass.SPEARMAN:
-				var camp: Vector3 = u._get_home_camp_pos()
-				if o_pos.distance_to(camp) < 16.0:
-					score -= 4.0
+		if warrior_class == GameData.WarriorClass.KNIFE_RAIDER:
+			if other.role == GameData.Role.WARRIOR and other.warrior_class == GameData.WarriorClass.ARCHER:
+				score -= 7.0
+			if float(other.hp) / maxf(float(other.max_hp), 1.0) < 0.45:
+				score -= 4.0
+		elif warrior_class == GameData.WarriorClass.SPEARMAN and o_pos.distance_squared_to(spear_camp) < 256.0:
+			score -= 4.0
 		if score < best_score:
 			best_score = score
 			best = other
@@ -504,11 +516,22 @@ static func find_nearest_enemy_building(u, radius: float) -> Node:
 	return best
 
 
+static func _is_valid_self_defense_target(target: Variant) -> bool:
+	if target == null or not is_instance_valid(target):
+		return false
+	if not (target is CharacterBody3D):
+		return false
+	var target_node: Node = target as Node
+	if target_node.get("is_dead") == true or target_node.get("is_wounded") == true or target_node.get("is_destroyed") != null:
+		return false
+	return true
+
+
 static func respond_to_civilian_threat(u, enemy: Node) -> bool:
 	# Civilian self-defense (weak unarmed hand attacks) or fleeing to camp
-	var threat: Node = enemy
+	var threat: Node = enemy if _is_valid_self_defense_target(enemy) else null
 	if u._self_defense_target != null:
-		if not is_instance_valid(u._self_defense_target) or u._self_defense_target.get("is_dead") == true or u._self_defense_target.get("is_wounded") == true:
+		if not _is_valid_self_defense_target(u._self_defense_target):
 			u._self_defense_target = null
 		else:
 			var sd_fid: Variant = u._self_defense_target.get("faction_id")
@@ -518,9 +541,11 @@ static func respond_to_civilian_threat(u, enemy: Node) -> bool:
 		if u.global_position.distance_to((u._self_defense_target as Node3D).global_position) <= 6.5:
 			threat = u._self_defense_target
 	if threat == null:
-		threat = find_nearest_hostile_wildlife(u, 7.5)
+		var wildlife_threat: Node = find_nearest_hostile_wildlife(u, 7.5)
+		if _is_valid_self_defense_target(wildlife_threat):
+			threat = wildlife_threat
 
-	if threat != null and is_instance_valid(threat):
+	if _is_valid_self_defense_target(threat):
 		var t_pos := (threat as Node3D).global_position
 		var dist_t: float = u.global_position.distance_to(t_pos)
 		var camp: Vector3 = u._get_home_camp_pos()

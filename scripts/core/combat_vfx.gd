@@ -109,3 +109,36 @@ static func spawn_slash_arc(host: Node, origin: Vector3, forward_dir: Vector3, c
 	tw.tween_property(arc, "scale", Vector3(1.15, 0.18, 1.15), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tw.tween_property(smat, "albedo_color:a", 0.0, 0.22)
 	tw.chain().tween_callback(arc.queue_free)
+
+
+static func spawn_first_person_slash_arc(host: Node, cam: Camera3D, col: Color = Color(1.0, 0.90, 0.55, 0.85)) -> void:
+	if not is_instance_valid(host) or not host.is_inside_tree() or not is_instance_valid(cam) or not cam.is_inside_tree():
+		return
+	var arc := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.58
+	tm.outer_radius = 0.84
+	tm.rings = 14
+	tm.ring_segments = 8
+	arc.mesh = tm
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = col
+	smat.emission_enabled = true
+	smat.emission = Color(col.r, col.g, col.b, 1.0)
+	smat.emission_energy_multiplier = 2.0
+	smat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	arc.material_override = smat
+	arc.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var cam_basis := cam.global_transform.basis
+	var fwd := -cam_basis.z
+	var up := cam_basis.y
+	var arc_pos: Vector3 = cam.global_position + fwd * 1.18 - up * 0.10
+	host.add_child(arc)
+	arc.global_transform = Transform3D(cam_basis * Basis(Vector3.BACK, deg_to_rad(-18.0)) * Basis(Vector3.UP, -0.55), arc_pos)
+	arc.scale = Vector3(1.10, 0.14, 0.68)
+	var tw := arc.create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(arc, "scale", Vector3(1.42, 0.16, 0.86), 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tw.tween_property(smat, "albedo_color:a", 0.0, 0.22)
+	tw.chain().tween_callback(arc.queue_free)

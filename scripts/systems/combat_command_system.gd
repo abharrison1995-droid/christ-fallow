@@ -105,9 +105,11 @@ func enlighten_captured_caveman() -> bool:
 		var pos: Vector3 = f0["camp_position"] + Vector3(randf_range(-2.5, 2.5), 0.0, randf_range(-2.5, 2.5))
 		var gender := GameData.Gender.MALE if randf() < 0.5 else GameData.Gender.FEMALE
 		var unit = fc.spawn_colonist(pos, GameData.Lineage.CAVEMAN, gender, GameData.Role.FORAGER, false, false)
-		if unit != null and GameState.has_tenet(0, "KINSHIP"):
-			unit.weapon_tier = maxi(unit.weapon_tier, 2)
-			unit.recalculate_stats(true)
+		if unit != null:
+			if GameState.has_tenet(0, "KINSHIP"):
+				unit.weapon_tier = maxi(unit.weapon_tier, 2)
+			GameState.apply_recruit_perks(0, unit)
+			GameState.award_xp(0, 35.0, "Enlightened captive")
 		GameState.push_log("Enlightened a captured Caveman! %s joined your tribe." % (unit.unit_name if unit else "A convert"), "success")
 	GameState.resources_changed.emit(0)
 	return true
@@ -147,6 +149,7 @@ func propose_alliance(target_fid: int) -> void:
 	var op := GameState.get_diplomatic_opinion(0, target_fid)
 	if op >= 35:
 		GameState.set_diplomatic_state(0, target_fid, GameData.DiplomaticState.ALLIED)
+		GameState.award_xp(0, 100.0, "Forged alliance")
 		GameState.push_log("%s agreed to a Tribal Alliance!" % GameState.factions[target_fid]["name"], "success")
 		GameState.check_victory_conditions()
 	else:

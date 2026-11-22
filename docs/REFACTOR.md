@@ -1,6 +1,6 @@
 # Codebase refactor plan
 
-**Implemented 20 November 2026.** The rebuilt title screen and in-game UI were the reference for comparing behavior and layout.
+**First pass implemented 20 November 2026; second extraction pass implemented 22 November 2026.** The rebuilt title screen and in-game UI were the reference for comparing behavior and layout.
 
 ## Goal
 
@@ -78,6 +78,16 @@ When a slice lands, record its status and the verification command, gameplay pat
 
 An independent GPT‑6.1 Terra High review found a stale Colony roster after maturation, an unvalidated save reference, and a suspended coroutine in the Quit probe. The roster now refreshes when a unit's role, class, or eligibility changes. New v3 saves with a live player leader record and validate that unit's ID. Unmarked saves retain their previous behavior, including legitimate leaderless states. The Quit probe ends its coroutine before shutdown. The reviewer rechecked the fixes and found no new actionable regression.
 
+## Second extraction pass (22 November 2026)
+
+A follow-up modularization pass split the three largest remaining runtime scripts into preloaded static-function helper modules without `class_name`, adhering to Godot 4.3 strict typing (`Variant` annotations, no `bool(null)`):
+
+| Module | Owner | Extracted Responsibilities & Compatibility |
+| --- | --- | --- |
+| [UnitCombatAI](../scripts/entities/unit_combat_ai.gd) | [HumanUnit](../scripts/entities/human_unit.gd) | Wild wanderer, feral caveman, rebel, player-warrior, and AI-warrior decision ticks, rival leader blessing casts, reach checks, target/building engagement, attack execution, arrow/javelin firing, and unarmed self-defense. `HumanUnit` retains navigation, HP/damage/death, serialization, visual presentation, and thin forwarding wrappers (`_process_*`, `_engage_*`, `_execute_attack_on`, `_fire_*`). |
+| [DiplomacyConquestRules](../scripts/core/diplomacy_conquest_rules.gd) | [GameState](../scripts/core/game_state.gd) | Tribute delivery, truce setup, nearby rival leader search, diplomatic state/opinion mutations, opinion breakdown, hostility checks, rebel faction founding, rival leader succession, conquest eligibility/resolution, third-party elimination, and victory/defeat evaluation. `GameState` retains all public/internal method signatures, state dictionaries, and signal emissions (`diplomacy_changed`, `raid_alert`, `conquest_triggered`, `victory_achieved`, `defeat_triggered`). |
+| [HUDPanels](../scripts/ui/hud_panels.gd) | [HUDController](../scripts/ui/hud_controller.gd) | Top bar, Awakening Guide panel, build-mode banner, Valley Radar panel, event log panel, squad bar, drawer container panel, and raid alert panel construction plus live top-bar, clock, objective, tutorial-highlight, and squad-bar updates. `HUDController` keeps all member widget references, drawer/overlay orchestration, shortcut routing, and thin forwarding wrappers expected by UI and tutorial verifiers. |
+
 ## Implementation verification
 
 Run from PowerShell in the project root. Set `$godot` to the Godot 4.3 console executable and `$qa` to a short, empty scratch directory outside the project. Use a fresh directory for each UI attempt because the verifier exercises the default campaign save slot.
@@ -109,7 +119,7 @@ The Forward+ probe used seed `17394` at 1280×720 on the Intel UHD 620. After 15
 | Developed settlement | 91 | 50 | 61.889 ms | 19.584 ms |
 | Raid | 107 | 51 | 69.126 ms | 23.013 ms |
 
-The search batch measures the cost of that query on each population. It does not measure its share of the live frame. A spatial index remains a separate optimization pending attribution of the frame cost.
+This historical search microbenchmark preceded the spatial index and valley navigation delivered in [Phase 1](ROADMAP.md#phase-1-simulation-performance--navigation-foundation). The measured batches cover isolated queries. Current elapsed-frame and stress results are tracked separately in [Performance review](PERFORMANCE.md).
 
 ## Baseline checks from the planning audit
 

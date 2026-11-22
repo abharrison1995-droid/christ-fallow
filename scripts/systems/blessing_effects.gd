@@ -1,33 +1,37 @@
 extends RefCounted
 ## Shared Patron God blessing and area-of-effect combat helpers for leaders.
 
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
+
 
 static func trigger_leader_blessing(caster: Node, faction_id: int, hit_wildlife: bool = false) -> void:
 	if caster == null or not is_instance_valid(caster) or not GameState.factions.has(faction_id):
 		return
-	var god: int = int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE))
+	var faction_dict: Dictionary = GameState.factions[faction_id]
+	var power_mult: float = PerkSystem.get_blessing_power_mult(faction_dict)
+	var god: int = int(faction_dict.get("patron_god", GameData.PatronGod.NONE))
 	var god_info: Dictionary = GameData.GOD_DATA.get(god, GameData.GOD_DATA[GameData.PatronGod.NONE])
 	var is_player: bool = (faction_id == 0)
 
 	match god:
 		GameData.PatronGod.SOL_KAR:
-			aoe_damage(caster, faction_id, 10.0, 35.0 if is_player else 28.0, 99, hit_wildlife)
-			aoe_heal(caster, faction_id, 10.0, 25.0)
+			aoe_damage(caster, faction_id, 10.0, (35.0 if is_player else 28.0) * power_mult, 99, hit_wildlife)
+			aoe_heal(caster, faction_id, 10.0, 25.0 * power_mult)
 		GameData.PatronGod.GAIA_MAR:
-			aoe_heal(caster, faction_id, 12.0, 45.0 if is_player else 40.0)
+			aoe_heal(caster, faction_id, 12.0, (45.0 if is_player else 40.0) * power_mult)
 			if is_player:
 				GameState.add_resource(faction_id, "food", 15.0)
 		GameData.PatronGod.FEN_ROR:
 			_apply_allied_buff(caster, faction_id, 14.0, 10.0, 1.40 if is_player else 1.35, 0.0, 0.0)
 		GameData.PatronGod.VALK_TOR:
-			aoe_damage(caster, faction_id, 14.0 if is_player else 12.0, 42.0 if is_player else 34.0, 5 if is_player else 4, hit_wildlife)
+			aoe_damage(caster, faction_id, 14.0 if is_player else 12.0, (42.0 if is_player else 34.0) * power_mult, 5 if is_player else 4, hit_wildlife)
 		GameData.PatronGod.KRAG_UL:
-			_apply_allied_buff(caster, faction_id, 14.0, 10.0, 1.0, 18.0, 15.0)
+			_apply_allied_buff(caster, faction_id, 14.0, 10.0, 1.0, 18.0, 15.0 * power_mult)
 		_:
 			if is_player:
-				_apply_allied_buff(caster, faction_id, 12.0, 8.0, 1.20, 0.0, 15.0)
+				_apply_allied_buff(caster, faction_id, 12.0, 8.0, 1.20, 0.0, 15.0 * power_mult)
 			else:
-				caster.heal(20.0)
+				caster.heal(20.0 * power_mult)
 
 	if is_player:
 		GameState.push_log("Invoked %s (%s)!" % [god_info["blessing_name"], god_info["name"]], "success")

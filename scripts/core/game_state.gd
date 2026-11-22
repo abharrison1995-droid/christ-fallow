@@ -4,6 +4,7 @@ signal resources_changed(faction_id: int)
 signal time_changed(time_of_day: float, day_count: int, phase: int)
 signal diplomacy_changed()
 signal religion_changed(faction_id: int)
+signal progression_changed(faction_id: int)
 signal notification_pushed(message: String, severity: String)
 signal raid_alert(attacker_faction_id: int, target_faction_id: int, message: String)
 signal conquest_triggered(target_faction_id: int)
@@ -18,6 +19,9 @@ const BANDIT_GRACE_DURATION := 210.0
 const CampaignSave = preload("res://scripts/core/campaign_save.gd")
 const CampaignStorage = preload("res://scripts/core/campaign_storage.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
+const DiplomacyConquestRules = preload("res://scripts/core/diplomacy_conquest_rules.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
+const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const SpatialIndex = preload("res://scripts/core/spatial_index.gd")
 const ValleyNavigation = preload("res://scripts/core/valley_navigation.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
@@ -193,6 +197,10 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 		"patron_god": GameData.PatronGod.NONE,
 		"tenets": [],
 		"tech_tier": 1,
+		"level": 1,
+		"xp": 0.0,
+		"skill_points": 0,
+		"perks": {},
 		"is_founded": false,
 		"is_defeated": false,
 		"camp_position": valley_layout.camp_position(0),
@@ -234,6 +242,10 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 			"patron_god": preset["god"],
 			"tenets": preset["tenets"].duplicate(),
 			"tech_tier": 1,
+			"level": 1,
+			"xp": 0.0,
+			"skill_points": 0,
+			"perks": {},
 			"is_founded": (not is_feral and not is_rebel),
 			"is_defeated": false,
 			"camp_position": valley_layout.camp_position(fid),
@@ -259,45 +271,7 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 			"craft_queue": [],
 		}
 
-	# Initialize diplomacy pairs (0..4)
-	for a in range(5):
-		for b in range(a + 1, 5):
-			var key := get_diplomatic_key(a, b)
-			var base_mod := 0
-			if a == 0 or b == 0:
-				var other := b if a == 0 else a
-				if other == 1:
-					base_mod = -10
-				elif other == 4:
-					base_mod = 12
-			diplomacy[key] = {
-				"state": GameData.DiplomaticState.NEUTRAL,
-				"opinion_mod": base_mod,
-				"truce_timer": 0.0,
-			}
-
-	# Faction 5 (Nomadic Cavemen) is permanently at war with everyone
-	for a in range(5):
-		var fkey := get_diplomatic_key(a, 5)
-		diplomacy[fkey] = {
-			"state": GameData.DiplomaticState.AT_WAR,
-			"opinion_mod": -100,
-			"truce_timer": 0.0,
-		}
-
-	# Faction 6 (Outcast Rebels) starts at war with Player (0) and neutral to rivals
-	for a in range(5):
-		var rkey := get_diplomatic_key(a, 6)
-		diplomacy[rkey] = {
-			"state": GameData.DiplomaticState.AT_WAR if a == 0 else GameData.DiplomaticState.NEUTRAL,
-			"opinion_mod": -100 if a == 0 else 0,
-			"truce_timer": 0.0,
-		}
-	diplomacy[get_diplomatic_key(5, 6)] = {
-		"state": GameData.DiplomaticState.AT_WAR,
-		"opinion_mod": -100,
-		"truce_timer": 0.0,
-	}
+	DiplomacyConquestRules.initialize_diplomacy(self)
 
 	if is_instance_valid(combat_command_system):
 		combat_command_system.restore_from_save({})
@@ -307,186 +281,63 @@ func initialize_new_campaign(leader_name: String, tribe_name: String, lineage: i
 
 
 func _on_new_day() -> void:
-	var treaty_changed := false
-	for key in diplomacy.keys():
-		var rel: Dictionary = diplomacy[key]
-		if rel["truce_timer"] > 0.0:
-			rel["truce_timer"] = maxf(0.0, rel["truce_timer"] - 1.0)
-			treaty_changed = true
-	for faction_id in [1, 2, 3, 4, 6]:
-		if get_diplomatic_state(0, faction_id) == GameData.DiplomaticState.TRIBUTARY and is_settled_rival(faction_id):
-			_deliver_tribute(faction_id)
-	if treaty_changed:
-		diplomacy_changed.emit()
+	DiplomacyConquestRules.on_new_day(self)
 
 
 func _deliver_tribute(faction_id: int) -> void:
-	var stock: Dictionary = factions[faction_id]["resources"]
-	var food := clampf(float(stock["food"]), 0.0, 8.0)
-	var flint := clampf(float(stock["flint"]), 0.0, 3.0)
-	if food <= 0.0 and flint <= 0.0:
-		return
-	spend_resources(faction_id, {"food": food, "flint": flint})
-	add_resource(0, "food", food)
-	add_resource(0, "flint", flint)
-	push_log("%s delivered %.0f Food and %.0f Flint in tribute." % [factions[faction_id]["name"], food, flint], "success")
+	DiplomacyConquestRules.deliver_tribute(self, faction_id)
 
 
 func get_diplomatic_key(a: int, b: int) -> String:
-	var lo := mini(a, b)
-	var hi := maxi(a, b)
-	return "%d_%d" % [lo, hi]
+	return DiplomacyConquestRules.get_diplomatic_key(a, b)
 
 
 func get_diplomatic_state(a: int, b: int) -> int:
-	if a == b:
-		return GameData.DiplomaticState.ALLIED
-	if a == 5 or b == 5:
-		return GameData.DiplomaticState.AT_WAR
-	var key := get_diplomatic_key(a, b)
-	if diplomacy.has(key):
-		return int(diplomacy[key]["state"])
-	return GameData.DiplomaticState.NEUTRAL
+	return DiplomacyConquestRules.get_diplomatic_state(self, a, b)
 
 
 func get_truce_days(a: int, b: int) -> float:
-	var relation: Dictionary = diplomacy.get(get_diplomatic_key(a, b), {})
-	return float(relation.get("truce_timer", 0.0))
+	return DiplomacyConquestRules.get_truce_days(self, a, b)
 
 
 func has_truce(a: int, b: int) -> bool:
-	return get_truce_days(a, b) > 0.0
+	return DiplomacyConquestRules.has_truce(self, a, b)
 
 
 func begin_truce(a: int, b: int) -> void:
-	if not set_diplomatic_state(a, b, GameData.DiplomaticState.NEUTRAL):
-		return
-	diplomacy[get_diplomatic_key(a, b)]["truce_timer"] = 2.0
-	for pair in [[a, b], [b, a]]:
-		var camp: Vector3 = factions[pair[1]]["camp_position"]
-		for unit in get_faction_units(pair[0], true):
-			if unit.is_raiding and unit.raid_target_pos.is_equal_approx(camp):
-				unit.is_raiding = false
-	diplomacy_changed.emit()
+	DiplomacyConquestRules.begin_truce(self, a, b)
 
 
 func is_treaty_ally(a: int, b: int) -> bool:
-	return get_diplomatic_state(a, b) in [GameData.DiplomaticState.ALLIED, GameData.DiplomaticState.TRIBUTARY]
+	return DiplomacyConquestRules.is_treaty_ally(self, a, b)
 
 
 func is_settled_rival(faction_id: int) -> bool:
-	var faction: Dictionary = factions.get(faction_id, {})
-	return faction_id in [1, 2, 3, 4, 6] and faction.get("is_founded") == true and faction.get("is_defeated") != true
+	return DiplomacyConquestRules.is_settled_rival(self, faction_id)
 
 
 func nearby_rival_leader(origin: Vector3) -> Node:
-	var nearest: Node = null
-	var best_d := Layout.SCAN_RANGE_NEGOTIATE * Layout.SCAN_RANGE_NEGOTIATE
-	for fid in [1, 2, 3, 4, 6]:
-		if not is_settled_rival(fid):
-			continue
-		var representative := get_faction_leader(fid)
-		if representative != null:
-			var distance_sq := origin.distance_squared_to((representative as Node3D).global_position)
-			if distance_sq < best_d:
-				best_d = distance_sq
-				nearest = representative
-	return nearest
+	return DiplomacyConquestRules.nearby_rival_leader(self, origin)
 
 
 func set_diplomatic_state(a: int, b: int, state: int) -> bool:
-	if a == b or a == 5 or b == 5 or not factions.has(a) or not factions.has(b):
-		return false
-	if state == GameData.DiplomaticState.AT_WAR and has_truce(a, b):
-		return false
-	var key := get_diplomatic_key(a, b)
-	if not diplomacy.has(key):
-		diplomacy[key] = {"state": state, "opinion_mod": 0, "truce_timer": 0.0}
-	else:
-		diplomacy[key]["state"] = state
-	diplomacy_changed.emit()
-	return true
+	return DiplomacyConquestRules.set_diplomatic_state(self, a, b, state)
 
 
 func modify_opinion(a: int, b: int, delta: int) -> void:
-	if a == b or a == 5 or b == 5:
-		return
-	var key := get_diplomatic_key(a, b)
-	if diplomacy.has(key):
-		diplomacy[key]["opinion_mod"] = clampi(int(diplomacy[key]["opinion_mod"]) + delta, -100, 100)
-	diplomacy_changed.emit()
+	DiplomacyConquestRules.modify_opinion(self, a, b, delta)
 
 
 func get_diplomatic_opinion_breakdown(fid_a: int, fid_b: int) -> Dictionary:
-	if fid_a == fid_b:
-		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": 100, "state_bound": 0, "total": 100}
-	if fid_a == 5 or fid_b == 5:
-		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": -100, "state_bound": 0, "total": -100}
-	if not factions.has(fid_a) or not factions.has(fid_b):
-		return {"god": 0, "tenets": 0, "peaceful_offering": 0, "actions": 0, "state_bound": 0, "total": 0}
-
-	var fa: Dictionary = factions[fid_a]
-	var fb: Dictionary = factions[fid_b]
-	var key := get_diplomatic_key(fid_a, fid_b)
-	var actions: int = int(diplomacy[key]["opinion_mod"]) if diplomacy.has(key) else 0
-
-	# Religious alignment scoring
-	var god: int = 0
-	var god_a: int = int(fa.get("patron_god", GameData.PatronGod.NONE))
-	var god_b: int = int(fb.get("patron_god", GameData.PatronGod.NONE))
-	if god_a != GameData.PatronGod.NONE and god_b != GameData.PatronGod.NONE and god_a == god_b:
-		god = 30
-
-	var tenets: int = 0
-	var tenets_a: Array = fa.get("tenets", [])
-	var tenets_b: Array = fb.get("tenets", [])
-	for t in tenets_a:
-		if tenets_b.has(t):
-			tenets += 20
-		var t_data: Dictionary = GameData.TENET_DATA.get(t, {})
-		var opp: String = str(t_data.get("opposing", ""))
-		if opp != "" and tenets_b.has(opp):
-			tenets -= 20
-
-	# Peaceful Offering tenet passive bonus
-	var peaceful_offering: int = 15 if (tenets_a.has("PEACEFUL_OFFERING") or tenets_b.has("PEACEFUL_OFFERING")) else 0
-
-	var raw_total: int = actions + god + tenets + peaceful_offering
-	var bounded: int = raw_total
-	var state := get_diplomatic_state(fid_a, fid_b)
-	if state == GameData.DiplomaticState.AT_WAR:
-		bounded = mini(bounded, -35)
-	elif state in [GameData.DiplomaticState.ALLIED, GameData.DiplomaticState.TRIBUTARY]:
-		bounded = maxi(bounded, 50)
-
-	var total: int = clampi(bounded, -100, 100)
-	var state_bound: int = total - raw_total
-	return {
-		"god": god,
-		"tenets": tenets,
-		"peaceful_offering": peaceful_offering,
-		"actions": actions,
-		"state_bound": state_bound,
-		"total": total,
-	}
+	return DiplomacyConquestRules.get_diplomatic_opinion_breakdown(self, fid_a, fid_b)
 
 
 func get_diplomatic_opinion(a: int, b: int) -> int:
-	return int(get_diplomatic_opinion_breakdown(a, b)["total"])
+	return DiplomacyConquestRules.get_diplomatic_opinion(self, a, b)
 
 
 func is_hostile(a: int, b: int) -> bool:
-	if a == b:
-		return false
-	if a == -3 or b == -3 or a == -1 or b == -1:
-		return false
-	if (a == 0 and b == -2) or (a == -2 and b == 0):
-		return true
-	if a == -2 or b == -2:
-		return false
-	if a == 5 or b == 5:
-		return true
-	return get_diplomatic_state(a, b) == GameData.DiplomaticState.AT_WAR and not has_truce(a, b)
+	return DiplomacyConquestRules.is_hostile(self, a, b)
 
 
 func can_trigger_revolt() -> bool:
@@ -507,61 +358,7 @@ func get_average_morale(faction_id: int = 0) -> float:
 
 
 func found_rebel_faction(defector: Node) -> void:
-	if not factions.has(6) or defector == null:
-		return
-	var f6: Dictionary = factions[6]
-	var fc6 = faction_controllers.get(6)
-	if not bool(f6["is_founded"]) or bool(f6["is_defeated"]):
-		var p_camp: Vector3 = factions[0].get("camp_position", Vector3.ZERO)
-		var best_site := p_camp + Vector3(-58.0, 0.0, 12.0)
-		var best_min_d := -1.0
-		for i in range(12):
-			var ang := float(i) * TAU / 12.0
-			var cand := p_camp + Vector3(cos(ang) * 60.0, 0.0, sin(ang) * 60.0)
-			cand.x = clampf(cand.x, -valley_layout.rebel_camp_clamp, valley_layout.rebel_camp_clamp)
-			cand.z = clampf(cand.z, -valley_layout.rebel_camp_clamp, valley_layout.rebel_camp_clamp)
-			var min_d := 99999.0
-			for rid in range(1, 5):
-				if factions.has(rid):
-					var rd := cand.distance_to(factions[rid]["camp_position"])
-					min_d = minf(min_d, rd)
-			if min_d > best_min_d:
-				best_min_d = min_d
-				best_site = cand
-
-		f6["is_founded"] = true
-		f6["is_defeated"] = false
-		f6["camp_position"] = best_site
-		f6["leader_name"] = defector.get("unit_name")
-		f6["primary_lineage"] = int(defector.get("lineage"))
-		set_diplomatic_state(0, 6, GameData.DiplomaticState.AT_WAR)
-		modify_opinion(0, 6, -100)
-
-		if fc6 != null:
-			fc6.spawn_building("CAMPFIRE", best_site, 0.0, true)
-			fc6.spawn_building("SLEEPING_HUT", best_site + Vector3(-5.0, 0.0, -3.5), 0.3, true)
-			fc6.spawn_building("PALISADE_WALL", best_site + Vector3(-3.0, 0.0, 5.0), 0.2, true)
-			fc6.spawn_building("PALISADE_WALL", best_site + Vector3(3.0, 0.0, 5.0), -0.2, true)
-			var lin: int = int(defector.get("lineage"))
-			for k in range(2):
-				var rw: Node = fc6.spawn_colonist(best_site + Vector3(-2.5 + float(k) * 5.0, 0.0, 2.5), lin, GameData.Gender.MALE if k == 0 else GameData.Gender.FEMALE, GameData.Role.WARRIOR, false)
-				if rw != null:
-					rw.set_role_and_class(GameData.Role.WARRIOR, GameData.WarriorClass.SPEARMAN if k == 0 else GameData.WarriorClass.ARCHER)
-
-		defector.convert_to_faction(6, false)
-		(defector as Node3D).global_position = best_site + Vector3(0.0, 0.0, 2.0)
-		spatial_index.update_unit(defector)
-		defector.promote_to_rival_leader()
-		var alert_msg := "REBEL FACTION FORMED! %s founded The Outcast Rebels nearby and targets your colony!" % str(f6["leader_name"])
-		raid_alert.emit(6, 0, alert_msg)
-		push_log(alert_msg, "danger")
-	else:
-		defector.convert_to_faction(6, false)
-		defector.set_role_and_class(GameData.Role.WARRIOR, GameData.WarriorClass.KNIFE_RAIDER)
-		defector.is_raiding = true
-		defector.raid_target_pos = factions[0]["camp_position"]
-		push_log("%s defected and joined The Outcast Rebels!" % str(defector.get("unit_name")), "danger")
-	diplomacy_changed.emit()
+	DiplomacyConquestRules.found_rebel_faction(self, defector)
 
 
 func has_tenet(faction_id: int, tenet_id: String) -> bool:
@@ -597,6 +394,9 @@ func assign_player_role(unit: Node, role: int, warrior_class: int = -1) -> bool:
 	if warrior_class != -1 and not GameData.WARRIOR_CLASS_NAMES.has(warrior_class):
 		return false
 	unit.set_role_and_class(role, warrior_class)
+	AwakeningGuide.advance(self)
+	if is_instance_valid(hud_controller) and hud_controller.has_method("refresh_awakening_guide"):
+		hud_controller.refresh_awakening_guide()
 	return true
 
 
@@ -639,11 +439,175 @@ func add_resource(faction_id: int, res_key: String, amount: float) -> void:
 		resources_changed.emit(faction_id)
 
 
+func get_perk_rank(faction_id: int, perk_id: String) -> int:
+	if not factions.has(faction_id):
+		return 0
+	return PerkSystem.get_perk_rank(factions[faction_id], perk_id)
+
+
+func is_building_unlocked(faction_id: int, building_type: String) -> bool:
+	if not factions.has(faction_id):
+		return false
+	return PerkSystem.is_building_unlocked(factions[faction_id], building_type)
+
+
+func get_building_lock_reason(faction_id: int, building_type: String) -> String:
+	if not factions.has(faction_id):
+		return ""
+	return PerkSystem.get_building_lock_reason(factions[faction_id], building_type)
+
+
+func get_max_population_cap(faction_id: int) -> int:
+	if not factions.has(faction_id):
+		return 32
+	return PerkSystem.get_max_population_cap(factions[faction_id])
+
+
+func award_xp(faction_id: int, amount: float, _reason: String = "") -> void:
+	if amount <= 0.0 or faction_id == 5 or not factions.has(faction_id):
+		return
+	var fdata: Dictionary = factions[faction_id]
+	var lvl: int = PerkSystem.get_level(fdata)
+	if lvl >= PerkSystem.MAX_LEVEL:
+		fdata["level"] = PerkSystem.MAX_LEVEL
+		fdata["xp"] = 0.0
+		return
+	var xp: float = PerkSystem.get_xp(fdata) + amount
+	var leveled_up := false
+	while lvl < PerkSystem.MAX_LEVEL:
+		var req: float = PerkSystem.xp_for_next_level(lvl)
+		if xp < req:
+			break
+		xp -= req
+		lvl += 1
+		fdata["skill_points"] = PerkSystem.get_skill_points(fdata) + 1
+		leveled_up = true
+		var leader: Node = get_faction_leader(faction_id)
+		if leader != null and is_instance_valid(leader):
+			leader.heal(30.0)
+			if faction_id == 0 and leader is Node3D:
+				CombatVFX.spawn_damage_popup(leader as Node3D, "LEVEL UP! Lv.%d" % lvl, Color(1.0, 0.90, 0.32), 1.35, 2.6)
+		if faction_id == 0:
+			push_log("LEVEL UP! Your tribe reached Level %d (+1 Skill Point — open [K] Perks)!" % lvl, "success")
+	if lvl >= PerkSystem.MAX_LEVEL:
+		xp = 0.0
+	fdata["level"] = lvl
+	fdata["xp"] = xp
+	if leveled_up and faction_id in [1, 2, 3, 4, 6]:
+		_auto_spend_rival_perks(faction_id)
+	progression_changed.emit(faction_id)
+
+
+func _auto_spend_rival_perks(faction_id: int) -> void:
+	if not factions.has(faction_id) or faction_id == 0 or faction_id == 5:
+		return
+	var guard := 0
+	while PerkSystem.get_skill_points(factions[faction_id]) > 0 and guard < 16:
+		guard += 1
+		var next_perk: String = PerkSystem.pick_rival_perk(factions[faction_id])
+		if next_perk.is_empty() or not unlock_perk(faction_id, next_perk, true):
+			break
+
+
+func unlock_perk(faction_id: int, perk_id: String, silent: bool = false) -> bool:
+	if not factions.has(faction_id):
+		return false
+	var fdata: Dictionary = factions[faction_id]
+	if not PerkSystem.can_unlock_perk(fdata, perk_id):
+		return false
+	if typeof(fdata.get("perks")) != TYPE_DICTIONARY:
+		fdata["perks"] = {}
+	var perks: Dictionary = fdata["perks"]
+	var new_rank: int = PerkSystem.get_perk_rank(fdata, perk_id) + 1
+	perks[perk_id] = new_rank
+	fdata["skill_points"] = PerkSystem.get_skill_points(fdata) - 1
+	for unit in get_faction_units(faction_id, true):
+		unit.recalculate_stats(false)
+	for b in get_faction_buildings(faction_id, "", false):
+		if b.has_method("recalculate_max_hp"):
+			b.recalculate_max_hp(true)
+	if faction_id == 0 and not silent:
+		var perk_name: String = str(PerkSystem.PERK_DEFINITIONS[perk_id]["name"])
+		push_log("Unlocked %s (Rank %d)!" % [perk_name, new_rank], "success")
+	progression_changed.emit(faction_id)
+	if faction_id == 0:
+		resources_changed.emit(0)
+	return true
+
+
+func apply_recruit_perks(faction_id: int, unit: Node) -> void:
+	if not is_instance_valid(unit) or not factions.has(faction_id) or faction_id == 5:
+		return
+	var fdata: Dictionary = factions[faction_id]
+	var target_mult: float = PerkSystem.get_recruit_stat_mult(fdata)
+	var prev_val: Variant = unit.get("_recruit_perks_mult")
+	var prev_mult: float = float(prev_val) if prev_val != null else 1.0
+	if target_mult > prev_mult + 0.001:
+		var ratio: float = target_mult / maxf(prev_mult, 1.0)
+		unit.base_hp_stat = clampf(float(unit.base_hp_stat) * ratio, 60.0, 220.0)
+		unit.base_melee_stat = clampf(float(unit.base_melee_stat) * ratio, 6.0, 35.0)
+		unit.base_ranged_stat = clampf(float(unit.base_ranged_stat) * ratio, 6.0, 35.0)
+		unit.set("_recruit_perks_mult", target_mult)
+		var morale_bonus: float = PerkSystem.get_recruit_morale_bonus(fdata)
+		if morale_bonus > 0.0 and float(unit.morale) < 100.0:
+			unit.morale = clampf(float(unit.morale) + morale_bonus, 0.0, 100.0)
+	var start_rank: int = PerkSystem.get_recruit_starting_rank(fdata)
+	if start_rank > 0 and not bool(unit.get("is_child")):
+		unit.melee_rank = maxi(int(unit.melee_rank), start_rank)
+		unit.ranged_rank = maxi(int(unit.ranged_rank), start_rank)
+	unit.recalculate_stats(true)
+	if PerkSystem.has_battle_veterans(fdata) and int(unit.role) == GameData.Role.WARRIOR:
+		unit.try_equip_from_stockpile()
+
+
+func hire_nomad_villager(faction_id: int = 0) -> Node:
+	if not factions.has(faction_id):
+		return null
+	var fdata: Dictionary = factions[faction_id]
+	if PerkSystem.get_perk_rank(fdata, "CALL_OF_THE_HEARTH") <= 0:
+		if faction_id == 0:
+			push_log("Unlock 'Call of the Hearth' in [K] Perks to hire Nomad Villagers.", "warning")
+		return null
+	if not has_building(faction_id, "CAMPFIRE", true):
+		if faction_id == 0:
+			push_log("Light a Tribal Campfire first to hire Nomad Villagers!", "warning")
+		return null
+	var cur_pop: int = get_faction_units(faction_id, true).size()
+	var cap: int = mini(get_housing_capacity(faction_id), get_max_population_cap(faction_id))
+	if cur_pop >= cap:
+		if faction_id == 0:
+			push_log("Build more Sleeping Huts or upgrade Hearth capacity before hiring!", "warning")
+		return null
+	var cost: int = PerkSystem.get_hire_nomad_cost(fdata)
+	if not spend_resources(faction_id, {"food": cost}):
+		if faction_id == 0:
+			push_log("Need %d Food to hire a Nomad Villager." % cost, "warning")
+		return null
+	var fc: Node = faction_controllers.get(faction_id)
+	if fc == null or not fc.has_method("spawn_colonist"):
+		return null
+	var camp_pos: Vector3 = fdata["camp_position"]
+	var pos := camp_pos + Vector3(randf_range(-3.0, 3.0), 0.0, randf_range(-3.0, 3.0))
+	var lin: int = int(fdata.get("primary_lineage", GameData.Lineage.CRAG_BORN))
+	var gender := GameData.Gender.MALE if randf() < 0.5 else GameData.Gender.FEMALE
+	var unit: Node = fc.spawn_colonist(pos, lin, gender, GameData.Role.FORAGER, false, false)
+	if unit != null:
+		apply_recruit_perks(faction_id, unit)
+		award_xp(faction_id, 20.0, "Hired nomad")
+		if faction_id == 0:
+			push_log("Hired nomad villager %s (%s)!" % [str(unit.get("unit_name")), GameData.LINEAGE_DATA[lin]["short_name"]], "success")
+	return unit
+
+
 func can_afford(faction_id: int, costs: Dictionary, is_building: bool = false) -> bool:
 	if not factions.has(faction_id):
 		return false
 	var res: Dictionary = factions[faction_id]["resources"]
-	var discount := 0.8 if (is_building and has_tenet(faction_id, "ANCESTRAL_STONE")) else 1.0
+	var discount := 1.0
+	if is_building:
+		if has_tenet(faction_id, "ANCESTRAL_STONE"):
+			discount *= 0.8
+		discount *= PerkSystem.get_building_cost_mult(factions[faction_id])
 	for k in costs.keys():
 		var req := float(costs[k])
 		if k == "wood" or k == "stone":
@@ -657,7 +621,11 @@ func spend_resources(faction_id: int, costs: Dictionary, is_building: bool = fal
 	if not can_afford(faction_id, costs, is_building):
 		return false
 	var res: Dictionary = factions[faction_id]["resources"]
-	var discount := 0.8 if (is_building and has_tenet(faction_id, "ANCESTRAL_STONE")) else 1.0
+	var discount := 1.0
+	if is_building:
+		if has_tenet(faction_id, "ANCESTRAL_STONE"):
+			discount *= 0.8
+		discount *= PerkSystem.get_building_cost_mult(factions[faction_id])
 	for k in costs.keys():
 		var req := float(costs[k])
 		if k == "wood" or k == "stone":
@@ -737,10 +705,11 @@ func clear_spatial_systems() -> void:
 
 func get_housing_capacity(faction_id: int) -> int:
 	var cap := 2
+	var faction: Dictionary = factions.get(faction_id, {})
 	for b in get_faction_buildings(faction_id, "", true):
 		var b_type: String = b.get("building_type")
 		if GameData.BUILDINGS.has(b_type):
-			cap += int(GameData.BUILDINGS[b_type]["housing"])
+			cap += int(GameData.BUILDINGS[b_type]["housing"]) + PerkSystem.get_extra_housing(faction, b_type)
 	return cap
 
 
@@ -753,188 +722,27 @@ func get_faction_military_power(faction_id: int) -> float:
 
 
 func trigger_conquest_if_eligible(target_faction_id: int, attacker_faction_id: int) -> void:
-	if not game_active or campaign_finished:
-		return
-	if not is_settled_rival(target_faction_id):
-		return
-	if _conquest_pending_factions.has(target_faction_id):
-		return
-
-	var has_camp := has_building(target_faction_id, "CAMPFIRE", true)
-	var has_totem := has_building(target_faction_id, "SACRED_TOTEM", true)
-	var leader := get_faction_leader(target_faction_id)
-	var wiped_out := get_faction_units(target_faction_id, true).is_empty() and get_faction_buildings(target_faction_id, "", false).is_empty()
-	if not ((not has_camp and not has_totem) or leader == null or wiped_out):
-		return
-
-	var player_or_ally_conquest := false
-	if attacker_faction_id == 0:
-		player_or_ally_conquest = true
-	elif attacker_faction_id > 0 and attacker_faction_id != target_faction_id:
-		var is_player_ally := is_treaty_ally(0, attacker_faction_id)
-		var player_at_war := is_hostile(0, target_faction_id)
-		var ally_at_war := is_hostile(attacker_faction_id, target_faction_id)
-		if is_player_ally and player_at_war and ally_at_war:
-			player_or_ally_conquest = true
-
-	if player_or_ally_conquest:
-		var first_conquest := _conquest_pending_factions.is_empty()
-		_conquest_pending_factions[target_faction_id] = true
-		if first_conquest:
-			_paused_before_conquest = is_paused
-			is_paused = true
-			conquest_triggered.emit(target_faction_id)
-	elif leader == null and (has_camp or has_totem) and ensure_rival_leader(target_faction_id) != null:
-		diplomacy_changed.emit()
-	else:
-		_mark_faction_eliminated_by_third_party(target_faction_id, attacker_faction_id)
+	DiplomacyConquestRules.trigger_conquest_if_eligible(self, target_faction_id, attacker_faction_id)
 
 
 func ensure_rival_leader(faction_id: int) -> Node:
-	var current := get_faction_leader(faction_id)
-	if current != null or not is_settled_rival(faction_id):
-		return current
-	var candidate: Node = null
-	var best := -INF
-	for unit in get_faction_units(faction_id, true):
-		if unit.is_child:
-			continue
-		var score: float = unit.max_hp * 0.4 + unit.attack_damage * 3.0
-		if score > best:
-			best = score
-			candidate = unit
-	if candidate != null:
-		candidate.promote_to_rival_leader()
-		push_log("%s now leads %s." % [candidate.unit_name, factions[faction_id]["name"]], "info")
-	return candidate
+	return DiplomacyConquestRules.ensure_rival_leader(self, faction_id)
 
 
 func restore_rival_leadership() -> void:
-	for fid in [1, 2, 3, 4, 6]:
-		if not _conquest_pending_factions.has(fid):
-			ensure_rival_leader(fid)
+	DiplomacyConquestRules.restore_rival_leadership(self)
 
 
 func _mark_faction_eliminated_by_third_party(target_faction_id: int, attacker_faction_id: int) -> void:
-	var target: Dictionary = factions[target_faction_id]
-	target["is_defeated"] = true
-	var target_name: String = str(target.get("name", "Rival Tribe"))
-	var killer_name := "the wilderness"
-	if attacker_faction_id == -1:
-		killer_name = "wild beasts"
-	elif factions.has(attacker_faction_id):
-		killer_name = str(factions[attacker_faction_id].get("name", "a rival tribe"))
-	push_log("%s was wiped out by %s!" % [target_name, killer_name], "warning")
-	diplomacy_changed.emit()
-	check_victory_conditions()
+	DiplomacyConquestRules.mark_faction_eliminated_by_third_party(self, target_faction_id, attacker_faction_id)
 
 
 func resolve_conquest(target_faction_id: int, choice: String) -> void:
-	if not _conquest_pending_factions.has(target_faction_id):
-		return
-	var target: Dictionary = factions[target_faction_id]
-	var survivor_units := get_faction_units(target_faction_id, true)
-	var target_name: String = target["name"]
-
-	if choice == "ASSIMILATE":
-		target["is_defeated"] = true
-		for u in survivor_units:
-			u.convert_to_faction(0, true)
-		for b in get_faction_buildings(target_faction_id, "", false):
-			b.faction_id = 0
-			if b.has_method("recalculate_max_hp"):
-				b.recalculate_max_hp(true)
-			b.refresh_faction_color()
-		add_resource(0, "food", float(target["resources"]["food"]) * 0.5)
-		add_resource(0, "wood", float(target["resources"]["wood"]) * 0.5)
-		add_resource(0, "flint", float(target["resources"]["flint"]) * 0.5)
-		push_log("Assimilated %s! %d survivors and their bloodline joined your tribe." % [target_name, survivor_units.size()], "success")
-	elif choice == "TRIBUTARY":
-		if ensure_rival_leader(target_faction_id) != null:
-			set_diplomatic_state(0, target_faction_id, GameData.DiplomaticState.TRIBUTARY)
-			modify_opinion(0, target_faction_id, 60)
-			push_log("%s became a tributary and will deliver supplies each day." % target_name, "success")
-		else:
-			target["is_defeated"] = true
-			push_log("%s has no surviving adult to represent the tribe." % target_name, "info")
-	else: # RAZE
-		target["is_defeated"] = true
-		add_resource(0, "food", float(target["resources"]["food"]) + 30.0)
-		add_resource(0, "wood", float(target["resources"]["wood"]) + 30.0)
-		add_resource(0, "stone", float(target["resources"]["stone"]) + 20.0)
-		add_resource(0, "flint", float(target["resources"]["flint"]) + 20.0)
-		add_resource(0, "bone", float(target["resources"]["bone"]) + 12.0)
-		factions[0]["stockpile"]["spears"] += int(target["stockpile"]["spears"])
-		factions[0]["stockpile"]["bows"] += int(target["stockpile"]["bows"])
-		for u in survivor_units:
-			if units_container != null and u.get_parent() == units_container:
-				units_container.remove_child(u)
-			u.queue_free()
-		for b in get_faction_buildings(target_faction_id, "", false):
-			if buildings_container != null and b.get_parent() == buildings_container:
-				buildings_container.remove_child(b)
-			b.queue_free()
-		push_log("Razed %s and looted all tribal stockpiles!" % target_name, "warning")
-
-	_conquest_pending_factions.erase(target_faction_id)
-	if _conquest_pending_factions.is_empty():
-		is_paused = _paused_before_conquest
-		_paused_before_conquest = false
-	check_victory_conditions()
-	if not campaign_finished and not _conquest_pending_factions.is_empty():
-		conquest_triggered.emit(_conquest_pending_factions.keys()[0])
+	DiplomacyConquestRules.resolve_conquest(self, target_faction_id, choice)
 
 
 func check_victory_conditions() -> void:
-	if not game_active or campaign_finished:
-		return
-
-	# Check defeat: player has no living units (including wounded waiting recovery)
-	var player_units := get_faction_units(0, true)
-	var wounded_player_units := 0
-	if units_container != null:
-		for u in units_container.get_children():
-			if is_instance_valid(u) and not u.get("is_dead") and u.get("is_wounded") and int(u.get("original_faction_id")) == 0:
-				wounded_player_units += 1
-	if player_units.is_empty() and wounded_player_units == 0:
-		campaign_finished = true
-		defeat_triggered.emit("Your entire tribe and lineage perished in the Stone Age wilderness.")
-		return
-
-	# Mark any completely wiped rival/rebel faction (no living units or buildings) as defeated
-	var marked_any_defeated := false
-	for fid in range(1, 5):
-		if factions.has(fid) and not bool(factions[fid]["is_defeated"]) and not _conquest_pending_factions.has(fid):
-			if get_faction_units(fid, true).is_empty() and get_faction_buildings(fid, "", false).is_empty():
-				factions[fid]["is_defeated"] = true
-				marked_any_defeated = true
-	if factions.has(6) and bool(factions[6].get("is_founded", false)) and not bool(factions[6].get("is_defeated", false)) and not _conquest_pending_factions.has(6):
-		if get_faction_units(6, true).is_empty() and get_faction_buildings(6, "", false).is_empty():
-			factions[6]["is_defeated"] = true
-			marked_any_defeated = true
-	if marked_any_defeated:
-		diplomacy_changed.emit()
-
-	# Check victory: every rival tribe (1..4) and any founded rebel faction (6) is defeated or allied
-	var all_united := true
-	var allied_count := 0
-	var defeated_count := 0
-	for fid in range(1, 5):
-		if factions[fid]["is_defeated"]:
-			defeated_count += 1
-		elif is_treaty_ally(0, fid):
-			allied_count += 1
-		else:
-			all_united = false
-			break
-	if all_united and factions.has(6) and bool(factions[6].get("is_founded", false)) and not bool(factions[6].get("is_defeated", false)):
-		if not is_treaty_ally(0, 6):
-			all_united = false
-
-	if all_united:
-		campaign_finished = true
-		var summary := "You united the Valley! (%d assimilated/conquered, %d allied tribes)" % [defeated_count, allied_count]
-		victory_achieved.emit(summary)
+	DiplomacyConquestRules.check_victory_conditions(self)
 
 
 func push_log(msg: String, severity: String = "info") -> void:
@@ -1049,6 +857,7 @@ func load_game(path: String = CAMPAIGN_SAVE_PATH) -> bool:
 	resources_changed.emit(0)
 	diplomacy_changed.emit()
 	religion_changed.emit(0)
+	progression_changed.emit(0)
 	push_log("Campaign loaded (Day %d)." % day_count, "success")
 	return true
 

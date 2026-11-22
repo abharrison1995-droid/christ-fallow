@@ -2,6 +2,7 @@ extends "res://scripts/ui/drawers/feature_drawer.gd"
 
 const Preview = preload("res://scripts/ui/mesh_preview.gd")
 const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
 const BUILD_GROUPS := {
 	"Settlement": ["CAMPFIRE", "SLEEPING_HUT", "FORAGER_LODGE", "STORAGE_PIT", "CROP_FIELD", "ANIMAL_PEN"],
@@ -13,6 +14,9 @@ var _selected_building := "CAMPFIRE"
 var _user_picked_step: int = -1
 var _recommended_building := ""
 var _recommended_badge: Label = null
+var _place_button: Button = null
+var _place_highlighted: bool = false
+var _place_highlight_style: StyleBoxFlat = null
 var _refresh_requirements: Callable
 
 
@@ -24,8 +28,19 @@ func get_recommended_building() -> String:
 	return _recommended_building
 
 
+func is_place_action_highlighted() -> bool:
+	return _place_highlighted and is_instance_valid(_place_button)
+
+
 func _init() -> void:
 	title = "Build"
+
+
+func reset_campaign_state() -> void:
+	_selected_building = "CAMPFIRE"
+	_user_picked_step = -1
+	_recommended_building = ""
+	_place_highlighted = false
 
 
 func build_content() -> void:
@@ -80,16 +95,19 @@ func build_content() -> void:
 		if is_instance_valid(GameState.player_controller):
 			GameState.player_controller.enter_build_mode(_selected_building)
 	, &"PrimaryButton")
+	_place_button = place
 	tag(place, "place")
 	detail.add_child(place)
 
 	_refresh_requirements = func():
 		var key: String = _selected_building
 		var info: Dictionary = GameData.BUILDINGS[key]
-		var founded: bool = GameState.factions[0]["is_founded"]
+		var f0: Dictionary = GameState.factions[0]
+		var founded: bool = f0["is_founded"]
 		var can_buy := GameState.can_afford(0, info["costs"], true)
+		var lock_reason: String = GameState.get_building_lock_reason(0, key)
 		var locked := not founded and key != "CAMPFIRE"
-		var discount: float = 0.8 if GameState.has_tenet(0, "ANCESTRAL_STONE") else 1.0
+		var discount: float = (0.8 if GameState.has_tenet(0, "ANCESTRAL_STONE") else 1.0) * PerkSystem.get_building_cost_mult(f0)
 		var materials := PackedStringArray()
 		var costs: Dictionary = info["costs"]
 		for resource in costs:
@@ -97,12 +115,14 @@ func build_content() -> void:
 			if resource == "wood" or resource == "stone":
 				amt = ceilf(amt * discount)
 			materials.append("%d %s" % [int(amt), str(resource).capitalize()])
-		var hp_mult: float = 1.25 if int(GameState.factions[0].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL else 1.0
+		var hp_mult: float = (1.25 if int(f0.get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL else 1.0) * PerkSystem.get_building_hp_mult(f0)
 		var effective_hp: int = roundi(float(info["max_hp"]) * hp_mult)
 		price.text = "   ·   ".join(materials) + "     /     %d HP" % effective_hp
 		price.modulate = Look.BONE if can_buy else Look.DANGER
-		place.disabled = locked or not can_buy
-		if locked:
+		place.disabled = not lock_reason.is_empty() or locked or not can_buy
+		if not lock_reason.is_empty():
+			place.text = lock_reason
+		elif locked:
 			place.text = "Requires a Campfire"
 		elif not can_buy:
 			place.text = "Insufficient Resources"
@@ -110,6 +130,21 @@ func build_content() -> void:
 			place.text = "Place Campfire"
 		else:
 			place.text = "Place Blueprint"
+		var should_highlight_place: bool = (not _recommended_building.is_empty() and key == _recommended_building and not place.disabled)
+		_place_highlighted = should_highlight_place
+		if should_highlight_place:
+			if _place_highlight_style == null:
+				_place_highlight_style = Look.panel(Color("3d3320"), Look.GOLD, 4, 4)
+				_place_highlight_style.set_border_width_all(2)
+				_place_highlight_style.content_margin_left = 11
+				_place_highlight_style.content_margin_right = 11
+			place.add_theme_stylebox_override("normal", _place_highlight_style)
+			place.add_theme_color_override("font_color", Look.GOLD)
+			place.add_theme_color_override("font_focus_color", Look.GOLD)
+		else:
+			place.remove_theme_stylebox_override("normal")
+			place.remove_theme_color_override("font_color")
+			place.remove_theme_color_override("font_focus_color")
 
 	var options: Dictionary = {}
 	var select_building := func(key: String, by_user: bool = false):

@@ -23,7 +23,8 @@ func _ready() -> void:
 	_rows = _tab(tabs, "Controls")
 	for binding in [
 		["Move / Sprint / Dodge", "WASD or Arrows / Shift / Space"],
-		["Orbit / Zoom", "Right drag / Wheel"],
+		["Orbit / First-Person Look / Zoom", "Right drag / Wheel"],
+		["First-Person POV Toggle", "Z or POV button / Scroll Up at close zoom"],
 		["Cleave / Javelin / Blessing / Interact", "LMB / F or RMB / Q / E"],
 		["Inspect friendly or wounded unit", "Left-Click on unit"],
 		["Build / Colony / Faith / Diplomacy", "B / C / R (outside build) / V"],

@@ -3,6 +3,8 @@ extends Node3D
 const Wildlife = preload("res://scripts/entities/wildlife_entity.gd")
 const Layout = preload("res://scripts/core/world_layout.gd")
 
+enum LightPhase { DAWN, DAY, DUSK, NIGHT }
+
 var _sun_light: DirectionalLight3D = null
 var _world_env: WorldEnvironment = null
 var _sky_mat: ProceduralSkyMaterial = null
@@ -10,6 +12,7 @@ var _psx_layer: CanvasLayer = null
 var _psx_rect: ColorRect = null
 var _brightness_mult: float = 1.25
 var _terrain_layout_id := ""
+var _light_phase := -1
 
 
 func _ready() -> void:
@@ -87,6 +90,8 @@ func _setup_environment() -> void:
 	_world_env = WorldEnvironment.new()
 	var env := Environment.new()
 	var sky := Sky.new()
+	# The procedural gradient supplies broad ambient light and reflections.
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	_sky_mat = ProceduralSkyMaterial.new()
 	_sky_mat.sky_top_color = Color(0.24, 0.28, 0.36)
 	_sky_mat.sky_horizon_color = Color(0.50, 0.44, 0.38)
@@ -117,38 +122,47 @@ func _process(_delta: float) -> void:
 		return
 	var t := GameState.time_of_day
 	var sun_angle := ((t - 6.0) / 24.0) * 360.0
-	_sun_light.rotation_degrees.x = -clampf(sin(deg_to_rad(sun_angle)) * 65.0 + 18.0, 12.0, 80.0)
-	_sun_light.rotation_degrees.y = sun_angle * 0.45
+	_sun_light.rotation_degrees = Vector3(
+		-clampf(sin(deg_to_rad(sun_angle)) * 65.0 + 18.0, 12.0, 80.0), sun_angle * 0.45, 0.0
+	)
 
-	var env := _world_env.environment if _world_env != null else null
+	var phase := LightPhase.NIGHT
 	if t >= 6.0 and t < 8.5:
-		# Warm Dawn
-		_sun_light.light_color = Color(1.0, 0.72, 0.52)
-		_sun_light.light_energy = 1.10
-		_sky_mat.sky_top_color = Color(0.24, 0.24, 0.34)
-		_sky_mat.sky_horizon_color = Color(0.62, 0.40, 0.30)
-		if env: env.fog_light_color = Color(0.38, 0.28, 0.24)
+		phase = LightPhase.DAWN
 	elif t >= 8.5 and t < 17.5:
-		# Clear Ash-Gold Day
-		_sun_light.light_color = Color(0.98, 0.92, 0.80)
-		_sun_light.light_energy = 1.42
-		_sky_mat.sky_top_color = Color(0.25, 0.34, 0.44)
-		_sky_mat.sky_horizon_color = Color(0.54, 0.50, 0.44)
-		if env: env.fog_light_color = Color(0.38, 0.35, 0.30)
+		phase = LightPhase.DAY
 	elif t >= 17.5 and t < 20.5:
-		# Amber Dusk
-		_sun_light.light_color = Color(1.0, 0.54, 0.32)
-		_sun_light.light_energy = 0.95
-		_sky_mat.sky_top_color = Color(0.20, 0.16, 0.28)
-		_sky_mat.sky_horizon_color = Color(0.64, 0.32, 0.20)
-		if env: env.fog_light_color = Color(0.34, 0.22, 0.18)
-	else:
-		# Moonlit Night
-		_sun_light.light_color = Color(0.52, 0.62, 0.88)
-		_sun_light.light_energy = 0.58
-		_sky_mat.sky_top_color = Color(0.08, 0.10, 0.18)
-		_sky_mat.sky_horizon_color = Color(0.18, 0.20, 0.30)
-		if env: env.fog_light_color = Color(0.14, 0.16, 0.22)
+		phase = LightPhase.DUSK
+	if phase == _light_phase:
+		return
+	_light_phase = phase
+
+	var env := _world_env.environment
+	match phase:
+		LightPhase.DAWN:
+			_sun_light.light_color = Color(1.0, 0.72, 0.52)
+			_sun_light.light_energy = 1.10
+			_sky_mat.sky_top_color = Color(0.24, 0.24, 0.34)
+			_sky_mat.sky_horizon_color = Color(0.62, 0.40, 0.30)
+			env.fog_light_color = Color(0.38, 0.28, 0.24)
+		LightPhase.DAY:
+			_sun_light.light_color = Color(0.98, 0.92, 0.80)
+			_sun_light.light_energy = 1.42
+			_sky_mat.sky_top_color = Color(0.25, 0.34, 0.44)
+			_sky_mat.sky_horizon_color = Color(0.54, 0.50, 0.44)
+			env.fog_light_color = Color(0.38, 0.35, 0.30)
+		LightPhase.DUSK:
+			_sun_light.light_color = Color(1.0, 0.54, 0.32)
+			_sun_light.light_energy = 0.95
+			_sky_mat.sky_top_color = Color(0.20, 0.16, 0.28)
+			_sky_mat.sky_horizon_color = Color(0.64, 0.32, 0.20)
+			env.fog_light_color = Color(0.34, 0.22, 0.18)
+		LightPhase.NIGHT:
+			_sun_light.light_color = Color(0.52, 0.62, 0.88)
+			_sun_light.light_energy = 0.58
+			_sky_mat.sky_top_color = Color(0.08, 0.10, 0.18)
+			_sky_mat.sky_horizon_color = Color(0.18, 0.20, 0.30)
+			env.fog_light_color = Color(0.14, 0.16, 0.22)
 
 
 func _ensure_layout_terrain() -> bool:

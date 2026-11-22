@@ -2,13 +2,32 @@ extends "res://scripts/ui/drawers/feature_drawer.gd"
 
 const Options = preload("res://scripts/ui/hud_drawers.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
+const AwakeningGuide = preload("res://scripts/core/awakening_guide.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
 var _section := "Roster"
 var _queue_label: Label
 var _farm_label: Label
 var _roster_state: Array[Array] = []
 var _craft_state: Array = []
+var _hire_state: Array = []
 var _roster_rows: Dictionary = {}
+var _tutorial_role_target: int = -1
+var _highlighted_role_controls: int = 0
+var _role_highlight_style: StyleBoxFlat = null
+
+
+func has_tutorial_role_highlight() -> bool:
+	return _tutorial_role_target >= 0 and _highlighted_role_controls > 0
+
+
+func _get_role_highlight_style() -> StyleBoxFlat:
+	if _role_highlight_style == null:
+		_role_highlight_style = Look.panel(Color("3d3320"), Look.GOLD, 6, 4)
+		_role_highlight_style.set_border_width_all(2)
+		_role_highlight_style.content_margin_left = 11
+		_role_highlight_style.content_margin_right = 11
+	return _role_highlight_style
 
 
 func _init() -> void:
@@ -19,9 +38,13 @@ func build_content() -> void:
 	_roster_rows.clear()
 	_queue_label = null
 	_farm_label = null
+	_highlighted_role_controls = 0
+	var guide_target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	_tutorial_role_target = int(guide_target.get("highlight_colony_role", -1)) if bool(guide_target.get("active", false)) else -1
 	var units := GameState.get_faction_units(0)
 	_roster_state = _roster_signature(units)
 	_craft_state = _craft_signature()
+	_hire_state = _hire_signature()
 	var tabs := HBoxContainer.new()
 	self.add_child(tabs)
 	for caption in ["Roster", "Workforce", "Crafting", "Fields & Herds"]:
@@ -33,6 +56,12 @@ func build_content() -> void:
 		select.button_pressed = _section == caption
 		tag(select, "section:" + caption)
 		tabs.add_child(select)
+
+	if _tutorial_role_target >= 0:
+		var guide_lbl := Look.label("Guide: Assign a villager to Builder / Crafter (Roster dropdown or Workforce [+]) to construct buildings.", &"QuietLabel", 13)
+		guide_lbl.add_theme_color_override("font_color", Look.GOLD)
+		guide_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		self.add_child(guide_lbl)
 
 	match _section:
 		"Roster": _populate_colony_roster(units)
@@ -62,13 +91,14 @@ func _update_farm_status() -> void:
 		var status: String = ["Fallow", "Growing · %d%%" % roundi(field.crop_progress / Farming.CROP_GROW_TIME * 100.0), "Ripe"][field.crop_stage]
 		lines.append("Crop Field %d  ·  %s" % [i + 1, status])
 	var pens := GameState.get_faction_buildings(0, "ANIMAL_PEN", true)
+	var pen_cap: int = Farming.PEN_CAPACITY + PerkSystem.get_pen_extra_capacity(GameState.factions.get(0, {}))
 	for i in range(pens.size()):
 		var herd: Array = pens[i].get_herd()
 		var trained := 0
 		for animal in herd:
 			if animal.can_mount(0) or animal.rider_unit_id > 0:
 				trained += 1
-		lines.append("Animal Pen %d  ·  %d/%d animals  ·  %d trained mounts" % [i + 1, herd.size(), Farming.PEN_CAPACITY, trained])
+		lines.append("Animal Pen %d  ·  %d/%d animals  ·  %d trained mounts" % [i + 1, herd.size(), pen_cap, trained])
 	_farm_label.text = "\n".join(lines) if not lines.is_empty() else "Build a Crop Field or Animal Pen in [B] Build."
 
 
@@ -220,15 +250,23 @@ func _populate_colony_alloc_card(units: Array) -> void:
 		var lbl := Label.new()
 		lbl.text = "%s: %d" % [spec["name"], spec["cnt"]]
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		cell.add_child(lbl)
-
 		var r_val: int = int(spec["r"])
 		var wc_val: int = int(spec["wc"])
+		var is_guided_role: bool = (_tutorial_role_target >= 0 and r_val == _tutorial_role_target and wc_val == -1)
+		if is_guided_role:
+			lbl.add_theme_color_override("font_color", Look.GOLD)
+		cell.add_child(lbl)
+
 		for step in [[-1, "-"], [1, "+"]]:
 			var delta_v: int = int(step[0])
 			var b := Button.new()
 			b.text = str(step[1])
 			b.custom_minimum_size = Vector2(28, 0)
+			if is_guided_role and delta_v == 1:
+				b.add_theme_stylebox_override("normal", _get_role_highlight_style())
+				b.add_theme_color_override("font_color", Look.GOLD)
+				b.add_theme_color_override("font_focus_color", Look.GOLD)
+				_highlighted_role_controls += 1
 			b.pressed.connect(func():
 				if GameState.combat_command_system != null:
 					GameState.combat_command_system.adjust_role_count(r_val, wc_val, delta_v)
@@ -239,7 +277,40 @@ func _populate_colony_alloc_card(units: Array) -> void:
 
 
 func _populate_colony_roster(units: Array) -> void:
-	self.add_child(Look.label("%d tribesfolk" % units.size(), &"SectionTitle"))
+	var f0: Dictionary = GameState.factions.get(0, {})
+	var housing_cap: int = GameState.get_housing_capacity(0)
+	var max_cap: int = GameState.get_max_population_cap(0)
+	var hearth_rank: int = PerkSystem.get_perk_rank(f0, "CALL_OF_THE_HEARTH")
+	var has_camp: bool = GameState.has_building(0, "CAMPFIRE", true)
+	var hire_cost: int = PerkSystem.get_hire_nomad_cost(f0)
+	var has_food: bool = float(f0.get("resources", {}).get("food", 0.0)) >= float(hire_cost)
+
+	var recruit_row := HBoxContainer.new()
+	recruit_row.add_theme_constant_override("separation", 12)
+	_card(self).add_child(recruit_row)
+	var cap_lbl := Look.label("%d tribesfolk  ·  Housing %d/%d  ·  Max Cap %d" % [units.size(), units.size(), housing_cap, max_cap], &"SectionTitle", 18)
+	cap_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	recruit_row.add_child(cap_lbl)
+
+	var hire_btn := Look.button("", func():
+		if GameState.hire_nomad_villager(0) != null:
+			refresh()
+	)
+	if hearth_rank <= 0:
+		hire_btn.text = "Hire Nomad (Requires Call of the Hearth [K])"
+		hire_btn.disabled = true
+	elif not has_camp:
+		hire_btn.text = "Hire Nomad (Requires Campfire)"
+		hire_btn.disabled = true
+	elif units.size() >= mini(housing_cap, max_cap):
+		hire_btn.text = "Hire Nomad (Housing Full)"
+		hire_btn.disabled = true
+	else:
+		hire_btn.text = "Hire Nomad Villager (%d Food)" % hire_cost
+		hire_btn.disabled = not has_food
+	tag(hire_btn, "hire-nomad")
+	recruit_row.add_child(hire_btn)
+
 	for u in units:
 		var u_row := HBoxContainer.new()
 		u_row.add_theme_constant_override("separation", 10)
@@ -265,6 +336,12 @@ func _populate_colony_roster(units: Array) -> void:
 			var role_opt := OptionButton.new()
 			Options.fill_role_options(role_opt)
 			role_opt.selected = role_opt.get_item_index(u.role)
+			if _tutorial_role_target >= 0:
+				role_opt.add_theme_stylebox_override("normal", _get_role_highlight_style())
+				role_opt.add_theme_color_override("font_color", Look.GOLD)
+				role_opt.add_theme_color_override("font_focus_color", Look.GOLD)
+				role_opt.tooltip_text = "Guide: Select Builder / Crafter"
+				_highlighted_role_controls += 1
 			role_opt.item_selected.connect(func(idx: int):
 				var rid: int = role_opt.get_item_id(idx)
 				GameState.assign_player_role(unit_ref, rid)
@@ -297,7 +374,15 @@ func format_colonist_line(u: Node) -> String:
 func update_live_values() -> void:
 	if is_instance_valid(_farm_label):
 		_update_farm_status()
+	var guide_target: Dictionary = AwakeningGuide.get_objective_target(GameState)
+	var next_role_target: int = int(guide_target.get("highlight_colony_role", -1)) if bool(guide_target.get("active", false)) else -1
+	if next_role_target != _tutorial_role_target:
+		refresh()
+		return
 	if _roster_signature(GameState.get_faction_units(0)) != _roster_state:
+		refresh()
+		return
+	if _section == "Roster" and _hire_signature() != _hire_state:
 		refresh()
 		return
 	if _section == "Crafting" and _craft_signature() != _craft_state:
@@ -329,4 +414,18 @@ func _craft_signature() -> Array:
 		int(f0.get("captured_cavemen", 0)),
 		int(f0.get("tech_tier", 1)),
 		GameState.has_building(0, "CRAFTING_PIT", true),
+	]
+
+
+func _hire_signature() -> Array:
+	if not GameState.factions.has(0):
+		return []
+	var f0: Dictionary = GameState.factions[0]
+	var cost: int = PerkSystem.get_hire_nomad_cost(f0)
+	return [
+		PerkSystem.get_perk_rank(f0, "CALL_OF_THE_HEARTH"),
+		GameState.get_housing_capacity(0),
+		GameState.get_max_population_cap(0),
+		GameState.has_building(0, "CAMPFIRE", true),
+		float(f0.get("resources", {}).get("food", 0.0)) >= float(cost),
 	]

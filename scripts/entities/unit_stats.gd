@@ -1,8 +1,10 @@
 extends RefCounted
 ## Stateless calculations for an explicitly supplied unit and patron.
 
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
-static func derive(input: Dictionary, patron: int) -> Dictionary:
+
+static func derive(input: Dictionary, patron: int, faction: Dictionary = {}) -> Dictionary:
 	var lineage: int = input["lineage"]
 	var is_caveman: bool = input["is_caveman"]
 	var role: int = input["role"]
@@ -31,6 +33,7 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 	var max_hp := base_hp_stat * role_hp_mult * float(l_data["hp_mult"]) + float(melee_rank) * 10.0
 	if is_child:
 		max_hp *= 0.60
+	max_hp *= PerkSystem.get_unit_hp_mult(faction, is_leader)
 
 	var move_speed := 5.8 * float(l_data["speed_mult"])
 	if role == GameData.Role.WARRIOR:
@@ -42,6 +45,7 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 			move_speed *= 0.94
 	if is_leader:
 		move_speed *= 1.12
+	move_speed *= PerkSystem.get_move_speed_mult(faction)
 
 	var tier_bonus := 1.0 + float(weapon_tier - 1) * 0.28
 	var role_dmg_mult := 1.0
@@ -50,8 +54,9 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 	elif role == GameData.Role.WARRIOR or is_caveman:
 		role_dmg_mult = 1.25 if has_equipped_weapon else 1.0
 
-	var close_quarters_damage := base_melee_stat * role_dmg_mult * tier_bonus * float(l_data["melee_mult"]) * (1.0 + float(melee_rank) * 0.10)
-	var ranged_attack_damage := base_ranged_stat * role_dmg_mult * tier_bonus * float(l_data["ranged_mult"]) * (1.0 + float(ranged_rank) * 0.10)
+	var perk_dmg_mult: float = PerkSystem.get_unit_damage_mult(faction, is_leader, role == GameData.Role.WARRIOR)
+	var close_quarters_damage := base_melee_stat * role_dmg_mult * tier_bonus * float(l_data["melee_mult"]) * (1.0 + float(melee_rank) * 0.10) * perk_dmg_mult
+	var ranged_attack_damage := base_ranged_stat * role_dmg_mult * tier_bonus * float(l_data["ranged_mult"]) * (1.0 + float(ranged_rank) * 0.10) * perk_dmg_mult
 	var unarmed_attack_damage := clampf(base_melee_stat * 0.36 * float(l_data["melee_mult"]), 3.0, 7.5)
 	if is_child:
 		unarmed_attack_damage *= 0.50
@@ -84,6 +89,7 @@ static func derive(input: Dictionary, patron: int) -> Dictionary:
 	var armor := float(l_data["armor_bonus"]) + (8.0 + float(weapon_tier - 1) * 4.0 if has_armor else 0.0)
 	if warrior_class == GameData.WarriorClass.SPEARMAN and role == GameData.Role.WARRIOR:
 		armor += 3.0
+	armor += PerkSystem.get_unit_armor_bonus(faction, is_leader, role == GameData.Role.WARRIOR)
 	if input.get("archetype", "") == GameData.FLINTMASK_SCOUT:
 		max_hp = GameData.FLINTMASK_STATS["hp"]
 		move_speed = GameData.FLINTMASK_STATS["speed"]

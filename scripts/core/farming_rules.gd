@@ -15,7 +15,10 @@ const FEED_COST := 2.0
 const BREED_COST := 6.0
 const MATURITY_TIME := 45.0
 const MOUNT_TRAINING := 2
-const MOUNT_SPEED_MULT := 1.32
-const SADDLE_HEIGHT := 1.34
 const TAME_COST := 8.0
-const TAME_CHANCES := {"DEER": 0.82, "BOAR": 0.62}
+const TAME_CHANCES := {"DEER": 0.82, "BOAR": 0.62, "MAMMOTH": 0.40}
+const MOUNTS := {
+	"MAMMOTH": {"speed_mult": 1.15, "seat": Vector3(0, 2.76, 0.06), "leg_spread": 63.0},
+	"BOAR": {"speed_mult": 1.32, "seat": Vector3(0, 1.49, 0.15), "leg_spread": 35.0},
+	"DEER": {"speed_mult": 1.58, "seat": Vector3(0, 1.52, 0.12), "leg_spread": 18.0},
+}

@@ -107,6 +107,11 @@ func is_taking_damage() -> bool:
 	return _damage_timer > 0.0
 
 
+func advance_action_timers(delta: float) -> void:
+	_attack_timer = maxf(0.0, _attack_timer - delta)
+	_damage_timer = maxf(0.0, _damage_timer - delta)
+
+
 func trigger_attack(attack_anim: String, duration: float = 0.40) -> void:
 	_attack_anim = attack_anim
 	_attack_duration = maxf(duration, 0.16)
@@ -159,16 +164,14 @@ func update(delta: float, params: Dictionary) -> void:
 	var work_anim: String = str(params.get("work_anim", "WORK_BUILD"))
 
 	_idle_phase += delta * 2.4
-	if _attack_timer > 0.0:
-		_attack_timer = maxf(0.0, _attack_timer - delta)
-	if _damage_timer > 0.0:
-		_damage_timer = maxf(0.0, _damage_timer - delta)
+	advance_action_timers(delta)
 
 	var pose := _make_empty_pose()
 	if params.get("mounted") == true:
+		var spread: float = params["riding_leg_spread"]
 		_apply_idle_layer(pose, "RELAXED", _idle_phase)
-		pose["hip_l_rot"] = Vector3(-67.0, 0.0, 17.0)
-		pose["hip_r_rot"] = Vector3(-67.0, 0.0, -17.0)
+		pose["hip_l_rot"] = Vector3(-67.0, spread, 0.0)
+		pose["hip_r_rot"] = Vector3(-67.0, -spread, 0.0)
 		pose["knee_l_rot"] = Vector3(84.0, 0.0, 0.0)
 		pose["knee_r_rot"] = Vector3(84.0, 0.0, 0.0)
 		pose["sh_l_rot"] = Vector3(-28.0, -8.0, 0.0)

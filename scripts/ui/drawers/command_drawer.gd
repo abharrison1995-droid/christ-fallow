@@ -14,6 +14,7 @@ func build_content() -> void:
 	for entry in [
 		["Build   B", "Found your settlement and place structures.", "BUILD"],
 		["Colony   C", "Manage your roster, workforce, and crafting queue.", "COLONY"],
+		["Perks   K", "Spend skill points on Masonry, Might, and Kinship perks.", "PERKS"],
 		["Faith   R", "Choose a patron and sacred tenets.", "RELIGION"],
 		["Diplomacy   V", "Read relations and send envoys to rival tribes.", "DIPLOMACY"],
 	]:

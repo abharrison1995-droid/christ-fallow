@@ -1,5 +1,7 @@
 extends Node3D
 
+const UNIT_HIT_RADIUS := 1.15
+
 var shooter: Node = null
 var faction_id: int = 0
 var damage: float = 14.0
@@ -34,12 +36,9 @@ func setup(p_shooter: Node, p_faction_id: int, p_origin: Vector3, p_target_pos: 
 	add_child(visual)
 
 	var diff := p_target_pos - p_origin
-	var horiz := Vector3(diff.x, 0.0, diff.z)
-	var dist := maxf(horiz.length(), 0.5)
-	var flight_t := dist / maxf(p_speed, 5.0)
-	var dir_h := horiz.normalized() if horiz.length_squared() > 0.0001 else Vector3.ZERO
-	var vy := (diff.y + 0.5 * gravity * flight_t * flight_t) / maxf(flight_t, 0.05)
-	velocity = dir_h * p_speed + Vector3.UP * vy
+	# Use the same flight time on every axis, including very close and steep shots.
+	var flight_t := maxf(Vector2(diff.x, diff.z).length() / maxf(p_speed, 5.0), 0.05)
+	velocity = diff / flight_t + Vector3.UP * (0.5 * gravity * flight_t)
 
 	_orient_along_velocity()
 
@@ -105,7 +104,7 @@ func _physics_process(delta: float) -> void:
 			if not GameState.is_hostile(faction_id, int(u.get("faction_id"))):
 				continue
 			var hit_center: Vector3 = (u as Node3D).global_position + Vector3(0.0, 1.0, 0.0)
-			if _segment_distance_to_point(prev_pos, next_pos, hit_center) < 1.15:
+			if _segment_distance_to_point(prev_pos, next_pos, hit_center) < UNIT_HIT_RADIUS:
 				u.take_damage(damage, attacker, faction_id)
 				queue_free()
 				return

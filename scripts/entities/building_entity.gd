@@ -5,6 +5,7 @@ const CombatVFX = preload("res://scripts/core/combat_vfx.gd")
 const UnitAIRoutines = preload("res://scripts/entities/unit_ai_routines.gd")
 const Farming = preload("res://scripts/core/farming_rules.gd")
 const Gate = preload("res://scripts/core/standing_stone_gate.gd")
+const PerkSystem = preload("res://scripts/core/perk_system.gd")
 
 var building_type: String = "CAMPFIRE"
 var faction_id: int = 0:
@@ -110,8 +111,10 @@ func setup(p_type: String, p_faction_id: int, p_pos: Vector3, p_rot_y: float = 0
 	var b_info: Dictionary = GameData.BUILDINGS.get(building_type, GameData.BUILDINGS["CAMPFIRE"])
 	build_time = float(b_info["build_time"])
 	var hp_mult := 1.0
-	if GameState.factions.has(faction_id) and int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
+	var faction_dict: Dictionary = GameState.factions.get(faction_id, {})
+	if int(faction_dict.get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
 		hp_mult = 1.25
+	hp_mult *= PerkSystem.get_building_hp_mult(faction_dict)
 	max_hp = float(b_info["max_hp"]) * hp_mult
 	hp = max_hp if is_constructed else max_hp * 0.25
 	build_progress = build_time if is_constructed else 0.0
@@ -463,6 +466,7 @@ func advance_construction(amount: float) -> void:
 				GameState.push_log("Your tribal colony is founded! Open [C] Colony & [R] Religion.", "success")
 			elif building_type == "SACRED_TOTEM":
 				GameState.push_log("Sacred Totem raised! Open [R] Religion to choose your Patron God.", "success")
+		GameState.award_xp(faction_id, clampf(build_time * 4.5, 20.0, 60.0), "Constructed building")
 	_update_status_bar()
 
 
@@ -568,6 +572,12 @@ func _physics_process(delta: float) -> void:
 
 	if not is_constructed:
 		return
+	var faction_dict: Dictionary = GameState.factions.get(faction_id, {})
+	if damage_stage < 3 and hp < max_hp and _combat_timer <= 0.0:
+		var regen: float = PerkSystem.get_building_regen_per_sec(faction_dict)
+		if regen > 0.0:
+			hp = minf(max_hp, hp + regen * delta)
+			sync_visual_from_state()
 	if building_type == "CROP_FIELD" and crop_stage == Farming.CropStage.GROWING:
 		_grow_crop(delta)
 	elif building_type == "ANIMAL_PEN":
@@ -594,8 +604,9 @@ func _physics_process(delta: float) -> void:
 			if _dusk_heal_timer >= 2.0:
 				_dusk_heal_timer = 0.0
 				var heal_amt := 5.0
-				if GameState.factions.has(faction_id) and GameState.factions[faction_id].get("patron_god") == GameData.PatronGod.SOL_KAR:
+				if faction_dict.get("patron_god") == GameData.PatronGod.SOL_KAR:
 					heal_amt = 8.5
+				heal_amt *= PerkSystem.get_campfire_heal_mult(faction_dict)
 				for u in GameState.get_faction_units(faction_id, true):
 					if u.global_position.distance_to(global_position) <= 10.0 and float(u.get("_campfire_heal_cd")) <= 0.0:
 						u._campfire_heal_cd = 1.95
@@ -614,10 +625,11 @@ func _physics_process(delta: float) -> void:
 		_scan_cd -= delta
 		if _watchtower_cd <= 0.0 and _scan_cd <= 0.0:
 			_scan_cd = randf_range(0.18, 0.28)
-			var target := _find_nearest_hostile(22.0)
+			var tower_range: float = 22.0 + PerkSystem.get_watchtower_range_bonus(faction_dict)
+			var target := _find_nearest_hostile(tower_range)
 			if target != null:
 				_fire_watchtower_arrow(target)
-				_watchtower_cd = 1.65
+				_watchtower_cd = 1.65 / PerkSystem.get_watchtower_mult(faction_dict)
 
 
 func crop_needs_work() -> bool:
@@ -641,10 +653,11 @@ func work_crop(delta: float) -> float:
 			crop_tended = true
 			_grow_crop(Farming.CROP_TEND_BOOST)
 		Farming.CropStage.RIPE:
-			harvested = 24.0 if crop_tended else 18.0
+			harvested = (24.0 if crop_tended else 18.0) * PerkSystem.get_lodge_crop_yield_mult(GameState.factions.get(faction_id, {}))
 			crop_stage = Farming.CropStage.EMPTY
 			crop_progress = 0.0
 			crop_tended = false
+			GameState.award_xp(faction_id, 12.0, "Harvested crop")
 	_sync_crop_visual()
 	return harvested
 
@@ -689,7 +702,8 @@ func _feed_and_breed() -> void:
 		if animal.maturity_remaining <= 0.0:
 			var species: String = animal.animal_type
 			fed_adults[species] = int(fed_adults.get(species, 0)) + 1
-	if herd.size() >= Farming.PEN_CAPACITY:
+	var pen_cap: int = Farming.PEN_CAPACITY + PerkSystem.get_pen_extra_capacity(GameState.factions.get(faction_id, {}))
+	if herd.size() >= pen_cap:
 		return
 	for species in fed_adults:
 		if fed_adults[species] >= 2 and GameState.spend_resources(faction_id, {"food": Farming.BREED_COST}):
@@ -722,8 +736,8 @@ func _try_reproduce() -> void:
 		return
 	var fdata: Dictionary = GameState.factions[faction_id]
 	var units := GameState.get_faction_units(faction_id, true)
-	var cap := GameState.get_housing_capacity(faction_id)
-	if units.size() >= cap or units.size() >= 32:
+	var cap := mini(GameState.get_housing_capacity(faction_id), GameState.get_max_population_cap(faction_id))
+	if units.size() >= cap:
 		return
 	if float(fdata["resources"]["food"]) < 14.0:
 		return
@@ -745,8 +759,9 @@ func _try_reproduce() -> void:
 	var repro_mult := (float(GameData.LINEAGE_DATA[dad.lineage]["repro_mult"]) + float(GameData.LINEAGE_DATA[mom.lineage]["repro_mult"])) * 0.5
 	if fdata.get("patron_god") == GameData.PatronGod.GAIA_MAR:
 		repro_mult *= 1.35
+	repro_mult *= PerkSystem.get_repro_chance_mult(fdata)
 
-	var chance := clampf(0.28 * repro_mult, 0.10, 0.75)
+	var chance := clampf(0.28 * repro_mult, 0.10, 0.85)
 	if randf() <= chance:
 		GameState.spend_resources(faction_id, {"food": 10})
 		var child_lineage: int = dad.lineage if randf() < 0.5 else mom.lineage
@@ -756,10 +771,11 @@ func _try_reproduce() -> void:
 			var spawn_pos := global_position + Vector3(randf_range(-2.2, 2.2), 0.0, randf_range(-2.2, 2.2))
 			var child = fc.spawn_colonist(spawn_pos, child_lineage, child_gender, GameData.Role.FORAGER, false, true)
 			if child != null:
-				child.base_hp_stat = clampf(((float(dad.base_hp_stat) + float(mom.base_hp_stat)) * 0.5) * randf_range(0.94, 1.06), 80.0, 125.0)
-				child.base_melee_stat = clampf(((float(dad.base_melee_stat) + float(mom.base_melee_stat)) * 0.5) * randf_range(0.94, 1.06), 8.0, 18.0)
-				child.base_ranged_stat = clampf(((float(dad.base_ranged_stat) + float(mom.base_ranged_stat)) * 0.5) * randf_range(0.94, 1.06), 8.0, 17.0)
-				child.recalculate_stats(true)
+				child.base_hp_stat = clampf(((float(dad.base_hp_stat) + float(mom.base_hp_stat)) * 0.5) * randf_range(0.94, 1.06), 80.0, 145.0)
+				child.base_melee_stat = clampf(((float(dad.base_melee_stat) + float(mom.base_melee_stat)) * 0.5) * randf_range(0.94, 1.06), 8.0, 22.0)
+				child.base_ranged_stat = clampf(((float(dad.base_ranged_stat) + float(mom.base_ranged_stat)) * 0.5) * randf_range(0.94, 1.06), 8.0, 21.0)
+				GameState.apply_recruit_perks(faction_id, child)
+				GameState.award_xp(faction_id, 25.0, "New birth")
 			if faction_id == 0 and child != null:
 				GameState.push_log("New birth in your tribe! %s (%s) was born in a Sleeping Hut." % [child.unit_name, GameData.LINEAGE_DATA[child_lineage]["short_name"]], "success")
 
@@ -809,6 +825,7 @@ func _fire_watchtower_arrow(target: Node3D) -> void:
 	var dmg := 20.0
 	if GameState.has_tenet(faction_id, "ANCESTRAL_STONE"):
 		dmg *= 1.25
+	dmg *= PerkSystem.get_watchtower_mult(GameState.factions.get(faction_id, {}))
 	var origin := global_position + Vector3(0.0, 4.2, 0.0)
 	var stage := _get_active_stage_node()
 	if stage != null:
@@ -829,8 +846,10 @@ func recalculate_max_hp(preserve_ratio: bool = true) -> void:
 		return
 	var b_info: Dictionary = GameData.BUILDINGS.get(building_type, GameData.BUILDINGS["CAMPFIRE"])
 	var hp_mult := 1.0
-	if GameState.factions.has(faction_id) and int(GameState.factions[faction_id].get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
+	var faction_dict: Dictionary = GameState.factions.get(faction_id, {})
+	if int(faction_dict.get("patron_god", GameData.PatronGod.NONE)) == GameData.PatronGod.KRAG_UL:
 		hp_mult = 1.25
+	hp_mult *= PerkSystem.get_building_hp_mult(faction_dict)
 	var new_max: float = float(b_info["max_hp"]) * hp_mult
 	if is_equal_approx(new_max, max_hp):
 		return

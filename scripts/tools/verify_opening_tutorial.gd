@@ -8,6 +8,8 @@ var _game: Node
 var _data: Node
 var _shell: Node
 var _failed := false
+var _screens := false
+var _out := ""
 
 
 func _initialize() -> void:
@@ -25,6 +27,15 @@ func check(condition: bool, caption: String) -> void:
 func frames(count: int = 2) -> void:
 	for _i in range(count):
 		await process_frame
+
+
+func screenshot(img_name: String) -> void:
+	if not _screens:
+		return
+	await frames()
+	await RenderingServer.frame_post_draw
+	var img := root.get_texture().get_image()
+	check(img.save_png(_out.path_join(img_name + ".png")) == OK, "screenshot " + img_name + " " + str(img.get_size()))
 
 
 func key(code: Key) -> void:
@@ -90,6 +101,15 @@ func _run() -> void:
 	_game = root.get_node("GameState")
 	_data = root.get_node("GameData")
 
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--out-dir="):
+			_out = argument.trim_prefix("--out-dir=")
+	if not _out.is_empty() and (not _out.is_absolute_path() or DirAccess.make_dir_recursive_absolute(_out) != OK):
+		push_error("Pass a writable absolute --out-dir.")
+		quit(1)
+		return
+	_screens = not _out.is_empty() and DisplayServer.get_name() != "headless"
+
 	var scratch := OS.get_environment("CHRIST_FALLOW_QA_APPDATA").replace("\\", "/").rstrip("/")
 	if scratch.is_empty() or not OS.get_user_data_dir().replace("\\", "/").begins_with(scratch + "/"):
 		push_error("Set APPDATA and CHRIST_FALLOW_QA_APPDATA to an isolated writable directory.")
@@ -126,6 +146,7 @@ func _run() -> void:
 	check(bool(target1["active"]) and int(target1["step"]) == 1 and bool(target1["has_position"]), "Step 1 targets nearest wild wanderer")
 	await frames(2)
 	check(beacon.is_beacon_visible(), "Beacon visible on Step 1")
+	check(beacon.is_pointer_visible(), "Directional ground pointer visible when far from Step 1 target")
 
 	var start_camp: Vector3 = _game.factions[0]["camp_position"]
 	for i in range(3):
@@ -138,7 +159,9 @@ func _run() -> void:
 		_move_leader(pc, wpos + outward * 5.4)
 		await frames(3)
 		if i == 0:
+			check(beacon.is_pointer_visible(), "Directional ground pointer shows at 5.4 m from Step 1 target")
 			check(beacon.get_prompt_text() == "[E] Recruit", "Proximity prompt shows [E] Recruit near wanderer")
+			await screenshot("tutorial_01_step1_recruit_pointer")
 		key(KEY_E)
 		await frames(3)
 
@@ -156,12 +179,21 @@ func _run() -> void:
 	check(hud._active_tab == "BUILD", "B opens Build drawer")
 	var build_drawer: Control = hud._drawer_views["BUILD"]
 	check(build_drawer.get_recommended_building() == "CAMPFIRE" and build_drawer.get_selected_building() == "CAMPFIRE", "BuildDrawer recommends and auto-selects CAMPFIRE on Step 2")
+	check(build_drawer.is_place_action_highlighted(), "BuildDrawer highlights Place Campfire action on Step 2")
 	check(_has_label_containing(build_drawer, "RECOMMENDED"), "BuildDrawer renders RECOMMENDED badge")
+	await screenshot("tutorial_02_step2_build_drawer")
 	press(hud._drawer_content, "Place Campfire")
 	await frames(2)
 	check(pc.is_build_mode and pc.blueprint_type == "CAMPFIRE", "Campfire blueprint mode starts")
+	check(hud._tutorial_body.text.contains("Left-click [LMB]"), "Guide body updates to placement instruction in build mode")
 
 	var vp_size: Vector2 = root.get_visible_rect().size
+	var ghost_motion := InputEventMouseMotion.new()
+	ghost_motion.position = vp_size * Vector2(0.54, 0.45)
+	ghost_motion.global_position = vp_size * Vector2(0.54, 0.45)
+	root.push_input(ghost_motion, true)
+	await frames(2)
+	await screenshot("tutorial_03_step2_campfire_ghost")
 	click_at(vp_size * Vector2(0.54, 0.45))
 	await frames(4)
 	check(bool(_game.factions[0]["is_founded"]) and _game.has_building(0, "CAMPFIRE", true), "Campfire placed and village founded")
@@ -175,7 +207,9 @@ func _run() -> void:
 	var res_pos: Vector3 = target3["position"]
 	_move_leader(pc, res_pos + Vector3(0.0, 0.0, 1.2))
 	await frames(3)
+	check(not beacon.is_pointer_visible(), "Directional ground pointer hides when close to Step 3 target")
 	check(beacon.get_prompt_text() == "[E] Harvest", "Proximity prompt shows [E] Harvest near resource node")
+	await screenshot("tutorial_04_step3_harvest_prompt")
 	var harvest_tries := 0
 	while not _game.tutorial_harvested and harvest_tries < 4:
 		pc._harvest_cd = 0.0
@@ -189,6 +223,8 @@ func _run() -> void:
 	await frames(2)
 	check(hud._active_tab == "COLONY", "C opens Colony drawer")
 	var colony_drawer: Control = hud._drawer_views["COLONY"]
+	check(colony_drawer.has_tutorial_role_highlight(), "ColonyDrawer highlights villager role assignment on Step 3")
+	await screenshot("tutorial_05_step3_colony_role")
 	var role_opt: OptionButton = _find_role_option(colony_drawer)
 	check(role_opt != null, "Colony roster exposes villager role selector")
 	if role_opt != null:
@@ -196,6 +232,7 @@ func _run() -> void:
 		role_opt.select(builder_idx)
 		role_opt.item_selected.emit(builder_idx)
 	await frames(2)
+	check(not colony_drawer.has_tutorial_role_highlight(), "ColonyDrawer clears role highlight after assigning villager role")
 	key(KEY_ESCAPE)
 	await frames(3)
 	check(_game.tutorial_assigned_role and _game.tutorial_step == 4, "Assigning villager role advances tutorial to Step 4")
@@ -213,6 +250,8 @@ func _run() -> void:
 	key(KEY_B)
 	await frames(2)
 	check(build_drawer.get_recommended_building() == "SLEEPING_HUT" and build_drawer.get_selected_building() == "SLEEPING_HUT", "BuildDrawer recommends and auto-selects SLEEPING_HUT on Step 4")
+	check(build_drawer.is_place_action_highlighted(), "BuildDrawer highlights Place Blueprint action on Step 4")
+	await screenshot("tutorial_06_step4_hut_build_drawer")
 	press(hud._drawer_content, "Place Blueprint")
 	await frames(2)
 	check(pc.is_build_mode and pc.blueprint_type == "SLEEPING_HUT", "Sleeping Hut blueprint mode starts")
@@ -248,7 +287,9 @@ func _run() -> void:
 	# Assist construction with [E] until finished
 	_move_leader(pc, hut.global_position + Vector3(0.0, 0.0, 1.8))
 	await frames(3)
+	check(not beacon.is_pointer_visible(), "Directional ground pointer hides when close to Step 4 blueprint")
 	check(beacon.get_prompt_text() == "[E] Help Build", "Proximity prompt shows [E] Help Build near Sleeping Hut blueprint")
+	await screenshot("tutorial_07_step4_hut_assist")
 	var guard_iters := 0
 	while not bool(hut.get("is_constructed")) and guard_iters < 12:
 		pc._harvest_cd = 0.0
@@ -262,6 +303,7 @@ func _run() -> void:
 	await frames(2)
 	check(not beacon.is_beacon_visible(), "Beacon hides on Step 5")
 	check(hud.get_highlighted_hud_tab() == "", "No HUD button highlighted on Step 5")
+	await screenshot("tutorial_08_step5_combat")
 	var res_before: Dictionary = _game.factions[0]["resources"].duplicate()
 	click_at(vp_size * Vector2(0.75, 0.40))
 	await frames(3)

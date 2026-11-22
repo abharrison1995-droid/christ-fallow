@@ -79,9 +79,14 @@ func _check_negotiations() -> void:
 	_check(drawer._selected_faction == 2 and _has_label(drawer, second.unit_name),
 		"Approaching another village selects its live representative")
 	_state.faction_controllers[2].launch_raid_against(0)
+	var player: Node = _state.get_faction_leader(0)
+	var target: Node = player._find_nearest_enemy_unit(25.0)
+	_check(target != null and target.faction_id == 2, "War fills the combat target cache")
 	_press(drawer, "peace")
 	_check(_has_label(drawer, "Truce") and is_equal_approx(_state.get_truce_days(0, 2), 2.0),
 		"Peace establishes a visible two-day truce")
+	target = player._find_nearest_enemy_unit(25.0)
+	_check(target == null or target.faction_id != 2, "Peace immediately invalidates a cached combat target")
 	var hp: float = second.hp
 	second.take_damage(40.0, _state.get_faction_leader(0), 0)
 	_check(is_equal_approx(hp, float(second.hp)) and not _state.set_diplomatic_state(2, 0, GameData.DiplomaticState.AT_WAR),
